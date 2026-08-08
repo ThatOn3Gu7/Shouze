@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+.kotlin/
+
+# Machine-specific Android config (sdk.dir etc.)
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.acside/
+
+# Android build artifacts
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+
+# Keystores (never commit)
+*.jks
+*.keystore
+
+# OS
+.DS_Store

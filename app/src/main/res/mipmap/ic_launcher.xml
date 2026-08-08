@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Legacy (pre-26) launcher icon: full-bleed vector with background, card and play triangle. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Rounded square background -->
+    <path
+        android:fillColor="#3F51B5"
+        android:pathData="M27,0 H81 A27,27 0 0 1 108,27 V81 A27,27 0 0 1 81,108 H27 A27,27 0 0 1 0,81 V27 A27,27 0 0 1 27,0 Z" />
+
+    <!-- White rounded card -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,41 a7,7 0 0 1 7,-7 h14 a7,7 0 0 1 7,7 v14 a7,7 0 0 1 -7,7 h-14 a7,7 0 0 1 -7,-7 z" />
+
+    <!-- Play triangle -->
+    <path
+        android:fillColor="#3F51B5"
+        android:pathData="M48,43 L60,49 L48,55 Z" />
+</vector>
