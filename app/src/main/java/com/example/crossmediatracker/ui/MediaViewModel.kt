@@ -4,6 +4,8 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.crossmediatracker.data.SettingsRepository
+import com.example.crossmediatracker.data.ThemeMode
 import com.example.crossmediatracker.data.local.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -12,46 +14,58 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
-/**
- * UI state exposed to the Compose layer.
- */
 data class HomeUiState(
+    val allItems: List<MediaItemEntity> = emptyList(),
     val items: List<MediaItemEntity> = emptyList(),
-    val filter: MediaType? = null,   // null = ALL
+    val categories: List<CategoryEntity> = emptyList(),
+    val selectedCategoryId: String? = null,
     val searchQuery: String = "",
     val isLoading: Boolean = false,
-    val syncMessage: String? = null, // transient messages about backup/restore
+    val syncMessage: String? = null,
     val error: String? = null
 )
 
-/**
- * Main ViewModel for the tracking screen.
- * Manages local CRUD, filtering, and local .zip backup/restore.
- */
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getInstance(application)
     private val dao = db.mediaDao()
+    private val categoryDao = db.categoryDao()
     private val syncController = DataSyncController(db)
+    private val settingsRepo = SettingsRepository(application)
     private val json = Json { ignoreUnknownKeys = true }
 
-    // Reactive state
+    val settings = settingsRepo.settings
+
+    private val _selectedCategoryId = MutableStateFlow<String?>(null)
+    private val _searchQuery = MutableStateFlow("")
+    private val _isLoading = MutableStateFlow(false)
+    private val _syncMessage = MutableStateFlow<String?>(null)
+    private val _error = MutableStateFlow<String?>(null)
+
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
-        // Combine all items with current filter & search
         viewModelScope.launch {
-            dao.getAllItems().collect { allItems ->
+            combine(
+                dao.getAllItems(),
+                categoryDao.getAll(),
+                _selectedCategoryId,
+                _searchQuery
+            ) { allItems, allCategories, catId, query ->
+                val filtered = filterItems(allItems, catId, query)
                 _uiState.update { current ->
-                    val filtered = filterItems(allItems, current.filter, current.searchQuery)
-                    current.copy(items = filtered)
+                    current.copy(
+                        allItems = allItems,
+                        items = filtered,
+                        categories = allCategories,
+                        selectedCategoryId = catId,
+                        searchQuery = query
+                    )
                 }
-            }
+            }.collect()
         }
     }
-
-    // ----- Local CRUD -----
 
     fun addOrUpdate(item: MediaItemEntity) {
         viewModelScope.launch {
@@ -65,30 +79,45 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ----- Filter & Search -----
-
-    fun setFilter(mediaType: MediaType?) {
-        _uiState.update { it.copy(filter = mediaType) }
+    fun setCategoryFilter(categoryId: String?) {
+        _selectedCategoryId.value = categoryId
     }
 
     fun setSearchQuery(query: String) {
-        _uiState.update { it.copy(searchQuery = query) }
+        _searchQuery.value = query
+    }
+
+    fun addCategory(name: String) {
+        viewModelScope.launch {
+            categoryDao.insert(CategoryEntity(name = name.trim()))
+        }
+    }
+
+    fun deleteCategory(categoryId: String) {
+        viewModelScope.launch {
+            categoryDao.delete(categoryId)
+        }
     }
 
     private fun filterItems(
         all: List<MediaItemEntity>,
-        type: MediaType?,
+        categoryId: String?,
         query: String
     ): List<MediaItemEntity> {
         return all
-            .filter { type == null || it.mediaType == type }
+            .filter { categoryId == null || it.categoryId == categoryId }
             .filter { query.isBlank() || it.title.contains(query, ignoreCase = true) }
     }
 
-    // ----- Local Zip Backup -----
+    fun setThemeMode(mode: ThemeMode) = settingsRepo.setThemeMode(mode)
+    fun setDynamicColor(enabled: Boolean) = settingsRepo.setDynamicColor(enabled)
+    fun setAmoledBlack(enabled: Boolean) = settingsRepo.setAmoledBlack(enabled)
 
     fun backupToLocalZip(uri: Uri) {
         viewModelScope.launch {
+            _isLoading.value = true
+            _syncMessage.value = null
+            _error.value = null
             _uiState.update { it.copy(isLoading = true, syncMessage = null, error = null) }
             try {
                 val result = syncController.exportToJson()
@@ -96,11 +125,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     onSuccess = { jsonString ->
                         val itemCount = try {
                             json.decodeFromString<BackupPayload>(jsonString).itemCount
-                        } catch (_: Exception) {
-                            0
-                        }
-                        val output = getApplication<Application>().contentResolver
-                            .openOutputStream(uri)
+                        } catch (_: Exception) { 0 }
+                        val output = getApplication<Application>().contentResolver.openOutputStream(uri)
                         if (output == null) {
                             showMessage("Failed to open file for writing", isError = true)
                             return@launch
@@ -127,6 +153,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun restoreFromLocalZip(uri: Uri) {
         viewModelScope.launch {
+            _isLoading.value = true
+            _syncMessage.value = null
+            _error.value = null
             _uiState.update { it.copy(isLoading = true, syncMessage = null, error = null) }
             try {
                 val input = getApplication<Application>().contentResolver.openInputStream(uri)
@@ -134,7 +163,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     showMessage("Failed to open backup file", isError = true)
                     return@launch
                 }
-
                 val backupJson = input.use { stream ->
                     var content = ""
                     ZipInputStream(stream).use { zis ->
@@ -149,12 +177,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     content
                 }
-
                 if (backupJson.isBlank()) {
                     showMessage("Invalid backup file: backup.json not found", isError = true)
                     return@launch
                 }
-
                 val importResult = syncController.importFromJson(backupJson)
                 importResult.fold(
                     onSuccess = { count ->
@@ -171,16 +197,20 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearSyncMessage() {
+        _syncMessage.value = null
+        _error.value = null
         _uiState.update { it.copy(syncMessage = null, error = null) }
     }
 
     private fun showMessage(message: String, isError: Boolean = false) {
-        _uiState.update {
-            if (isError) {
-                it.copy(isLoading = false, error = message, syncMessage = null)
-            } else {
-                it.copy(isLoading = false, syncMessage = message, error = null)
-            }
+        _isLoading.value = false
+        if (isError) {
+            _error.value = message
+            _syncMessage.value = null
+        } else {
+            _syncMessage.value = message
+            _error.value = null
         }
+        _uiState.update { it.copy(isLoading = false, syncMessage = if (isError) null else message, error = if (isError) message else null) }
     }
 }

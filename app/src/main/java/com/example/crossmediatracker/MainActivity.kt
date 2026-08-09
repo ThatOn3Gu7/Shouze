@@ -14,21 +14,23 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.crossmediatracker.ui.MediaViewModel
 import com.example.crossmediatracker.ui.components.DetailEditDialog
+import com.example.crossmediatracker.ui.screens.DetailScreen
 import com.example.crossmediatracker.ui.screens.HomeScreen
+import com.example.crossmediatracker.ui.screens.SettingsScreen
 import com.example.crossmediatracker.ui.theme.MediaTrackerTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Edge‑to‑edge rendering
         enableEdgeToEdge()
 
         setContent {
-            MediaTrackerTheme {
-                val viewModel: MediaViewModel = viewModel()
-                val uiState by viewModel.uiState.collectAsState()
-                val navController = rememberNavController()
+            val viewModel: MediaViewModel = viewModel()
+            val uiState by viewModel.uiState.collectAsState()
+            val settings by viewModel.settings.collectAsState()
+            val navController = rememberNavController()
 
+            MediaTrackerTheme(settings = settings) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     NavHost(
                         navController = navController,
@@ -39,28 +41,65 @@ class MainActivity : ComponentActivity() {
                                 uiState = uiState,
                                 onAddClick = { navController.navigate("edit?itemId=null") },
                                 onItemClick = { item ->
-                                    navController.navigate("edit?itemId=${item.id}")
+                                    navController.navigate("detail/${item.id}")
                                 },
-                                onFilterSelected = viewModel::setFilter,
+                                onCategorySelected = viewModel::setCategoryFilter,
                                 onSearchQueryChange = viewModel::setSearchQuery,
                                 onBackup = viewModel::backupToLocalZip,
                                 onRestore = viewModel::restoreFromLocalZip,
-                                onClearMessage = viewModel::clearSyncMessage
+                                onClearMessage = viewModel::clearSyncMessage,
+                                onSettingsClick = { navController.navigate("settings") },
+                                onAddCategory = viewModel::addCategory,
+                                onDeleteCategory = viewModel::deleteCategory
                             )
                         }
+
+                        composable("detail/{itemId}") { backStackEntry ->
+                            val itemId = backStackEntry.arguments?.getString("itemId")
+                            val item = uiState.allItems.find { it.id == itemId }
+
+                            if (item != null) {
+                                val category = uiState.categories.find { it.id == item.categoryId }
+                                DetailScreen(
+                                    item = item,
+                                    category = category,
+                                    onBack = { navController.popBackStack() },
+                                    onEdit = { navController.navigate("edit?itemId=${item.id}") },
+                                    onDelete = {
+                                        viewModel.deleteItem(item.id)
+                                        navController.popBackStack()
+                                    }
+                                )
+                            }
+                        }
+
                         composable("edit?itemId={itemId}") { backStackEntry ->
                             val itemId = backStackEntry.arguments?.getString("itemId")
                             val item = if (itemId == null || itemId == "null") {
                                 null
                             } else {
-                                uiState.items.find { it.id == itemId }
+                                uiState.allItems.find { it.id == itemId }
                             }
 
                             DetailEditDialog(
                                 item = item,
+                                categories = uiState.categories,
                                 onDismiss = { navController.popBackStack() },
                                 onSave = viewModel::addOrUpdate,
-                                onDelete = viewModel::deleteItem
+                                onDelete = {
+                                    viewModel.deleteItem(it)
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
+                        composable("settings") {
+                            SettingsScreen(
+                                settings = settings,
+                                onBack = { navController.popBackStack() },
+                                onThemeModeChange = viewModel::setThemeMode,
+                                onDynamicColorChange = viewModel::setDynamicColor,
+                                onAmoledBlackChange = viewModel::setAmoledBlack
                             )
                         }
                     }

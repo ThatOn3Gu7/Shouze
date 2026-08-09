@@ -19,14 +19,15 @@ import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.MovieFilter
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import com.example.crossmediatracker.data.local.MediaItemEntity
-import com.example.crossmediatracker.data.local.MediaType
 import com.example.crossmediatracker.ui.HomeUiState
 import com.example.crossmediatracker.ui.components.MediaCardItem
 import java.text.SimpleDateFormat
@@ -39,25 +40,25 @@ fun HomeScreen(
     uiState: HomeUiState,
     onAddClick: () -> Unit,
     onItemClick: (MediaItemEntity) -> Unit,
-    onFilterSelected: (MediaType?) -> Unit,
+    onCategorySelected: (String?) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onBackup: (Uri) -> Unit,
     onRestore: (Uri) -> Unit,
-    onClearMessage: () -> Unit
+    onClearMessage: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onAddCategory: (String) -> Unit,
+    onDeleteCategory: (String) -> Unit
 ) {
     var pendingRestoreUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var showAddCategory by remember { mutableStateOf(false) }
 
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip")
-    ) { uri ->
-        uri?.let(onBackup)
-    }
+    ) { uri -> uri?.let(onBackup) }
 
     val restoreLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        pendingRestoreUri = uri
-    }
+    ) { uri -> pendingRestoreUri = uri }
 
     fun launchBackup() {
         val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
@@ -66,23 +67,25 @@ fun HomeScreen(
 
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
+    val configuration = LocalConfiguration.current
+    val isCompactWidth = configuration.screenWidthDp < 600
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Media Tracker") },
                 actions = {
-                    IconButton(
-                        onClick = ::launchBackup,
-                        enabled = !uiState.isLoading
-                    ) {
-                        Icon(Icons.Filled.CloudUpload, contentDescription = "Backup to Local Zip")
+                    IconButton(onClick = ::launchBackup, enabled = !uiState.isLoading) {
+                        Icon(Icons.Filled.CloudUpload, contentDescription = "Backup")
                     }
                     IconButton(
                         onClick = { restoreLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) },
                         enabled = !uiState.isLoading
                     ) {
-                        Icon(Icons.Filled.CloudDownload, contentDescription = "Restore from Local Zip")
+                        Icon(Icons.Filled.CloudDownload, contentDescription = "Restore")
+                    }
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }
                 }
             )
@@ -91,7 +94,9 @@ fun HomeScreen(
             ExtendedFloatingActionButton(
                 onClick = onAddClick,
                 icon = { Icon(Icons.Filled.Add, contentDescription = "Add item") },
-                text = { Text("Add Media") }
+                text = { Text("Add Media") },
+                modifier = if (isCompactWidth) Modifier.fillMaxWidth(0.9f) else Modifier.widthIn(min = 160.dp),
+                expanded = true
             )
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -108,16 +113,31 @@ fun HomeScreen(
                 singleLine = true
             )
 
-            TabRow(selectedTabIndex = uiState.filter.ordinalOrZero()) {
-                val tabs = listOf(null, MediaType.TV_SERIES, MediaType.ANIME, MediaType.NOVEL)
-                val tabNames = listOf("All", "TV Series", "Anime", "Novels")
-                tabs.forEachIndexed { index, type ->
+            val selectedIndex = uiState.categories.indexOfFirst { it.id == uiState.selectedCategoryId }
+                .let { if (it == -1) 0 else it + 1 }
+
+            ScrollableTabRow(
+                selectedTabIndex = selectedIndex,
+                edgePadding = 16.dp
+            ) {
+                Tab(
+                    selected = uiState.selectedCategoryId == null,
+                    onClick = { onCategorySelected(null) },
+                    text = { Text("All") }
+                )
+                uiState.categories.forEach { category ->
                     Tab(
-                        selected = uiState.filter == type,
-                        onClick = { onFilterSelected(type) },
-                        text = { Text(tabNames[index]) }
+                        selected = uiState.selectedCategoryId == category.id,
+                        onClick = { onCategorySelected(category.id) },
+                        text = { Text(category.name) }
                     )
                 }
+                Tab(
+                    selected = false,
+                    onClick = { showAddCategory = true },
+                    icon = { Icon(Icons.Filled.Add, contentDescription = "Add category") },
+                    text = { Text("New") }
+                )
             }
 
             if (uiState.isLoading) {
@@ -132,16 +152,8 @@ fun HomeScreen(
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
-                val snackbarColor = if (isError) {
-                    MaterialTheme.colorScheme.errorContainer
-                } else {
-                    MaterialTheme.colorScheme.inverseSurface
-                }
-                val snackbarContent = if (isError) {
-                    MaterialTheme.colorScheme.onErrorContainer
-                } else {
-                    MaterialTheme.colorScheme.inverseOnSurface
-                }
+                val snackbarColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.inverseSurface
+                val snackbarContent = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.inverseOnSurface
                 Snackbar(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     containerColor = snackbarColor,
@@ -166,7 +178,7 @@ fun HomeScreen(
 
             if (uiState.items.isEmpty() && !uiState.isLoading) {
                 EmptyState(
-                    hasSearchOrFilter = uiState.searchQuery.isNotBlank() || uiState.filter != null,
+                    hasSearchOrFilter = uiState.searchQuery.isNotBlank() || uiState.selectedCategoryId != null,
                     onAddClick = onAddClick,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -179,8 +191,10 @@ fun HomeScreen(
                         items = uiState.items,
                         key = { it.id }
                     ) { item ->
+                        val categoryName = uiState.categories.find { it.id == item.categoryId }?.name ?: "Unknown"
                         MediaCardItem(
                             item = item,
+                            categoryName = categoryName,
                             onClick = { onItemClick(item) },
                             modifier = Modifier.animateItem()
                         )
@@ -195,24 +209,59 @@ fun HomeScreen(
             onDismissRequest = { pendingRestoreUri = null },
             icon = { Icon(Icons.Filled.CloudDownload, contentDescription = null) },
             title = { Text("Restore backup?") },
-            text = {
-                Text("This will replace all current data with the backup's contents. This cannot be undone.")
-            },
+            text = { Text("This will replace all current data with the backup's contents. This cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
                     pendingRestoreUri?.let(onRestore)
                     pendingRestoreUri = null
-                }) {
-                    Text("Restore")
-                }
+                }) { Text("Restore") }
             },
             dismissButton = {
-                TextButton(onClick = { pendingRestoreUri = null }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { pendingRestoreUri = null }) { Text("Cancel") }
             }
         )
     }
+
+    if (showAddCategory) {
+        AddCategoryDialog(
+            onDismiss = { showAddCategory = false },
+            onConfirm = { name ->
+                onAddCategory(name)
+                showAddCategory = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun AddCategoryDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    val isValid = name.isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New Category") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Category name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(name.trim()) }, enabled = isValid) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable
@@ -255,5 +304,3 @@ private fun EmptyState(
         }
     }
 }
-
-private fun MediaType?.ordinalOrZero(): Int = this?.ordinal?.plus(1) ?: 0

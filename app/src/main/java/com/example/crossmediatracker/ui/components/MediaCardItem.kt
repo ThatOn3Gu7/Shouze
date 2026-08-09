@@ -17,12 +17,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.crossmediatracker.data.local.MediaItemEntity
-import com.example.crossmediatracker.data.local.MediaType
 import com.example.crossmediatracker.data.local.Status
 
 @Composable
 fun MediaCardItem(
     item: MediaItemEntity,
+    categoryName: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -49,7 +49,7 @@ fun MediaCardItem(
                 )
                 Spacer(modifier = Modifier.height(3.dp))
                 Text(
-                    text = buildSubtitle(item),
+                    text = buildSubtitle(item, categoryName),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -170,21 +170,16 @@ private fun RatingBar(rating: Double, modifier: Modifier = Modifier) {
     }
 }
 
-private fun buildSubtitle(item: MediaItemEntity): String {
-    val typeLabel = when (item.mediaType) {
-        MediaType.TV_SERIES -> "TV Series"
-        MediaType.ANIME -> "Anime"
-        MediaType.NOVEL -> "Novel"
-    }
+private fun buildSubtitle(item: MediaItemEntity, categoryName: String): String {
     val progressLabel = if (item.totalCount > 0) {
         "${item.currentProgress}/${item.totalCount}"
     } else {
         "${item.currentProgress}/ongoing"
     }
-    val volumeLabel = if (item.currentVolume != null && item.mediaType == MediaType.NOVEL) {
+    val volumeLabel = if (item.currentVolume != null) {
         " · Vol.${item.currentVolume}"
     } else {
         ""
     }
-    return "$typeLabel · $progressLabel$volumeLabel"
+    return "$categoryName · $progressLabel$volumeLabel"
 }

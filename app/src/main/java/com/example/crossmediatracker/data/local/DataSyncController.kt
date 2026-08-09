@@ -10,7 +10,8 @@ import kotlinx.serialization.decodeFromString
 data class MediaItemExport(
     val id: String,
     val title: String,
-    val mediaType: String,
+    val categoryId: String? = null,
+    val mediaType: String? = null,
     val status: String,
     val currentProgress: Int,
     val totalCount: Int,
@@ -21,11 +22,20 @@ data class MediaItemExport(
 )
 
 @Serializable
+data class CategoryExport(
+    val id: String,
+    val name: String,
+    val colorHex: String? = null,
+    val createdAt: Long
+)
+
+@Serializable
 data class BackupPayload(
-    val version: Int = 1,
+    val version: Int = 2,
     val exportedAt: Long = System.currentTimeMillis(),
     val itemCount: Int = 0,
-    val items: List<MediaItemExport> = emptyList()
+    val items: List<MediaItemExport> = emptyList(),
+    val categories: List<CategoryExport> = emptyList()
 )
 
 class DataSyncController(private val db: AppDatabase) {
@@ -35,18 +45,16 @@ class DataSyncController(private val db: AppDatabase) {
         prettyPrint = false
     }
 
-    /**
-     * Serializes the whole library to a single JSON string.
-     * The payload is wrapped in a [BackupPayload] with metadata so that
-     * the contents of a backup can be inspected before restoring.
-     */
     suspend fun exportToJson(): Result<String> {
         return try {
             val snapshot = db.mediaDao().getAllItemsSnapshot()
+            val categorySnapshot = db.categoryDao().getAllSnapshot()
             val exports = snapshot.map { it.toExport() }
+            val catExports = categorySnapshot.map { it.toExport() }
             val payload = BackupPayload(
                 itemCount = exports.size,
-                items = exports
+                items = exports,
+                categories = catExports
             )
             Result.success(json.encodeToString(payload))
         } catch (e: Exception) {
@@ -54,22 +62,22 @@ class DataSyncController(private val db: AppDatabase) {
         }
     }
 
-    /**
-     * Replaces the entire library with the contents of a backup.
-     * Returns the number of items restored, or a failure if the file is corrupt.
-     */
     suspend fun importFromJson(jsonString: String): Result<Int> {
         return try {
             val payload = json.decodeFromString<BackupPayload>(jsonString)
-            if (payload.version != 1) {
+            if (payload.version != 1 && payload.version != 2) {
                 return Result.failure(IllegalArgumentException("Unsupported backup version ${payload.version}"))
             }
             if (payload.items.isEmpty()) {
                 return Result.failure(IllegalArgumentException("Backup contains no media items"))
             }
-            // Transaction to ensure data consistency — either fully restored or fully rolled back.
             db.withTransaction {
                 db.mediaDao().clearAll()
+                db.categoryDao().clearAll()
+
+                payload.categories.forEach { export ->
+                    db.categoryDao().insertOrUpdate(export.toEntity())
+                }
                 payload.items.forEach { export ->
                     db.mediaDao().insertOrUpdate(export.toEntity())
                 }
@@ -84,7 +92,7 @@ class DataSyncController(private val db: AppDatabase) {
 private fun MediaItemEntity.toExport() = MediaItemExport(
     id = id,
     title = title,
-    mediaType = mediaType.name,
+    categoryId = categoryId,
     status = status.name,
     currentProgress = currentProgress,
     totalCount = totalCount,
@@ -95,21 +103,17 @@ private fun MediaItemEntity.toExport() = MediaItemExport(
 )
 
 private fun MediaItemExport.toEntity(): MediaItemEntity {
-    val mediaType = try {
-        MediaType.valueOf(mediaType)
-    } catch (_: IllegalArgumentException) {
-        MediaType.TV_SERIES
-    }
-    val status = try {
+    val statusEnum = try {
         Status.valueOf(status)
     } catch (_: IllegalArgumentException) {
         Status.PLAN_TO_WATCH
     }
+    val catId = categoryId ?: mediaType ?: "TV_SERIES"
     return MediaItemEntity(
         id = id,
         title = title,
-        mediaType = mediaType,
-        status = status,
+        categoryId = catId,
+        status = statusEnum,
         currentProgress = currentProgress,
         totalCount = totalCount,
         currentVolume = currentVolume,
@@ -118,3 +122,17 @@ private fun MediaItemExport.toEntity(): MediaItemEntity {
         lastUpdated = lastUpdated
     )
 }
+
+private fun CategoryEntity.toExport() = CategoryExport(
+    id = id,
+    name = name,
+    colorHex = colorHex,
+    createdAt = createdAt
+)
+
+private fun CategoryExport.toEntity() = CategoryEntity(
+    id = id,
+    name = name,
+    colorHex = colorHex,
+    createdAt = createdAt
+)

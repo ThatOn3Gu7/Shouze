@@ -10,26 +10,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.crossmediatracker.data.local.CategoryEntity
 import com.example.crossmediatracker.data.local.MediaItemEntity
-import com.example.crossmediatracker.data.local.MediaType
 import com.example.crossmediatracker.data.local.Status
 import java.util.UUID
 
-/**
- * Material 3 full‑screen dialog for adding/editing an item.
- * Supports all fields, progress increment, and deletion.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailEditDialog(
-    item: MediaItemEntity?,   // null = creating a new item
+    item: MediaItemEntity?,
+    categories: List<CategoryEntity>,
     onDismiss: () -> Unit,
     onSave: (MediaItemEntity) -> Unit,
     onDelete: (String) -> Unit
 ) {
-    // Editable state
     var title by remember { mutableStateOf(item?.title ?: "") }
-    var mediaType by remember { mutableStateOf(item?.mediaType ?: MediaType.TV_SERIES) }
+    var categoryId by remember {
+        mutableStateOf(item?.categoryId ?: categories.firstOrNull()?.id ?: "")
+    }
     var status by remember { mutableStateOf(item?.status ?: Status.PLAN_TO_WATCH) }
     var currentProgress by remember { mutableStateOf(item?.currentProgress?.toString() ?: "0") }
     var totalCount by remember { mutableStateOf(item?.totalCount?.toString() ?: "1") }
@@ -37,13 +35,16 @@ fun DetailEditDialog(
     var rating by remember { mutableStateOf(item?.rating?.toString() ?: "0.0") }
     var coverImageUri by remember { mutableStateOf(item?.coverImageUri ?: "") }
 
-    // Parsed values (0 total = ongoing / unknown length)
     val isTitleValid = title.isNotBlank()
     val progressInt = currentProgress.toIntOrNull()?.coerceAtLeast(0) ?: 0
     val totalInt = totalCount.toIntOrNull()?.coerceAtLeast(0) ?: 0
     val clampedProgress = if (totalInt > 0) progressInt.coerceIn(0, totalInt) else progressInt
 
-    val unitLabel = if (mediaType == MediaType.NOVEL) "Chapter" else "Episode"
+    val selectedCategory = categories.find { it.id == categoryId }
+    val isLiterature = selectedCategory?.name?.contains("novel", ignoreCase = true) == true
+            || selectedCategory?.name?.contains("book", ignoreCase = true) == true
+            || selectedCategory?.name?.contains("manga", ignoreCase = true) == true
+    val unitLabel = if (isLiterature) "Chapter" else "Episode"
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -68,35 +69,32 @@ fun DetailEditDialog(
                     onValueChange = { title = it },
                     label = { Text("Title") },
                     isError = !isTitleValid,
-                    supportingText = if (isTitleValid) null else {
-                        { Text("Title is required") }
-                    },
+                    supportingText = if (isTitleValid) null else { { Text("Title is required") } },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Media type dropdown
-                var expandedMedia by remember { mutableStateOf(false) }
+                var expandedCat by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(
-                    expanded = expandedMedia,
-                    onExpandedChange = { expandedMedia = it }
+                    expanded = expandedCat,
+                    onExpandedChange = { expandedCat = it }
                 ) {
                     OutlinedTextField(
-                        value = mediaType.name,
+                        value = categories.find { it.id == categoryId }?.name ?: "",
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Media Type") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMedia) },
+                        label = { Text("Category") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCat) },
                         modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
                     )
-                    ExposedDropdownMenu(expanded = expandedMedia, onDismissRequest = { expandedMedia = false }) {
-                        MediaType.entries.forEach { type ->
+                    ExposedDropdownMenu(expanded = expandedCat, onDismissRequest = { expandedCat = false }) {
+                        categories.forEach { cat ->
                             DropdownMenuItem(
-                                text = { Text(type.name.replace("_", " ")) },
+                                text = { Text(cat.name) },
                                 onClick = {
-                                    mediaType = type
-                                    expandedMedia = false
+                                    categoryId = cat.id
+                                    expandedCat = false
                                 }
                             )
                         }
@@ -104,7 +102,6 @@ fun DetailEditDialog(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Status dropdown
                 var expandedStatus by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(
                     expanded = expandedStatus,
@@ -150,7 +147,7 @@ fun DetailEditDialog(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
 
-                if (mediaType == MediaType.NOVEL) {
+                if (isLiterature) {
                     OutlinedTextField(
                         value = currentVolume,
                         onValueChange = { currentVolume = it },
@@ -178,9 +175,7 @@ fun DetailEditDialog(
                 )
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Action buttons
                 if (item != null) {
-                    // Quick progress increment — updates local state so Save persists it once
                     OutlinedButton(
                         onClick = {
                             val next = progressInt + 1
@@ -217,7 +212,7 @@ fun DetailEditDialog(
                             val newItem = MediaItemEntity(
                                 id = item?.id ?: UUID.randomUUID().toString(),
                                 title = title.trim(),
-                                mediaType = mediaType,
+                                categoryId = categoryId,
                                 status = status,
                                 currentProgress = clampedProgress,
                                 totalCount = totalInt,
@@ -229,7 +224,7 @@ fun DetailEditDialog(
                             onSave(newItem)
                             onDismiss()
                         },
-                        enabled = isTitleValid
+                        enabled = isTitleValid && categoryId.isNotBlank()
                     ) {
                         Text("Save")
                     }
