@@ -14,6 +14,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MediaTracker"
+rootProject.name = "Shouze"
 
 include(":app")

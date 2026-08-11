@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.crossmediatracker"
+    namespace = "com.app.shouze"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.crossmediatracker"
+        applicationId = "com.app.shouze"
         minSdk = 24
         targetSdk = 36
         versionCode = 2
@@ -67,6 +67,9 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.animation)
+    implementation("androidx.compose.foundation:foundation")
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
