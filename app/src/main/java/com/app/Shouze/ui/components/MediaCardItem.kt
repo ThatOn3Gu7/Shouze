@@ -1,4 +1,4 @@
-package com.example.crossmediatracker.ui.components
+package com.app.shouze.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -16,8 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.crossmediatracker.data.local.MediaItemEntity
-import com.example.crossmediatracker.data.local.Status
+import com.app.shouze.data.local.MediaItemEntity
+import com.app.shouze.data.local.Status
 
 @Composable
 fun MediaCardItem(

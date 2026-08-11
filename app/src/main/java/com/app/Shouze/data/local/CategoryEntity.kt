@@ -1,4 +1,4 @@
-package com.example.crossmediatracker.data.local
+package com.app.shouze.data.local
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey

@@ -1,4 +1,4 @@
-package com.example.crossmediatracker.ui.theme
+package com.app.shouze.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -6,8 +6,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import com.example.crossmediatracker.data.AppSettings
-import com.example.crossmediatracker.data.ThemeMode
+import com.app.shouze.data.AppSettings
+import com.app.shouze.data.ThemeMode
 
 @Composable
 fun MediaTrackerTheme(
