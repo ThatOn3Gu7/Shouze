@@ -1,4 +1,4 @@
-package com.example.crossmediatracker
+package com.app.shouze
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -12,12 +12,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.crossmediatracker.ui.MediaViewModel
-import com.example.crossmediatracker.ui.components.DetailEditDialog
-import com.example.crossmediatracker.ui.screens.DetailScreen
-import com.example.crossmediatracker.ui.screens.HomeScreen
-import com.example.crossmediatracker.ui.screens.SettingsScreen
-import com.example.crossmediatracker.ui.theme.MediaTrackerTheme
+import com.app.shouze.ui.MediaViewModel
+import com.app.shouze.ui.components.DetailEditDialog
+import com.app.shouze.ui.screens.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,12 +27,26 @@ class MainActivity : ComponentActivity() {
             val settings by viewModel.settings.collectAsState()
             val navController = rememberNavController()
 
-            MediaTrackerTheme(settings = settings) {
+            com.app.shouze.ui.theme.MediaTrackerTheme(settings = settings) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     NavHost(
                         navController = navController,
-                        startDestination = "home"
+                        startDestination = if (settings.hasSeenOnboarding) "home" else "onboarding"
                     ) {
+                        composable("onboarding") {
+                            OnboardingScreen(
+                                onGetStarted = {
+                                    viewModel.setHasSeenOnboarding(true)
+                                    navController.navigate("home") {
+                                        popUpTo("onboarding") { inclusive = true }
+                                    }
+                                },
+                                onNotNow = {
+                                    finish()
+                                }
+                            )
+                        }
+
                         composable("home") {
                             HomeScreen(
                                 uiState = uiState,
@@ -45,12 +56,8 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onCategorySelected = viewModel::setCategoryFilter,
                                 onSearchQueryChange = viewModel::setSearchQuery,
-                                onBackup = viewModel::backupToLocalZip,
-                                onRestore = viewModel::restoreFromLocalZip,
                                 onClearMessage = viewModel::clearSyncMessage,
-                                onSettingsClick = { navController.navigate("settings") },
-                                onAddCategory = viewModel::addCategory,
-                                onDeleteCategory = viewModel::deleteCategory
+                                onSettingsClick = { navController.navigate("settings") }
                             )
                         }
 
@@ -95,11 +102,44 @@ class MainActivity : ComponentActivity() {
 
                         composable("settings") {
                             SettingsScreen(
+                                onBack = { navController.popBackStack() },
+                                onNavigateToAppearance = { navController.navigate("appearance") },
+                                onNavigateToCategories = { navController.navigate("categories") },
+                                onNavigateToBackup = { navController.navigate("backup") },
+                                onNavigateToAbout = { navController.navigate("about") }
+                            )
+                        }
+
+                        composable("appearance") {
+                            AppearanceScreen(
                                 settings = settings,
                                 onBack = { navController.popBackStack() },
                                 onThemeModeChange = viewModel::setThemeMode,
                                 onDynamicColorChange = viewModel::setDynamicColor,
                                 onAmoledBlackChange = viewModel::setAmoledBlack
+                            )
+                        }
+
+                        composable("categories") {
+                            CategoriesScreen(
+                                categories = uiState.categories,
+                                onBack = { navController.popBackStack() },
+                                onAddCategory = viewModel::addCategory,
+                                onDeleteCategory = viewModel::deleteCategory
+                            )
+                        }
+
+                        composable("backup") {
+                            BackupScreen(
+                                onBack = { navController.popBackStack() },
+                                onBackup = viewModel::backupToLocalZip,
+                                onRestore = viewModel::restoreFromLocalZip
+                            )
+                        }
+
+                        composable("about") {
+                            AboutScreen(
+                                onBack = { navController.popBackStack() }
                             )
                         }
                     }

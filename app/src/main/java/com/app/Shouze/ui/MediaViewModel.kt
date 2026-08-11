@@ -1,12 +1,12 @@
-package com.example.crossmediatracker.ui
+package com.app.shouze.ui
 
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.crossmediatracker.data.SettingsRepository
-import com.example.crossmediatracker.data.ThemeMode
-import com.example.crossmediatracker.data.local.*
+import com.app.shouze.data.SettingsRepository
+import com.app.shouze.data.ThemeMode
+import com.app.shouze.data.local.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -112,6 +112,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun setThemeMode(mode: ThemeMode) = settingsRepo.setThemeMode(mode)
     fun setDynamicColor(enabled: Boolean) = settingsRepo.setDynamicColor(enabled)
     fun setAmoledBlack(enabled: Boolean) = settingsRepo.setAmoledBlack(enabled)
+    fun setHasSeenOnboarding(seen: Boolean) = settingsRepo.setHasSeenOnboarding(seen)
 
     fun backupToLocalZip(uri: Uri) {
         viewModelScope.launch {

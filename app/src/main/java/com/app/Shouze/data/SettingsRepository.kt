@@ -1,4 +1,4 @@
-package com.example.crossmediatracker.data
+package com.app.shouze.data
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -11,7 +11,8 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val useDynamicColor: Boolean = true,
-    val amoledBlack: Boolean = false
+    val amoledBlack: Boolean = false,
+    val hasSeenOnboarding: Boolean = false
 )
 
 class SettingsRepository(context: Context) {
@@ -36,6 +37,11 @@ class SettingsRepository(context: Context) {
         _settings.value = loadSettings()
     }
 
+    fun setHasSeenOnboarding(seen: Boolean) {
+        prefs.edit().putBoolean("has_seen_onboarding", seen).apply()
+        _settings.value = loadSettings()
+    }
+
     private fun loadSettings(): AppSettings {
         val themeName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name)
             ?: ThemeMode.SYSTEM.name
@@ -46,7 +52,8 @@ class SettingsRepository(context: Context) {
                 ThemeMode.SYSTEM
             },
             useDynamicColor = prefs.getBoolean("dynamic_color", true),
-            amoledBlack = prefs.getBoolean("amoled_black", false)
+            amoledBlack = prefs.getBoolean("amoled_black", false),
+            hasSeenOnboarding = prefs.getBoolean("has_seen_onboarding", false)
         )
     }
 }
