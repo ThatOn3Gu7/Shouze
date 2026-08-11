@@ -1,8 +1,10 @@
-package com.example.crossmediatracker.ui.screens
+package com.app.shouze.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -11,12 +13,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.example.crossmediatracker.data.AppSettings
-import com.example.crossmediatracker.data.ThemeMode
+import com.app.shouze.data.AppSettings
+import com.app.shouze.data.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
+fun AppearanceScreen(
     settings: AppSettings,
     onBack: () -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
@@ -26,7 +28,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text("Appearance") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -40,14 +42,8 @@ fun SettingsScreen(
                 .padding(padding)
                 .fillMaxSize()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            Text(
-                text = "Appearance",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Theme", style = MaterialTheme.typography.titleSmall)
