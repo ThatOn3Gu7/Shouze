@@ -1,4 +1,4 @@
-package com.example.crossmediatracker.data.local
+package com.app.shouze.data.local
 
 import androidx.room.withTransaction
 import kotlinx.serialization.Serializable
@@ -18,6 +18,7 @@ data class MediaItemExport(
     val currentVolume: Int?,
     val rating: Double,
     val coverImageUri: String?,
+    val genres: List<String> = emptyList(),
     val lastUpdated: Long
 )
 
@@ -99,6 +100,7 @@ private fun MediaItemEntity.toExport() = MediaItemExport(
     currentVolume = currentVolume,
     rating = rating,
     coverImageUri = coverImageUri,
+    genres = genres,
     lastUpdated = lastUpdated
 )
 
@@ -119,6 +121,7 @@ private fun MediaItemExport.toEntity(): MediaItemEntity {
         currentVolume = currentVolume,
         rating = rating,
         coverImageUri = coverImageUri,
+        genres = genres,
         lastUpdated = lastUpdated
     )
 }

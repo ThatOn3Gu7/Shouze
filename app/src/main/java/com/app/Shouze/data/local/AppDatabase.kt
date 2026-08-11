@@ -1,4 +1,4 @@
-package com.example.crossmediatracker.data.local
+package com.app.shouze.data.local
 
 import android.content.Context
 import androidx.room.Database
@@ -10,9 +10,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [MediaItemEntity::class, CategoryEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun mediaDao(): MediaDao
     abstract fun categoryDao(): CategoryDao
@@ -32,9 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
 
-                db.execSQL("""
-                    ALTER TABLE media_items ADD COLUMN categoryId TEXT NOT NULL DEFAULT 'TV_SERIES'
-                """.trimIndent())
+                db.execSQL("ALTER TABLE media_items ADD COLUMN categoryId TEXT NOT NULL DEFAULT 'TV_SERIES'")
 
                 db.execSQL("""
                     UPDATE media_items SET categoryId = CASE
@@ -51,18 +50,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        fun getInstance(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "media_tracker.db"
-                )
-                .addMigrations(MIGRATION_1_2)
-                .build()
-                INSTANCE = instance
-                instance
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE media_items ADD COLUMN genres TEXT NOT NULL DEFAULT ''")
             }
         }
+
+        fun getInstance(context: Context): AppDatabase {
+    return INSTANCE ?: synchronized(this) {
+        val instance = Room.databaseBuilder(
+            context.applicationContext,
+            AppDatabase::class.java,
+            "media_tracker.db"
+        )
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+        .addCallback(object : RoomDatabase.Callback() {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                super.onCreate(db)
+                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('TV_SERIES', 'TV Series', NULL, 0)")
+                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('ANIME', 'Anime', NULL, 0)")
+                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('NOVEL', 'Novel', NULL, 0)")
+            }
+        })
+        .build()
+        INSTANCE = instance
+        instance
+    }
+}
+
     }
 }

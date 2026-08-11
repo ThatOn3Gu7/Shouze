@@ -1,4 +1,4 @@
-package com.example.crossmediatracker.data.local
+package com.app.shouze.data.local
 
 import androidx.room.*
 import java.util.UUID
@@ -16,5 +16,6 @@ data class MediaItemEntity(
     val currentVolume: Int? = null,
     val rating: Double = 0.0,
     val coverImageUri: String? = null,
+    val genres: List<String> = emptyList(),
     val lastUpdated: Long = System.currentTimeMillis()
 )

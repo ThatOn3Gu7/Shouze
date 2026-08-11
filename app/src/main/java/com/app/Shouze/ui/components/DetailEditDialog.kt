@@ -1,21 +1,28 @@
-package com.example.crossmediatracker.ui.components
+package com.app.shouze.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.example.crossmediatracker.data.local.CategoryEntity
-import com.example.crossmediatracker.data.local.MediaItemEntity
-import com.example.crossmediatracker.data.local.Status
+import androidx.compose.ui.window.DialogProperties
+import com.app.shouze.data.local.CategoryEntity
+import com.app.shouze.data.local.MediaItemEntity
+import com.app.shouze.data.local.Status
 import java.util.UUID
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DetailEditDialog(
     item: MediaItemEntity?,
@@ -34,6 +41,11 @@ fun DetailEditDialog(
     var currentVolume by remember { mutableStateOf(item?.currentVolume?.toString() ?: "") }
     var rating by remember { mutableStateOf(item?.rating?.toString() ?: "0.0") }
     var coverImageUri by remember { mutableStateOf(item?.coverImageUri ?: "") }
+    var genres by remember { mutableStateOf(item?.genres ?: emptyList()) }
+    var newGenre by remember { mutableStateOf("") }
+
+    var showCategoryPicker by remember { mutableStateOf(false) }
+    var showStatusPicker by remember { mutableStateOf(false) }
 
     val isTitleValid = title.isNotBlank()
     val progressInt = currentProgress.toIntOrNull()?.coerceAtLeast(0) ?: 0
@@ -46,16 +58,23 @@ fun DetailEditDialog(
             || selectedCategory?.name?.contains("manga", ignoreCase = true) == true
     val unitLabel = if (isLiterature) "Chapter" else "Episode"
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 12.dp, vertical = 24.dp)
+                .wrapContentHeight(),
             shape = MaterialTheme.shapes.extraLarge
         ) {
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
+                    .padding(20.dp)
                     .verticalScroll(rememberScrollState())
             ) {
                 Text(
@@ -75,57 +94,37 @@ fun DetailEditDialog(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                var expandedCat by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = expandedCat,
-                    onExpandedChange = { expandedCat = it }
-                ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = categories.find { it.id == categoryId }?.name ?: "",
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Category") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCat) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    ExposedDropdownMenu(expanded = expandedCat, onDismissRequest = { expandedCat = false }) {
-                        categories.forEach { cat ->
-                            DropdownMenuItem(
-                                text = { Text(cat.name) },
-                                onClick = {
-                                    categoryId = cat.id
-                                    expandedCat = false
-                                }
-                            )
-                        }
-                    }
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { showCategoryPicker = true }
+                    )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
 
-                var expandedStatus by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = expandedStatus,
-                    onExpandedChange = { expandedStatus = it }
-                ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = status.name.replace("_", " "),
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Status") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedStatus) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    ExposedDropdownMenu(expanded = expandedStatus, onDismissRequest = { expandedStatus = false }) {
-                        Status.entries.forEach { s ->
-                            DropdownMenuItem(
-                                text = { Text(s.name.replace("_", " ")) },
-                                onClick = {
-                                    status = s
-                                    expandedStatus = false
-                                }
-                            )
-                        }
-                    }
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { showStatusPicker = true }
+                    )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -173,6 +172,66 @@ fun DetailEditDialog(
                     label = { Text("Cover Image URI") },
                     modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Genres",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                if (genres.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        genres.forEach { genre ->
+                            InputChip(
+                                selected = false,
+                                onClick = { },
+                                label = { Text(genre) },
+                                trailingIcon = {
+                                    IconButton(
+                                        onClick = { genres = genres - genre },
+                                        modifier = Modifier.size(16.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Remove $genre",
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newGenre,
+                        onValueChange = { newGenre = it },
+                        label = { Text("Add genre") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = {
+                            val trimmed = newGenre.trim()
+                            if (trimmed.isNotBlank() && !genres.any { it.equals(trimmed, ignoreCase = true) }) {
+                                genres = genres + trimmed
+                                newGenre = ""
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add genre")
+                    }
+                }
                 Spacer(modifier = Modifier.height(24.dp))
 
                 if (item != null) {
@@ -219,6 +278,7 @@ fun DetailEditDialog(
                                 currentVolume = currentVolume.toIntOrNull(),
                                 rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
                                 coverImageUri = coverImageUri.ifBlank { null },
+                                genres = genres,
                                 lastUpdated = System.currentTimeMillis()
                             )
                             onSave(newItem)
@@ -231,5 +291,65 @@ fun DetailEditDialog(
                 }
             }
         }
+    }
+
+    if (showCategoryPicker) {
+        AlertDialog(
+            onDismissRequest = { showCategoryPicker = false },
+            title = { Text("Select Category") },
+            text = {
+                Column {
+                    if (categories.isEmpty()) {
+                        Text(
+                            text = "No categories available. Create one in Settings.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        categories.forEach { cat ->
+                            TextButton(
+                                onClick = {
+                                    categoryId = cat.id
+                                    showCategoryPicker = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(cat.name)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showCategoryPicker = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showStatusPicker) {
+        AlertDialog(
+            onDismissRequest = { showStatusPicker = false },
+            title = { Text("Select Status") },
+            text = {
+                Column {
+                    Status.entries.forEach { s ->
+                        TextButton(
+                            onClick = {
+                                status = s
+                                showStatusPicker = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(s.name.replace("_", " "))
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showStatusPicker = false }) { Text("Cancel") }
+            }
+        )
     }
 }

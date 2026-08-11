@@ -1,4 +1,4 @@
-package com.example.crossmediatracker.ui.screens
+package com.app.shouze.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -21,14 +21,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.crossmediatracker.data.local.CategoryEntity
-import com.example.crossmediatracker.data.local.MediaItemEntity
-import com.example.crossmediatracker.data.local.Status
+import com.app.shouze.data.local.CategoryEntity
+import com.app.shouze.data.local.MediaItemEntity
+import com.app.shouze.data.local.Status
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DetailScreen(
     item: MediaItemEntity,
@@ -109,6 +109,23 @@ fun DetailScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+
+            if (item.genres.isNotEmpty()) {
+                DetailInfoCard(title = "Genres") {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        item.genres.forEach { genre ->
+                            SuggestionChip(
+                                onClick = { },
+                                label = { Text(genre) }
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             DetailInfoCard(title = "Progress") {
                 val progressText = if (item.totalCount > 0) {
