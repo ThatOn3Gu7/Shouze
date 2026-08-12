@@ -56,12 +56,18 @@ fun HomeScreen(
             title = { Text("Delete \"${target.title}\"?") },
             text = { Text("This entry will be permanently removed.") },
             confirmButton = {
-                TextButton(onClick = {
-                    onDeleteItem(target)
-                    selectedItem = null
-                    showDeleteConfirm = false
-                }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                Button(
+                    onClick = {
+                        onDeleteItem(target)
+                        selectedItem = null
+                        showDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text("Delete")
                 }
             },
             dismissButton = {
