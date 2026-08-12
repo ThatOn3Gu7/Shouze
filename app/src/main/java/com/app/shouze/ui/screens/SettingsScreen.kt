@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,7 +25,8 @@ fun SettingsScreen(
     onNavigateToAppearance: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToBackup: () -> Unit,
-    onNavigateToAbout: () -> Unit
+    onNavigateToAbout: () -> Unit,
+    onNavigateToStatistics: () -> Unit 
 ) {
     Scaffold(
         topBar = {
@@ -46,6 +48,12 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             SettingsSection(title = "General") {
+              SettingsItem(
+                    title = "Statistics",
+                    subtitle = "View your library insights",
+                    icon = Icons.Default.BarChart,
+                    onClick = onNavigateToStatistics
+                )
                 SettingsItem(
                     title = "Appearance",
                     subtitle = "Theme, colors, display",

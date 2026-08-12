@@ -7,9 +7,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.MovieFilter
@@ -19,7 +22,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.ui.HomeUiState
@@ -34,21 +36,20 @@ fun HomeScreen(
     onCategorySelected: (String?) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearMessage: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onStatisticsClick: () -> Unit
 ) {
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
-    val configuration = LocalConfiguration.current
-    val isCompactWidth = configuration.screenWidthDp < 600
-
-    val selectedIndex = uiState.categories.indexOfFirst { it.id == uiState.selectedCategoryId }
-        .let { if (it == -1) 0 else it + 1 }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Shouze") },
                 actions = {
+                    IconButton(onClick = onStatisticsClick) {
+                        Icon(Icons.Filled.BarChart, contentDescription = "Statistics")
+                    }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }
@@ -59,11 +60,10 @@ fun HomeScreen(
             ExtendedFloatingActionButton(
                 onClick = onAddClick,
                 icon = { Icon(Icons.Filled.Add, contentDescription = "Add item") },
-                text = { Text("Add Media") },
-                modifier = if (isCompactWidth) Modifier.fillMaxWidth(0.9f) else Modifier.widthIn(min = 160.dp),
-                expanded = true
+                text = { Text("Add Media") }
             )
         },
+        floatingActionButtonPosition = FabPosition.End,
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding)) {
@@ -72,26 +72,48 @@ fun HomeScreen(
                 onValueChange = onSearchQueryChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search...") },
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                placeholder = { Text("Search your library...") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                singleLine = true
+                singleLine = true,
+                shape = MaterialTheme.shapes.large
             )
 
-            ScrollableTabRow(
-                selectedTabIndex = selectedIndex,
-                edgePadding = 16.dp
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Tab(
-                    selected = uiState.selectedCategoryId == null,
-                    onClick = { onCategorySelected(null) },
-                    text = { Text("All", style = MaterialTheme.typography.labelMedium) }
-                )
-                uiState.categories.forEach { category ->
-                    Tab(
+                item {
+                    FilterChip(
+                        selected = uiState.selectedCategoryId == null,
+                        onClick = { onCategorySelected(null) },
+                        label = { Text("All") },
+                        leadingIcon = if (uiState.selectedCategoryId == null) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        } else null
+                    )
+                }
+                items(uiState.categories, key = { it.id }) { category ->
+                    FilterChip(
                         selected = uiState.selectedCategoryId == category.id,
                         onClick = { onCategorySelected(category.id) },
-                        text = { Text(category.name, style = MaterialTheme.typography.labelMedium) }
+                        label = { Text(category.name) },
+                        leadingIcon = if (uiState.selectedCategoryId == category.id) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        } else null
                     )
                 }
             }
@@ -111,7 +133,7 @@ fun HomeScreen(
                 val snackbarColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.inverseSurface
                 val snackbarContent = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.inverseOnSurface
                 Snackbar(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     containerColor = snackbarColor,
                     contentColor = snackbarContent,
                     action = {
@@ -192,7 +214,7 @@ private fun EmptyState(
         } else {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Press the + icon below to add your first media entry",
+                text = "Tap the '+' button to add your first entry",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

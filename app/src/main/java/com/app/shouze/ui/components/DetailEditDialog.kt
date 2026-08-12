@@ -17,6 +17,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.graphics.Color
 import com.app.shouze.data.local.CategoryEntity
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
@@ -32,7 +33,7 @@ fun DetailEditDialog(
     onDelete: (String) -> Unit
 ) {
     var title by remember { mutableStateOf(item?.title ?: "") }
-    var categoryId by remember {
+    var categoryId by remember(item?.id) {
         mutableStateOf(item?.categoryId ?: categories.firstOrNull()?.id ?: "")
     }
     var status by remember { mutableStateOf(item?.status ?: Status.PLAN_TO_WATCH) }
@@ -46,6 +47,12 @@ fun DetailEditDialog(
 
     var showCategoryPicker by remember { mutableStateOf(false) }
     var showStatusPicker by remember { mutableStateOf(false) }
+
+    LaunchedEffect(item?.id, categories.size) {
+        if (item == null && categoryId.isBlank() && categories.isNotEmpty()) {
+            categoryId = categories.first().id
+        }
+    }
 
     val isTitleValid = title.isNotBlank()
     val progressInt = currentProgress.toIntOrNull()?.coerceAtLeast(0) ?: 0
@@ -68,9 +75,12 @@ fun DetailEditDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 24.dp)
+                .padding(horizontal = 16.dp, vertical = 24.dp)
                 .wrapContentHeight(),
-            shape = MaterialTheme.shapes.extraLarge
+            shape = MaterialTheme.shapes.extraLarge,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+            )
         ) {
             Column(
                 modifier = Modifier
@@ -90,9 +100,10 @@ fun DetailEditDialog(
                     isError = !isTitleValid,
                     supportingText = if (isTitleValid) null else { { Text("Title is required") } },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
@@ -101,7 +112,8 @@ fun DetailEditDialog(
                         readOnly = true,
                         label = { Text("Category") },
                         trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium
                     )
                     Box(
                         modifier = Modifier
@@ -109,7 +121,7 @@ fun DetailEditDialog(
                             .clickable { showCategoryPicker = true }
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
@@ -118,7 +130,8 @@ fun DetailEditDialog(
                         readOnly = true,
                         label = { Text("Status") },
                         trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium
                     )
                     Box(
                         modifier = Modifier
@@ -126,25 +139,27 @@ fun DetailEditDialog(
                             .clickable { showStatusPicker = true }
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = currentProgress,
                         onValueChange = { currentProgress = it },
                         label = { Text("Progress") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium
                     )
                     OutlinedTextField(
                         value = totalCount,
                         onValueChange = { totalCount = it },
-                        label = { Text("Total (0 = ongoing)") },
+                        label = { Text("Total") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 if (isLiterature) {
                     OutlinedTextField(
@@ -152,9 +167,10 @@ fun DetailEditDialog(
                         onValueChange = { currentVolume = it },
                         label = { Text("Current Volume (optional)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
                 OutlinedTextField(
@@ -162,29 +178,31 @@ fun DetailEditDialog(
                     onValueChange = { rating = it },
                     label = { Text("Rating (0-10)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = coverImageUri,
                     onValueChange = { coverImageUri = it },
                     label = { Text("Cover Image URI") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
                     text = "Genres",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 if (genres.isNotEmpty()) {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         genres.forEach { genre ->
                             InputChip(
@@ -206,69 +224,57 @@ fun DetailEditDialog(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest
                 ) {
-                    OutlinedTextField(
-                        value = newGenre,
-                        onValueChange = { newGenre = it },
-                        label = { Text("Add genre") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(
-                        onClick = {
-                            val trimmed = newGenre.trim()
-                            if (trimmed.isNotBlank() && !genres.any { it.equals(trimmed, ignoreCase = true) }) {
-                                genres = genres + trimmed
-                                newGenre = ""
-                            }
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = newGenre,
+                            onValueChange = { newGenre = it },
+                            placeholder = { Text("Add a genre...") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent
+                            )
+                        )
+                        IconButton(
+                            onClick = {
+                                if (newGenre.isNotBlank() && newGenre !in genres) {
+                                    genres = genres + newGenre.trim()
+                                    newGenre = ""
+                                }
+                            },
+                            enabled = newGenre.isNotBlank()
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add genre")
                         }
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add genre")
                     }
                 }
-                Spacer(modifier = Modifier.height(24.dp))
 
-                if (item != null) {
-                    OutlinedButton(
-                        onClick = {
-                            val next = progressInt + 1
-                            currentProgress = next.toString()
-                            if (totalInt > 0 && next >= totalInt && status != Status.DROPPED) {
-                                status = Status.COMPLETED
-                            }
-                        },
-                        enabled = totalInt == 0 || progressInt < totalInt,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("+1 $unitLabel")
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
                 ) {
-                    if (item != null) {
-                        TextButton(onClick = {
-                            onDelete(item.id)
-                            onDismiss()
-                        }) {
-                            Text("Delete", color = MaterialTheme.colorScheme.error)
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
                     }
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
-                    Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            val newItem = MediaItemEntity(
+                            val finalItem = MediaItemEntity(
                                 id = item?.id ?: UUID.randomUUID().toString(),
                                 title = title.trim(),
                                 categoryId = categoryId,
@@ -277,16 +283,26 @@ fun DetailEditDialog(
                                 totalCount = totalInt,
                                 currentVolume = currentVolume.toIntOrNull(),
                                 rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
-                                coverImageUri = coverImageUri.ifBlank { null },
+                                coverImageUri = coverImageUri.trim().takeIf { it.isNotBlank() },
                                 genres = genres,
                                 lastUpdated = System.currentTimeMillis()
                             )
-                            onSave(newItem)
-                            onDismiss()
+                            onSave(finalItem)
                         },
                         enabled = isTitleValid && categoryId.isNotBlank()
                     ) {
                         Text("Save")
+                    }
+                }
+
+                if (item != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(
+                        onClick = { onDelete(item.id) },
+                        modifier = Modifier.align(Alignment.End),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete Item")
                     }
                 }
             }
@@ -299,30 +315,24 @@ fun DetailEditDialog(
             title = { Text("Select Category") },
             text = {
                 Column {
-                    if (categories.isEmpty()) {
-                        Text(
-                            text = "No categories available. Create one in Settings.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        categories.forEach { cat ->
-                            TextButton(
-                                onClick = {
-                                    categoryId = cat.id
-                                    showCategoryPicker = false
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(cat.name)
-                            }
+                    categories.forEach { cat ->
+                        TextButton(
+                            onClick = {
+                                categoryId = cat.id
+                                showCategoryPicker = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(cat.name)
                         }
                     }
                 }
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showCategoryPicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showCategoryPicker = false }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -348,7 +358,9 @@ fun DetailEditDialog(
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showStatusPicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showStatusPicker = false }) {
+                    Text("Cancel")
+                }
             }
         )
     }

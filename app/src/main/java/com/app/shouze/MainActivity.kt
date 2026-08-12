@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.app.shouze.ui.MediaViewModel
 import com.app.shouze.ui.components.DetailEditDialog
+import com.app.shouze.ui.StatsUiState
 import com.app.shouze.ui.screens.*
 
 class MainActivity : ComponentActivity() {
@@ -25,6 +26,7 @@ class MainActivity : ComponentActivity() {
             val viewModel: MediaViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsState()
             val settings by viewModel.settings.collectAsState()
+            val statsUiState by viewModel.statsUiState.collectAsState()
             val navController = rememberNavController()
 
             com.app.shouze.ui.theme.MediaTrackerTheme(settings = settings) {
@@ -46,7 +48,15 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-
+                        composable("statistics") {
+                            StatisticsScreen(
+                                stats = statsUiState,
+                                onBack = { navController.popBackStack() },
+                                onItemClick = { item ->
+                                    navController.navigate("detail/${item.id}")
+                                }
+                            )
+                        }
                         composable("home") {
                             HomeScreen(
                                 uiState = uiState,
@@ -57,7 +67,8 @@ class MainActivity : ComponentActivity() {
                                 onCategorySelected = viewModel::setCategoryFilter,
                                 onSearchQueryChange = viewModel::setSearchQuery,
                                 onClearMessage = viewModel::clearSyncMessage,
-                                onSettingsClick = { navController.navigate("settings") }
+                                onSettingsClick = { navController.navigate("settings") },
+                                onStatisticsClick = { navController.navigate("statistics") } 
                             )
                         }
 
@@ -92,21 +103,25 @@ class MainActivity : ComponentActivity() {
                                 item = item,
                                 categories = uiState.categories,
                                 onDismiss = { navController.popBackStack() },
-                                onSave = viewModel::addOrUpdate,
+                                onSave = {
+                                    viewModel.addOrUpdate(it)
+                                    navController.popBackStack()
+                                },
                                 onDelete = {
                                     viewModel.deleteItem(it)
                                     navController.popBackStack()
                                 }
                             )
                         }
-
+                      
                         composable("settings") {
                             SettingsScreen(
                                 onBack = { navController.popBackStack() },
                                 onNavigateToAppearance = { navController.navigate("appearance") },
                                 onNavigateToCategories = { navController.navigate("categories") },
                                 onNavigateToBackup = { navController.navigate("backup") },
-                                onNavigateToAbout = { navController.navigate("about") }
+                                onNavigateToAbout = { navController.navigate("about") },
+                                onNavigateToStatistics = { navController.navigate("statistics") }
                             )
                         }
 

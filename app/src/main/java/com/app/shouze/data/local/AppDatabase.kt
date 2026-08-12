@@ -1,12 +1,14 @@
 package com.app.shouze.data.local
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import java.io.File
 
 @Database(
     entities = [MediaItemEntity::class, CategoryEntity::class],
@@ -64,6 +66,17 @@ abstract class AppDatabase : RoomDatabase() {
             "media_tracker.db"
         )
         .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+        .setQueryCorruptionCallback(object : RoomDatabase.QueryCorruptionCallback() {
+            override fun onCorruption(corruptDbIdentifier: String) {
+                Log.e("Shouze", "Database corruption detected: $corruptDbIdentifier; recreating database")
+                INSTANCE?.close()
+                INSTANCE = null
+                runCatching {
+                    listOf(corruptDbIdentifier, "$corruptDbIdentifier-wal", "$corruptDbIdentifier-shm")
+                        .forEach { File(it).delete() }
+                }
+            }
+        })
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)

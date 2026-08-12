@@ -2,11 +2,17 @@ package com.app.shouze.ui
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.shouze.data.SettingsRepository
 import com.app.shouze.data.ThemeMode
 import com.app.shouze.data.local.*
+import com.app.shouze.ui.StatsUiState
+import com.app.shouze.ui.GenreStat
+import com.app.shouze.ui.CategoryStat
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -45,25 +51,49 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    val statsUiState: StateFlow<StatsUiState> = combine(
+        dao.getAllItems(),
+        categoryDao.getAll()
+    ) { items, categories ->
+        try {
+            computeStats(items, categories)
+        } catch (e: Exception) {
+            Log.e("Shouze", "Failed to compute statistics", e)
+            StatsUiState()
+        }
+    }.catch { e ->
+        Log.e("Shouze", "Statistics data flow failed", e)
+        emit(StatsUiState())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsUiState())
+
+
     init {
         viewModelScope.launch {
-            combine(
-                dao.getAllItems(),
-                categoryDao.getAll(),
-                _selectedCategoryId,
-                _searchQuery
-            ) { allItems, allCategories, catId, query ->
-                val filtered = filterItems(allItems, catId, query)
-                _uiState.update { current ->
-                    current.copy(
-                        allItems = allItems,
-                        items = filtered,
-                        categories = allCategories,
-                        selectedCategoryId = catId,
-                        searchQuery = query
-                    )
+            try {
+                combine(
+                    dao.getAllItems(),
+                    categoryDao.getAll(),
+                    _selectedCategoryId,
+                    _searchQuery
+                ) { allItems, allCategories, catId, query ->
+                    val filtered = filterItems(allItems, catId, query)
+                    _uiState.update { current ->
+                        current.copy(
+                            allItems = allItems,
+                            items = filtered,
+                            categories = allCategories,
+                            selectedCategoryId = catId,
+                            searchQuery = query
+                        )
+                    }
+                }.collect()
+            } catch (e: Exception) {
+                Log.e("Shouze", "Failed to load library data", e)
+                _error.value = "Failed to load data: ${e.message}"
+                _uiState.update {
+                    it.copy(error = "Failed to load data: ${e.message}", isLoading = false)
                 }
-            }.collect()
+            }
         }
     }
 
@@ -214,4 +244,75 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
         _uiState.update { it.copy(isLoading = false, syncMessage = if (isError) null else message, error = if (isError) message else null) }
     }
+    private fun computeStats(
+        items: List<MediaItemEntity>,
+        categories: List<CategoryEntity>
+    ): StatsUiState {
+        if (items.isEmpty()) return StatsUiState()
+       
+        val total = items.size
+        val completed = items.count { it.status == Status.COMPLETED }
+        val watching = items.count { it.status == Status.WATCHING }
+        val reading = items.count { it.status == Status.READING }
+        val dropped = items.count { it.status == Status.DROPPED }
+        val planToWatch = items.count { it.status == Status.PLAN_TO_WATCH }
+       
+        val ratedItems = items.filter { it.rating > 0.0 }
+        val avgRating = if (ratedItems.isNotEmpty()) {
+            ratedItems.map { it.rating }.average()
+        } else 0.0
+       
+        val totalProgress = items.sumOf { it.currentProgress }
+       
+        // Genre distribution
+        val genreCounts = mutableMapOf<String, Int>()
+        items.forEach { item ->
+            item.genres.forEach { genre ->
+                genreCounts[genre] = genreCounts.getOrDefault(genre, 0) + 1
+            }
+        }
+        val genreDistribution = genreCounts
+            .map { (genre, count) -> GenreStat(genre, count, count.toFloat() / total) }
+            .sortedByDescending { it.count }
+            .take(8)
+       
+        // Category distribution
+        val categoryCounts = items.groupingBy { it.categoryId }.eachCount()
+        val categoryDistribution = categoryCounts.map { (catId, count) ->
+            val cat = categories.find { it.id == catId }
+            CategoryStat(
+                categoryName = cat?.name ?: "Unknown",
+                count = count,
+                colorHex = cat?.colorHex,
+                percentage = count.toFloat() / total
+            )
+        }.sortedByDescending { it.count }
+       
+        // Top rated (at least 5 items with rating > 0, sorted desc)
+        val topRated = ratedItems
+            .sortedByDescending { it.rating }
+            .take(10)
+       
+        // Recently updated (last 10)
+        val recentlyUpdated = items
+            .sortedByDescending { it.lastUpdated }
+            .take(10)
+       
+        return StatsUiState(
+            totalEntries = total,
+            totalCompleted = completed,
+            totalWatching = watching,
+            totalReading = reading,
+            totalDropped = dropped,
+            totalPlanToWatch = planToWatch,
+            completionRate = completed.toFloat() / total,
+            averageRating = avgRating,
+            totalProgressConsumed = totalProgress,
+            genreDistribution = genreDistribution,
+            categoryDistribution = categoryDistribution,
+            topRatedItems = topRated,
+            recentlyUpdatedItems = recentlyUpdated
+        )
+    }
+
 }

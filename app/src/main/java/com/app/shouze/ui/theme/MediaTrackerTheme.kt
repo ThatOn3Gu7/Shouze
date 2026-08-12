@@ -27,7 +27,13 @@ fun MediaTrackerTheme(
         dynamicColor && !darkTheme -> dynamicLightColorScheme(LocalContext.current)
         darkTheme -> if (settings.amoledBlack) darkColorScheme(
             background = Color.Black,
-            surface = Color.Black
+            surface = Color.Black,
+            surfaceContainerLow = Color(0xFF1C1C1C),
+            surfaceContainerLowest = Color.Black,
+            surfaceContainer = Color(0xFF1C1C1C),
+            surfaceContainerHigh = Color(0xFF2A2A2A),
+            surfaceContainerHighest = Color(0xFF363636),
+            surfaceVariant = Color(0xFF2A2A2A)
         ) else darkColorScheme()
         else -> lightColorScheme()
     }

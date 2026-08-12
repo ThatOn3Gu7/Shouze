@@ -2,9 +2,10 @@ package com.app.shouze.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.StarHalf
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.*
@@ -14,8 +15,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
 
@@ -26,19 +31,26 @@ fun MediaCardItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ElevatedCard(
+    Card(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AvatarCircle(item = item)
-            Spacer(modifier = Modifier.width(14.dp))
+            PosterThumbnail(
+                coverUri = item.coverImageUri,
+                title = item.title,
+                modifier = Modifier.width(68.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.title,
@@ -47,52 +59,72 @@ fun MediaCardItem(
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = buildSubtitle(item, categoryName),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (item.totalCount > 0) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     LinearProgressIndicator(
                         progress = { (item.currentProgress.toFloat() / item.totalCount).coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth(),
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(MaterialTheme.shapes.small),
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
                 if (item.rating > 0.0) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     RatingBar(rating = item.rating)
                 }
             }
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             StatusBadge(status = item.status)
         }
     }
 }
 
 @Composable
-private fun AvatarCircle(item: MediaItemEntity, modifier: Modifier = Modifier) {
-    val hue = (item.title.hashCode() and 0x7fffffff) % 360
-    val color = Color(
-        android.graphics.Color.HSVToColor(
-            floatArrayOf(hue.toFloat(), 0.52f, 0.88f)
+private fun PosterThumbnail(
+    coverUri: String?,
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    Card(
+        modifier = modifier.aspectRatio(2f / 3f),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
         )
-    )
-    Box(
-        modifier = modifier
-            .size(52.dp)
-            .clip(CircleShape)
-            .background(color),
-        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = item.title.firstOrNull()?.uppercase() ?: "?",
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.White
-        )
+        if (!coverUri.isNullOrBlank()) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(coverUri)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Image,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
     }
 }
 
@@ -113,7 +145,7 @@ private fun StatusBadge(status: Status, modifier: Modifier = Modifier) {
             label = "Dropped"
         }
         Status.PLAN_TO_WATCH -> {
-            container = MaterialTheme.colorScheme.surfaceVariant
+            container = MaterialTheme.colorScheme.surfaceContainerHighest
             content = MaterialTheme.colorScheme.onSurfaceVariant
             label = "Plan to Watch"
         }
