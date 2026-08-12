@@ -186,7 +186,8 @@ fun DetailEditDialog(
                 OutlinedTextField(
                     value = coverImageUri,
                     onValueChange = { coverImageUri = it },
-                    label = { Text("Cover Image URI") },
+                    label = { Text("Cover Image URL") },
+                    supportingText = { Text("Direct image link only (ends in .jpg, .png, .webp). Webpages won't work.") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.medium
                 )

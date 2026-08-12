@@ -25,31 +25,38 @@ private val remoteImageCache = object : LruCache<String, Bitmap>(20 * 1024 * 102
     override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
 }
 
+private sealed interface RemoteImageState {
+    data object Loading : RemoteImageState
+    data class Loaded(val bitmap: Bitmap) : RemoteImageState
+    data object Failed : RemoteImageState
+}
+
 @Composable
 fun SafeRemoteImage(
     url: String?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Fit,
-    placeholder: @Composable () -> Unit = {}
+    placeholder: @Composable () -> Unit = {},
+    errorContent: @Composable () -> Unit = placeholder
 ) {
     if (url.isNullOrBlank()) {
         placeholder()
         return
     }
-    val bitmap by produceState<Bitmap?>(initialValue = null, url) {
-        value = loadBitmapCached(url)
+    val state by produceState<RemoteImageState>(initialValue = RemoteImageState.Loading, url) {
+        value = loadBitmapCached(url)?.let { RemoteImageState.Loaded(it) }
+            ?: RemoteImageState.Failed
     }
-    val bmp = bitmap
-    if (bmp == null) {
-        placeholder()
-    } else {
-        Image(
-            bitmap = bmp.asImageBitmap(),
+    when (val current = state) {
+        is RemoteImageState.Loaded -> Image(
+            bitmap = current.bitmap.asImageBitmap(),
             contentDescription = contentDescription,
             modifier = modifier,
             contentScale = contentScale
         )
+        RemoteImageState.Failed -> errorContent()
+        RemoteImageState.Loading -> placeholder()
     }
 }
 

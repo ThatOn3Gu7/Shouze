@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.StarHalf
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
@@ -194,6 +195,26 @@ fun DetailScreen(
 }
 
 @Composable
+private fun BannerPlaceholder(failed: Boolean = false) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+    ) {
+        Icon(
+            imageVector = if (failed) Icons.Filled.BrokenImage else Icons.Filled.Image,
+            contentDescription = if (failed) "Image failed to load" else null,
+            tint = if (failed) {
+                MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+            },
+            modifier = Modifier.align(Alignment.Center).size(80.dp)
+        )
+    }
+}
+
+@Composable
 private fun CoverBanner(
     coverUri: String?,
     title: String,
@@ -214,32 +235,12 @@ private fun CoverBanner(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Image,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                        modifier = Modifier.align(Alignment.Center).size(80.dp)
-                    )
-                }
+                BannerPlaceholder()
+            } errorContent = {
+                BannerPlaceholder(failed = true)
             }
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Image,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                    modifier = Modifier.align(Alignment.Center).size(80.dp)
-                )
-            }
+            BannerPlaceholder()
         }
 
         Box(

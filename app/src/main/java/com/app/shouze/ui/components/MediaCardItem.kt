@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.StarHalf
+import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -105,31 +106,35 @@ private fun PosterThumbnail(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Image,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
+                ImagePlaceholder(iconSize = 28.dp)
+            } errorContent = {
+                ImagePlaceholder(iconSize = 28.dp, failed = true)
             }
         } else {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Image,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.size(28.dp)
-                )
-            }
+            ImagePlaceholder(iconSize = 28.dp)
         }
+    }
+}
+
+@Composable
+private fun ImagePlaceholder(
+    iconSize: androidx.compose.ui.unit.Dp,
+    failed: Boolean = false
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = if (failed) Icons.Filled.BrokenImage else Icons.Filled.Image,
+            contentDescription = if (failed) "Image failed to load" else null,
+            tint = if (failed) {
+                MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            },
+            modifier = Modifier.size(iconSize)
+        )
     }
 }
 
