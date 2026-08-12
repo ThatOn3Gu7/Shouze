@@ -104,12 +104,10 @@ private fun PosterThumbnail(
                 url = coverUri,
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            ) {
-                ImagePlaceholder(iconSize = 28.dp)
-            } errorContent = {
-                ImagePlaceholder(iconSize = 28.dp, failed = true)
-            }
+                modifier = Modifier.fillMaxSize(),
+                placeholder = { ImagePlaceholder(iconSize = 28.dp) },
+                errorContent = { ImagePlaceholder(iconSize = 28.dp, failed = true) }
+            )
         } else {
             ImagePlaceholder(iconSize = 28.dp)
         }

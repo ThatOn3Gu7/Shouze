@@ -233,12 +233,10 @@ private fun CoverBanner(
                 url = coverUri,
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            ) {
-                BannerPlaceholder()
-            } errorContent = {
-                BannerPlaceholder(failed = true)
-            }
+                modifier = Modifier.fillMaxSize(),
+                placeholder = { BannerPlaceholder() },
+                errorContent = { BannerPlaceholder(failed = true) }
+            )
         } else {
             BannerPlaceholder()
         }
