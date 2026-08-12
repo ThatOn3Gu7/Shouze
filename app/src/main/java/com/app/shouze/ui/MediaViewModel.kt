@@ -40,9 +40,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     val settings = settingsRepo.settings
 
+    private val app: Application = getApplication()
+
     private var recoveryTried = false
 
-    private fun currentDb(): AppDatabase = AppDatabase.getInstance(application)
+    private fun currentDb(): AppDatabase = AppDatabase.getInstance(app)
 
     private val _selectedCategoryId = MutableStateFlow<String?>(null)
     private val _searchQuery = MutableStateFlow("")
@@ -99,7 +101,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 if (!recoveryTried && AppDatabase.isCorruptionError(e)) {
                     recoveryTried = true
                     Log.w("Shouze", "Database corruption detected, deleting database and retrying")
-                    AppDatabase.recoverFromCorruption(application)
+                    AppDatabase.recoverFromCorruption(app)
                     startLibraryCollection()
                 } else {
                     _error.value = "Failed to load data: ${e.message}"
