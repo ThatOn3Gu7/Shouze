@@ -76,7 +76,10 @@ class MainActivity : ComponentActivity() {
                                 onSearchQueryChange = viewModel::setSearchQuery,
                                 onClearMessage = viewModel::clearSyncMessage,
                                 onSettingsClick = { navController.navigate("settings") },
-                                onStatisticsClick = { navController.navigate("statistics") } 
+                                onStatisticsClick = { navController.navigate("statistics") },
+                                onSortModeChange = viewModel::setSortMode,
+                                onToggleFavorites = viewModel::toggleShowFavorites,
+                                showFavoritesOnly = uiState.showFavoritesOnly
                             )
                         }
 
@@ -94,7 +97,8 @@ class MainActivity : ComponentActivity() {
                                     onDelete = {
                                         viewModel.deleteItem(item.id)
                                         navController.popBackStack()
-                                    }
+                                    },
+                                    onToggleFavorite = { viewModel.toggleFavorite(item.id) },
                                 )
                             }
                         }

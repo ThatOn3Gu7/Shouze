@@ -15,11 +15,15 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.MovieFilter
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.ui.HomeUiState
+import com.app.shouze.ui.SortMode
 import com.app.shouze.ui.components.MediaCardItem
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,38 +46,39 @@ fun HomeScreen(
     onSearchQueryChange: (String) -> Unit,
     onClearMessage: () -> Unit,
     onSettingsClick: () -> Unit,
-    onStatisticsClick: () -> Unit
+    onStatisticsClick: () -> Unit,
+    onSortModeChange: (SortMode) -> Unit,
+    onToggleFavorites: () -> Unit,
+    showFavoritesOnly: Boolean = false
 ) {
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
 
     var selectedItem by remember { mutableStateOf<MediaItemEntity?>(null) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    if (showDeleteConfirm && selectedItem != null) {
-        val target = selectedItem!!
+    val selection = selectedItem
+    if (selection != null) {
         AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete \"${target.title}\"?") },
-            text = { Text("This entry will be permanently removed.") },
+            onDismissRequest = { selectedItem = null },
+            title = { Text(selection.title) },
+            text = { Text("What would you like to do with this entry?") },
             confirmButton = {
-                Button(
-                    onClick = {
-                        onDeleteItem(target)
-                        selectedItem = null
-                        showDeleteConfirm = false
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                ) {
-                    Text("Delete")
+                TextButton(onClick = {
+                    onEditItem(selection)
+                    selectedItem = null
+                }) {
+                    Text("Edit")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Cancel")
+                TextButton(
+                    onClick = {
+                        onDeleteItem(selection)
+                        selectedItem = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
                 }
             }
         )
@@ -80,51 +86,85 @@ fun HomeScreen(
 
     Scaffold(
         bottomBar = {
-            val selection = selectedItem
-            if (selection != null) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    shadowElevation = 8.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 24.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(onClick = {
-                            val item = selection
-                            selectedItem = null
-                            onEditItem(item)
-                        }) {
-                            Icon(Icons.Filled.Edit, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Edit")
+            val sel = selectedItem
+            if (sel != null) {
+                BottomAppBar(
+                    actions = {
+                        IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit")
                         }
-                        Button(
-                            onClick = { showDeleteConfirm = true },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error,
-                                contentColor = MaterialTheme.colorScheme.onError
-                            )
+                        IconButton(
+                            onClick = { onDeleteItem(sel); selectedItem = null }
                         ) {
-                            Icon(Icons.Filled.Delete, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Delete")
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                         }
-                        TextButton(onClick = { selectedItem = null }) {
-                            Text("Cancel")
+                    },
+                    floatingActionButton = {
+                        FloatingActionButton(onClick = { selectedItem = null }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Close")
                         }
                     }
-                }
+                )
             }
         },
         topBar = {
             TopAppBar(
                 title = { Text("Shouze") },
                 actions = {
+                    var expanded by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = onToggleFavorites) {
+                            Icon(
+                                imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
+                                tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                            )
+                        }
+                        IconButton(onClick = { expanded = true }) {
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                        }
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Last Updated") },
+                                onClick = { onSortModeChange(SortMode.LAST_UPDATED); expanded = false },
+                                trailingIcon = {
+                                    if (uiState.sortMode == SortMode.LAST_UPDATED) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Title (A-Z)") },
+                                onClick = { onSortModeChange(SortMode.TITLE); expanded = false },
+                                trailingIcon = {
+                                    if (uiState.sortMode == SortMode.TITLE) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Rating (High-Low)") },
+                                onClick = { onSortModeChange(SortMode.RATING_HIGH); expanded = false },
+                                trailingIcon = {
+                                    if (uiState.sortMode == SortMode.RATING_HIGH) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Progress (Most Complete)") },
+                                onClick = { onSortModeChange(SortMode.PROGRESS); expanded = false },
+                                trailingIcon = {
+                                    if (uiState.sortMode == SortMode.PROGRESS) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            )
+                        }
+                    }
                     IconButton(onClick = onStatisticsClick) {
                         Icon(Icons.Filled.BarChart, contentDescription = "Statistics")
                     }
@@ -250,15 +290,8 @@ fun HomeScreen(
                         MediaCardItem(
                             item = item,
                             categoryName = categoryName,
-                            onClick = {
-                                if (selectedItem != null) {
-                                    selectedItem = if (selectedItem?.id == item.id) null else item
-                                } else {
-                                    onItemClick(item)
-                                }
-                            },
+                            onClick = { onItemClick(item) },
                             onLongClick = { selectedItem = item },
-                            selected = selectedItem?.id == item.id,
                             modifier = Modifier.animateItem()
                         )
                     }

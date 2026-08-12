@@ -94,6 +94,15 @@ fun MediaCardItem(
             }
             Spacer(modifier = Modifier.width(12.dp))
             StatusBadge(status = item.status)
+            if (item.isFavorite) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Filled.Star,
+                    contentDescription = "Favorite",
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
     }
 }

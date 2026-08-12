@@ -40,7 +40,8 @@ fun DetailScreen(
     category: CategoryEntity?,
     onBack: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onToggleFavorite: () -> Unit = {}
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -55,6 +56,13 @@ fun DetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onToggleFavorite) {
+                        Icon(
+                            imageVector = if (item.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                            contentDescription = if (item.isFavorite) "Unfavorite" else "Favorite",
+                            tint = if (item.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                        )
+                    }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Filled.Edit, contentDescription = "Edit")
                     }
