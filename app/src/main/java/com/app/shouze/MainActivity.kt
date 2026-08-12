@@ -13,6 +13,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.app.shouze.ui.MediaViewModel
+import com.app.shouze.ui.components.CoverImageStore
 import com.app.shouze.ui.components.DetailEditDialog
 import com.app.shouze.ui.StatsUiState
 import com.app.shouze.ui.screens.*
@@ -21,6 +22,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        CoverImageStore.init(applicationContext)
 
         setContent {
             val viewModel: MediaViewModel = viewModel()
@@ -63,6 +65,12 @@ class MainActivity : ComponentActivity() {
                                 onAddClick = { navController.navigate("edit?itemId=null") },
                                 onItemClick = { item ->
                                     navController.navigate("detail/${item.id}")
+                                },
+                                onEditItem = { item ->
+                                    navController.navigate("edit?itemId=${item.id}")
+                                },
+                                onDeleteItem = { item ->
+                                    viewModel.deleteItem(item.id)
                                 },
                                 onCategorySelected = viewModel::setCategoryFilter,
                                 onSearchQueryChange = viewModel::setSearchQuery,

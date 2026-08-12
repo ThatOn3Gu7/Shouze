@@ -275,6 +275,10 @@ fun DetailEditDialog(
                     }
                     Button(
                         onClick = {
+                            val cover = coverImageUri.trim().takeIf { it.isNotBlank() }
+                            if (cover != null) {
+                                CoverImageStore.forgetFailure(cover)
+                            }
                             val finalItem = MediaItemEntity(
                                 id = item?.id ?: UUID.randomUUID().toString(),
                                 title = title.trim(),
@@ -284,7 +288,7 @@ fun DetailEditDialog(
                                 totalCount = totalInt,
                                 currentVolume = currentVolume.toIntOrNull(),
                                 rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
-                                coverImageUri = coverImageUri.trim().takeIf { it.isNotBlank() },
+                                coverImageUri = cover,
                                 genres = genres,
                                 lastUpdated = System.currentTimeMillis()
                             )

@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.MovieFilter
 import androidx.compose.material.icons.filled.Search
@@ -33,6 +35,8 @@ fun HomeScreen(
     uiState: HomeUiState,
     onAddClick: () -> Unit,
     onItemClick: (MediaItemEntity) -> Unit,
+    onEditItem: (MediaItemEntity) -> Unit,
+    onDeleteItem: (MediaItemEntity) -> Unit,
     onCategorySelected: (String?) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearMessage: () -> Unit,
@@ -42,7 +46,69 @@ fun HomeScreen(
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
 
+    var selectedItem by remember { mutableStateOf<MediaItemEntity?>(null) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm && selectedItem != null) {
+        val target = selectedItem!!
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete \"${target.title}\"?") },
+            text = { Text("This entry will be permanently removed.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteItem(target)
+                    selectedItem = null
+                    showDeleteConfirm = false
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
+        bottomBar = {
+            val selection = selectedItem
+            if (selection != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    shadowElevation = 8.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = {
+                            val item = selection
+                            selectedItem = null
+                            onEditItem(item)
+                        }) {
+                            Icon(Icons.Filled.Edit, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Edit")
+                        }
+                        TextButton(onClick = { showDeleteConfirm = true }) {
+                            Icon(Icons.Filled.Delete, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Delete")
+                        }
+                        TextButton(onClick = { selectedItem = null }) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
+        },
         topBar = {
             TopAppBar(
                 title = { Text("Shouze") },
@@ -172,7 +238,12 @@ fun HomeScreen(
                         MediaCardItem(
                             item = item,
                             categoryName = categoryName,
-                            onClick = { onItemClick(item) },
+                            onClick = {
+                                selectedItem = null
+                                onItemClick(item)
+                            },
+                            onLongClick = { selectedItem = item },
+                            selected = selectedItem?.id == item.id,
                             modifier = Modifier.animateItem()
                         )
                     }

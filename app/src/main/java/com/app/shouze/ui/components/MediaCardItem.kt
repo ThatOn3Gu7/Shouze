@@ -1,6 +1,8 @@
 package com.app.shouze.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -22,20 +24,30 @@ import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MediaCardItem(
     item: MediaItemEntity,
     categoryName: String,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    selected: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Card(
-        onClick = onClick,
         modifier = modifier
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
