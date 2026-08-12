@@ -178,11 +178,17 @@ fun DetailScreen(
             title = { Text("Delete item?") },
             text = { Text("This will permanently remove \"${item.title}\" from your library.") },
             confirmButton = {
-                TextButton(onClick = {
-                    onDelete()
-                    showDeleteConfirm = false
-                }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                Button(
+                    onClick = {
+                        onDelete()
+                        showDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text("Delete")
                 }
             },
             dismissButton = {
