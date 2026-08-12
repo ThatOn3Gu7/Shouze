@@ -68,8 +68,6 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.animation)
     implementation("androidx.compose.foundation:foundation")
-    implementation("io.coil-kt:coil-compose:2.6.0")
-
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

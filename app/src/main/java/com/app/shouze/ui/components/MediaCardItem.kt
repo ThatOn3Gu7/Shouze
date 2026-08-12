@@ -16,11 +16,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
 
@@ -94,7 +91,6 @@ private fun PosterThumbnail(
     title: String,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     Card(
         modifier = modifier.aspectRatio(2f / 3f),
         shape = RoundedCornerShape(10.dp),
@@ -103,15 +99,24 @@ private fun PosterThumbnail(
         )
     ) {
         if (!coverUri.isNullOrBlank()) {
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(coverUri)
-                    .crossfade(true)
-                    .build(),
+            SafeRemoteImage(
+                url = coverUri,
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
-            )
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Image,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
         } else {
             Box(
                 modifier = Modifier.fillMaxSize(),
