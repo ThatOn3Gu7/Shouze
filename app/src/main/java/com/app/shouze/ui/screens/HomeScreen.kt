@@ -97,7 +97,13 @@ fun HomeScreen(
                             Spacer(Modifier.width(6.dp))
                             Text("Edit")
                         }
-                        TextButton(onClick = { showDeleteConfirm = true }) {
+                        Button(
+                            onClick = { showDeleteConfirm = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            )
+                        ) {
                             Icon(Icons.Filled.Delete, contentDescription = null)
                             Spacer(Modifier.width(6.dp))
                             Text("Delete")
@@ -239,8 +245,11 @@ fun HomeScreen(
                             item = item,
                             categoryName = categoryName,
                             onClick = {
-                                selectedItem = null
-                                onItemClick(item)
+                                if (selectedItem != null) {
+                                    selectedItem = if (selectedItem?.id == item.id) null else item
+                                } else {
+                                    onItemClick(item)
+                                }
                             },
                             onLongClick = { selectedItem = item },
                             selected = selectedItem?.id == item.id,
