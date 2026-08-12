@@ -34,13 +34,15 @@ data class HomeUiState(
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getInstance(application)
-    private val dao = db.mediaDao()
-    private val categoryDao = db.categoryDao()
     private val syncController = DataSyncController(db)
     private val settingsRepo = SettingsRepository(application)
     private val json = Json { ignoreUnknownKeys = true }
 
     val settings = settingsRepo.settings
+
+    private var recoveryTried = false
+
+    private fun currentDb(): AppDatabase = AppDatabase.getInstance(application)
 
     private val _selectedCategoryId = MutableStateFlow<String?>(null)
     private val _searchQuery = MutableStateFlow("")
@@ -52,8 +54,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     val statsUiState: StateFlow<StatsUiState> = combine(
-        dao.getAllItems(),
-        categoryDao.getAll()
+        currentDb().mediaDao().getAllItems(),
+        currentDb().categoryDao().getAll()
     ) { items, categories ->
         try {
             computeStats(items, categories)
@@ -68,11 +70,16 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
 
     init {
+        startLibraryCollection()
+    }
+
+    private fun startLibraryCollection() {
         viewModelScope.launch {
             try {
+                val db = currentDb()
                 combine(
-                    dao.getAllItems(),
-                    categoryDao.getAll(),
+                    db.mediaDao().getAllItems(),
+                    db.categoryDao().getAll(),
                     _selectedCategoryId,
                     _searchQuery
                 ) { allItems, allCategories, catId, query ->
@@ -89,9 +96,16 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 }.collect()
             } catch (e: Exception) {
                 Log.e("Shouze", "Failed to load library data", e)
-                _error.value = "Failed to load data: ${e.message}"
-                _uiState.update {
-                    it.copy(error = "Failed to load data: ${e.message}", isLoading = false)
+                if (!recoveryTried && AppDatabase.isCorruptionError(e)) {
+                    recoveryTried = true
+                    Log.w("Shouze", "Database corruption detected, deleting database and retrying")
+                    AppDatabase.recoverFromCorruption(application)
+                    startLibraryCollection()
+                } else {
+                    _error.value = "Failed to load data: ${e.message}"
+                    _uiState.update {
+                        it.copy(error = "Failed to load data: ${e.message}", isLoading = false)
+                    }
                 }
             }
         }
@@ -99,13 +113,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addOrUpdate(item: MediaItemEntity) {
         viewModelScope.launch {
-            dao.insertOrUpdate(item.copy(lastUpdated = System.currentTimeMillis()))
+            currentDb().mediaDao().insertOrUpdate(item.copy(lastUpdated = System.currentTimeMillis()))
         }
     }
 
     fun deleteItem(itemId: String) {
         viewModelScope.launch {
-            dao.deleteById(itemId)
+            currentDb().mediaDao().deleteById(itemId)
         }
     }
 
@@ -119,13 +133,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addCategory(name: String) {
         viewModelScope.launch {
-            categoryDao.insert(CategoryEntity(name = name.trim()))
+            currentDb().categoryDao().insert(CategoryEntity(name = name.trim()))
         }
     }
 
     fun deleteCategory(categoryId: String) {
         viewModelScope.launch {
-            categoryDao.delete(categoryId)
+            currentDb().categoryDao().delete(categoryId)
         }
     }
 

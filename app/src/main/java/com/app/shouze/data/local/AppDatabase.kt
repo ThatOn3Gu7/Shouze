@@ -63,20 +63,9 @@ abstract class AppDatabase : RoomDatabase() {
         val instance = Room.databaseBuilder(
             context.applicationContext,
             AppDatabase::class.java,
-            "media_tracker.db"
+            DB_NAME
         )
         .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-        .setQueryCorruptionCallback(object : RoomDatabase.QueryCorruptionCallback() {
-            override fun onCorruption(corruptDbIdentifier: String) {
-                Log.e("Shouze", "Database corruption detected: $corruptDbIdentifier; recreating database")
-                INSTANCE?.close()
-                INSTANCE = null
-                runCatching {
-                    listOf(corruptDbIdentifier, "$corruptDbIdentifier-wal", "$corruptDbIdentifier-shm")
-                        .forEach { File(it).delete() }
-                }
-            }
-        })
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
@@ -91,5 +80,26 @@ abstract class AppDatabase : RoomDatabase() {
     }
 }
 
+        fun isCorruptionError(e: Throwable): Boolean {
+            val message = e.message ?: return false
+            return message.contains("malformed") ||
+                message.contains("not a database") ||
+                message.contains("disk I/O error")
+        }
+
+        fun recoverFromCorruption(context: Context) {
+            runCatching {
+                INSTANCE?.close()
+                INSTANCE = null
+                val dbFile = context.getDatabasePath(DB_NAME)
+                listOf("", "-wal", "-shm", "-journal").forEach { suffix ->
+                    val file = File(dbFile.path + suffix)
+                    if (file.exists()) file.delete()
+                }
+                Log.w("Shouze", "Corrupt database files deleted; a fresh database will be created on next open")
+            }
+        }
+
+        private const val DB_NAME = "media_tracker.db"
     }
 }
