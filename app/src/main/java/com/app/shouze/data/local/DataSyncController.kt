@@ -24,7 +24,8 @@ data class MediaItemExport(
     val notes: String = "",
     val rewatchCount: Int = 0,
     val startDate: Long? = null,
-    val endDate: Long? = null
+    val endDate: Long? = null,
+    val tags: List<String> = emptyList()
 )
 
 @Serializable
@@ -106,6 +107,7 @@ private fun MediaItemEntity.toExport() = MediaItemExport(
     rating = rating,
     coverImageUri = coverImageUri,
     genres = genres,
+    tags = tags,
     lastUpdated = lastUpdated,
     isFavorite = isFavorite,
     notes = notes,
@@ -132,6 +134,7 @@ private fun MediaItemExport.toEntity(): MediaItemEntity {
         rating = rating,
         coverImageUri = coverImageUri,
         genres = genres,
+        tags = tags,
         lastUpdated = lastUpdated,
         isFavorite = isFavorite,
         notes = notes,

@@ -100,7 +100,17 @@ class MainActivity : ComponentActivity() {
                                 onToggleFavorites = viewModel::toggleShowFavorites,
                                 onToggleFavorite = { viewModel.toggleFavorite(it.id) },
                                 onSearchAniListClick = { navController.navigate("search") },
-                                showFavoritesOnly = uiState.showFavoritesOnly
+                                showFavoritesOnly = uiState.showFavoritesOnly,
+                                onToggleSelection = viewModel::toggleSelection,
+                                onSelectAll = viewModel::selectAllVisible,
+                                onClearSelection = viewModel::clearSelection,
+                                onBulkDelete = viewModel::bulkDelete,
+                                onBulkChangeCategory = viewModel::bulkUpdateCategory,
+                                onBulkChangeStatus = viewModel::bulkUpdateStatus,
+                                onBulkToggleFavorite = viewModel::bulkToggleFavorite,
+                                allTags = uiState.allTags,
+                                selectedTag = uiState.selectedTag,
+                                onTagSelected = viewModel::setTagFilter
                             )
                         }
 
@@ -189,7 +199,9 @@ class MainActivity : ComponentActivity() {
                             BackupScreen(
                                 onBack = { navController.popBackStack() },
                                 onBackup = viewModel::backupToLocalZip,
-                                onRestore = viewModel::restoreFromLocalZip
+                                onRestore = viewModel::restoreFromLocalZip,
+                                onExportCsv = viewModel::exportToCsv,
+                                onImportMalXml = viewModel::importFromMalXml
                             )
                         }
 

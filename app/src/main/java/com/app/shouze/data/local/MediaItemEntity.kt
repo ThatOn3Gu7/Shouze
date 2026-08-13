@@ -17,6 +17,7 @@ data class MediaItemEntity(
     val rating: Double = 0.0,
     val coverImageUri: String? = null,
     val genres: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
     val lastUpdated: Long = System.currentTimeMillis(),
     val isFavorite: Boolean = false,
     val notes: String = "",

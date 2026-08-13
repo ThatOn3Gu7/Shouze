@@ -47,6 +47,8 @@ fun DetailEditDialog(
     var coverImageUri by remember { mutableStateOf(item?.coverImageUri ?: "") }
     var genres by remember { mutableStateOf(item?.genres ?: emptyList()) }
     var newGenre by remember { mutableStateOf("") }
+    var tags by remember { mutableStateOf(item?.tags ?: emptyList()) }
+    var newTag by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf(item?.notes ?: "") }
     var rewatchCount by remember { mutableStateOf(item?.rewatchCount?.toString() ?: "0") }
 
@@ -311,6 +313,79 @@ fun DetailEditDialog(
                     }
                 }
 
+              Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = "Tags",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (tags.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        tags.forEach { tag ->
+                            InputChip(
+                                selected = false,
+                                onClick = { },
+                                label = { Text(tag) },
+                                trailingIcon = {
+                                    IconButton(
+                                        onClick = { tags = tags - tag },
+                                        modifier = Modifier.size(16.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Remove $tag",
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = newTag,
+                            onValueChange = { newTag = it },
+                            placeholder = { Text("Add a tag...") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent
+                            )
+                        )
+                        IconButton(
+                            onClick = {
+                                if (newTag.isNotBlank() && newTag !in tags) {
+                                    tags = tags + newTag.trim()
+                                    newTag = ""
+                                }
+                            },
+                            enabled = newTag.isNotBlank()
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add tag")
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Row(
@@ -338,6 +413,7 @@ fun DetailEditDialog(
                                     rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
                                     coverImageUri = cover,
                                     genres = genres,
+                                    tags = tags,
                                     notes = notes,
                                     rewatchCount = rewatchInt,
                                     lastUpdated = System.currentTimeMillis()
@@ -353,6 +429,7 @@ fun DetailEditDialog(
                                     rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
                                     coverImageUri = cover,
                                     genres = genres,
+                                    tags = tags,
                                     notes = notes,
                                     rewatchCount = rewatchInt,
                                     lastUpdated = System.currentTimeMillis()

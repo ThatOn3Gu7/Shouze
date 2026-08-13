@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.MediaItemEntity
+import com.app.shouze.data.local.Status
 import com.app.shouze.ui.HomeUiState
 import com.app.shouze.ui.SortMode
 import com.app.shouze.ui.components.MediaCardItem
@@ -39,7 +40,7 @@ import com.app.shouze.ui.components.SafeRemoteImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
+  fun HomeScreen(
     uiState: HomeUiState,
     onAddClick: () -> Unit,
     onItemClick: (MediaItemEntity) -> Unit,
@@ -54,121 +55,196 @@ fun HomeScreen(
     onToggleFavorites: () -> Unit,
     onToggleFavorite: (MediaItemEntity) -> Unit,
     onSearchAniListClick: () -> Unit,
-    showFavoritesOnly: Boolean = false
+    showFavoritesOnly: Boolean = false,
+    onToggleSelection: (String) -> Unit = {},
+    onSelectAll: () -> Unit = {},
+    onClearSelection: () -> Unit = {},
+    onBulkDelete: () -> Unit = {},
+    onBulkChangeCategory: (String) -> Unit = {},
+    onBulkChangeStatus: (Status) -> Unit = {},
+    onBulkToggleFavorite: () -> Unit = {},
+    allTags: List<String> = emptyList(),
+    selectedTag: String? = null,
+    onTagSelected: (String?) -> Unit = {}
 ) {
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
-
     var selectedItem by remember { mutableStateOf<MediaItemEntity?>(null) }
+    val isSelectionMode = uiState.isSelectionMode
+    val selectedCount = uiState.selectedIds.size
+    var showBulkStatusMenu by remember { mutableStateOf(false) }
+    var showBulkCategoryMenu by remember { mutableStateOf(false) }
 
-    Scaffold(
-        bottomBar = {
-            val sel = selectedItem
-            if (sel != null) {
-                BottomAppBar(
-                    actions = {
-                        IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Edit")
-                        }
-                        IconButton(onClick = { onToggleFavorite(sel); selectedItem = null }) {
-                            Icon(
-                                imageVector = if (sel.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
-                                contentDescription = if (sel.isFavorite) "Unfavorite" else "Favorite",
-                                tint = if (sel.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
-                            )
-                        }
-                        IconButton(
-                            onClick = { onDeleteItem(sel); selectedItem = null }
-                        ) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+      Scaffold(
+       bottomBar = {
+           if (!isSelectionMode) {
+               val sel = selectedItem
+               if (sel != null) {
+                   BottomAppBar(
+                       actions = {
+                           IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
+                               Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                           }
+                           IconButton(onClick = { onToggleFavorite(sel); selectedItem = null }) {
+                               Icon(
+                                   imageVector = if (sel.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                   contentDescription = if (sel.isFavorite) "Unfavorite" else "Favorite",
+                                   tint = if (sel.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                               )
+                           }
+                           IconButton(
+                               onClick = { onDeleteItem(sel); selectedItem = null }
+                           ) {
+                               Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                           }
+                       },
+                       floatingActionButton = {
+                           FloatingActionButton(onClick = { selectedItem = null }) {
+                               Icon(Icons.Filled.Close, contentDescription = "Close")
+                           }
+                       }
+                   )
+               }
+           }
+       },
+       topBar = {
+            if (isSelectionMode) {
+                TopAppBar(
+                    title = { Text("$selectedCount selected") },
+                    navigationIcon = {
+                        IconButton(onClick = onClearSelection) {
+                            Icon(Icons.Filled.Close, contentDescription = "Cancel")
                         }
                     },
-                    floatingActionButton = {
-                        FloatingActionButton(onClick = { selectedItem = null }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Close")
+                    actions = {
+                        TextButton(onClick = onSelectAll) {
+                            Text("All")
+                        }
+                        IconButton(onClick = { showBulkStatusMenu = true }) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Change status")
+                        }
+                        IconButton(onClick = onBulkToggleFavorite) {
+                            Icon(Icons.Filled.Star, contentDescription = "Toggle favorite")
+                        }
+                        IconButton(onClick = { showBulkCategoryMenu = true }) {
+                            Icon(Icons.Filled.MovieFilter, contentDescription = "Change category")
+                        }
+                        IconButton(onClick = onBulkDelete) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                        }
+
+                        DropdownMenu(
+                            expanded = showBulkStatusMenu,
+                            onDismissRequest = { showBulkStatusMenu = false }
+                        ) {
+                            Status.values().forEach { status ->
+                                DropdownMenuItem(
+                                    text = { Text(status.name.replace("_", " ")) },
+                                    onClick = {
+                                        onBulkChangeStatus(status)
+                                        showBulkStatusMenu = false
+                                    }
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = showBulkCategoryMenu,
+                            onDismissRequest = { showBulkCategoryMenu = false }
+                        ) {
+                            uiState.categories.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat.name) },
+                                    onClick = {
+                                        onBulkChangeCategory(cat.id)
+                                        showBulkCategoryMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("Shouze") },
+                    actions = {
+                        var expanded by remember { mutableStateOf(false) }
+                        Box {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = onToggleFavorites) {
+                                    Icon(
+                                        imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                        contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
+                                        tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                                    )
+                                }
+                                IconButton(onClick = { expanded = true }) {
+                                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Last Updated") },
+                                    onClick = { onSortModeChange(SortMode.LAST_UPDATED); expanded = false },
+                                    trailingIcon = {
+                                        if (uiState.sortMode == SortMode.LAST_UPDATED) {
+                                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Title (A-Z)") },
+                                    onClick = { onSortModeChange(SortMode.TITLE); expanded = false },
+                                    trailingIcon = {
+                                        if (uiState.sortMode == SortMode.TITLE) {
+                                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Rating (High-Low)") },
+                                    onClick = { onSortModeChange(SortMode.RATING_HIGH); expanded = false },
+                                    trailingIcon = {
+                                        if (uiState.sortMode == SortMode.RATING_HIGH) {
+                                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Progress (Most Complete)") },
+                                    onClick = { onSortModeChange(SortMode.PROGRESS); expanded = false },
+                                    trailingIcon = {
+                                        if (uiState.sortMode == SortMode.PROGRESS) {
+                                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        IconButton(onClick = onSearchAniListClick) {
+                            Icon(Icons.Filled.Search, contentDescription = "Search AniList")
+                        }
+                        IconButton(onClick = onStatisticsClick) {
+                            Icon(Icons.Filled.BarChart, contentDescription = "Statistics")
+                        }
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
                         }
                     }
                 )
             }
         },
-        topBar = {
-            TopAppBar(
-                title = { Text("Shouze") },
-                actions = {
-                    var expanded by remember { mutableStateOf(false) }
-                    Box {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onToggleFavorites) {
-                                Icon(
-                                    imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
-                                    contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
-                                    tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
-                                )
-                            }
-                            IconButton(onClick = { expanded = true }) {
-                                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
-                            }
-                        }
-                        DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Last Updated") },
-                                onClick = { onSortModeChange(SortMode.LAST_UPDATED); expanded = false },
-                                trailingIcon = {
-                                    if (uiState.sortMode == SortMode.LAST_UPDATED) {
-                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    }
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Title (A-Z)") },
-                                onClick = { onSortModeChange(SortMode.TITLE); expanded = false },
-                                trailingIcon = {
-                                    if (uiState.sortMode == SortMode.TITLE) {
-                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    }
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Rating (High-Low)") },
-                                onClick = { onSortModeChange(SortMode.RATING_HIGH); expanded = false },
-                                trailingIcon = {
-                                    if (uiState.sortMode == SortMode.RATING_HIGH) {
-                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    }
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Progress (Most Complete)") },
-                                onClick = { onSortModeChange(SortMode.PROGRESS); expanded = false },
-                                trailingIcon = {
-                                    if (uiState.sortMode == SortMode.PROGRESS) {
-                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    IconButton(onClick = onSearchAniListClick) {
-                        Icon(Icons.Filled.Search, contentDescription = "Search AniList")
-                    }
-                    IconButton(onClick = onStatisticsClick) {
-                        Icon(Icons.Filled.BarChart, contentDescription = "Statistics")
-                    }
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                    }
-                }
-            )
-        },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAddClick,
-                icon = { Icon(Icons.Filled.Add, contentDescription = "Add item") },
-                text = { Text("Add Media") }
-            )
+            if (!isSelectionMode) {
+                ExtendedFloatingActionButton(
+                    onClick = onAddClick,
+                    icon = { Icon(Icons.Filled.Add, contentDescription = "Add item") },
+                    text = { Text("Add Media") }
+                )
+            }
         },
         floatingActionButtonPosition = FabPosition.End,
         containerColor = MaterialTheme.colorScheme.background
@@ -194,6 +270,48 @@ fun HomeScreen(
                 shape = MaterialTheme.shapes.large
             )
 
+            if (allTags.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = selectedTag == null,
+                            onClick = { onTagSelected(null) },
+                            label = { Text("All Tags") },
+                            leadingIcon = if (selectedTag == null) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Filled.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            } else null
+                        )
+                    }
+                    items(allTags, key = { it }) { tag ->
+                        FilterChip(
+                            selected = selectedTag == tag,
+                            onClick = { onTagSelected(tag) },
+                            label = { Text(tag) },
+                            leadingIcon = if (selectedTag == tag) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Filled.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            } else null
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 16.dp),
@@ -215,6 +333,8 @@ fun HomeScreen(
                         } else null
                     )
                 }
+
+
                 items(uiState.categories, key = { it.id }) { category ->
                     FilterChip(
                         selected = uiState.selectedCategoryId == category.id,
@@ -284,13 +404,26 @@ fun HomeScreen(
                         key = { it.id }
                     ) { item ->
                         val categoryName = uiState.categories.find { it.id == item.categoryId }?.name ?: "Unknown"
-                        MediaCardItem(
+                         MediaCardItem(
                             item = item,
                             categoryName = categoryName,
-                            onClick = { onItemClick(item) },
-                            onLongClick = { selectedItem = item },
+                            onClick = {
+                                if (isSelectionMode) {
+                                    onToggleSelection(item.id)
+                                } else {
+                                    onItemClick(item)
+                                }
+                            },
+                            onLongClick = {
+                                if (!isSelectionMode) {
+                                    onToggleSelection(item.id)
+                                }
+                            },
+                            isSelected = item.id in uiState.selectedIds,
+                            isSelectionMode = isSelectionMode,
                             modifier = Modifier.animateItem()
                         )
+
                     }
                 }
             }

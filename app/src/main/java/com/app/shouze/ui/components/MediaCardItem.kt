@@ -26,12 +26,13 @@ import com.app.shouze.data.local.Status
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MediaCardItem(
+  fun MediaCardItem(
     item: MediaItemEntity,
     categoryName: String,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
-    selected: Boolean = false,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -43,7 +44,7 @@ fun MediaCardItem(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) {
+            containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.primaryContainer
             } else {
                 MaterialTheme.colorScheme.surfaceContainerHigh
@@ -51,57 +52,72 @@ fun MediaCardItem(
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            PosterThumbnail(
-                coverUri = item.coverImageUri,
-                title = item.title,
-                modifier = Modifier.width(68.dp)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PosterThumbnail(
+                    coverUri = item.coverImageUri,
+                    title = item.title,
+                    modifier = Modifier.width(68.dp)
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = buildSubtitle(item, categoryName),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (item.totalCount > 0) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    LinearProgressIndicator(
-                        progress = { (item.currentProgress.toFloat() / item.totalCount).coerceIn(0f, 1f) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(4.dp)
-                            .clip(MaterialTheme.shapes.small),
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        color = MaterialTheme.colorScheme.primary
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = buildSubtitle(item, categoryName),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (item.totalCount > 0) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        LinearProgressIndicator(
+                            progress = { (item.currentProgress.toFloat() / item.totalCount).coerceIn(0f, 1f) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(MaterialTheme.shapes.small),
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (item.rating > 0.0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        RatingBar(rating = item.rating)
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                StatusBadge(status = item.status)
+                if (item.isFavorite) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = "Favorite",
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
-                if (item.rating > 0.0) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    RatingBar(rating = item.rating)
-                }
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            StatusBadge(status = item.status)
-            if (item.isFavorite) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(
-                    imageVector = Icons.Filled.Star,
-                    contentDescription = "Favorite",
-                    tint = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(16.dp)
-                )
+            if (isSelectionMode) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    contentAlignment = Alignment.TopEnd
+                ) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = null
+                    )
+                }
             }
         }
     }

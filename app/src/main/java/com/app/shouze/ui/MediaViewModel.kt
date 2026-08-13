@@ -15,6 +15,7 @@ import kotlinx.serialization.json.Json
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import androidx.room.withTransaction
 
 enum class SortMode {
     LAST_UPDATED, TITLE, RATING_HIGH, PROGRESS
@@ -31,7 +32,11 @@ data class HomeUiState(
     val showFavoritesOnly: Boolean = false,
     val isLoading: Boolean = false,
     val syncMessage: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    val selectedIds: Set<String> = emptySet(),
+    val isSelectionMode: Boolean = false,
+    val allTags: List<String> = emptyList(),
+    val selectedTag: String? = null
 )
 
 data class AniListSearchUiState(
@@ -57,6 +62,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val _searchQuery = MutableStateFlow("")
     private val _sortMode = MutableStateFlow(SortMode.LAST_UPDATED)
     private val _showFavoritesOnly = MutableStateFlow(false)
+    private val _selectedTag = MutableStateFlow<String?>(null)
 
     private val _filterConfig = combine(_sortMode, _showFavoritesOnly) { sort, favOnly ->
         sort to favOnly
@@ -94,15 +100,27 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 categoryDao.getAll(),
                 _selectedCategoryId,
                 _searchQuery,
-                _filterConfig
-            ) { allItems, allCategories, catId, query, filterConfig ->
+                _filterConfig,
+                _selectedTag
+            ) { args: Array<Any?> ->
+                @Suppress("UNCHECKED_CAST")
+                val allItems = args[0] as List<MediaItemEntity>
+                @Suppress("UNCHECKED_CAST")
+                val allCategories = args[1] as List<CategoryEntity>
+                val catId = args[2] as String?
+                val query = args[3] as String
+                @Suppress("UNCHECKED_CAST")
+                val filterConfig = args[4] as Pair<SortMode, Boolean>
+                val tag = args[5] as String?
+
                 val (sort, favOnly) = filterConfig
-                val filtered = filterItems(allItems, catId, query, sort, favOnly)
+                val allTags = allItems.flatMap { it.tags }.distinct().sorted()
+                val filtered = filterItems(allItems, catId, query, sort, favOnly, tag)
                 val upNext = allItems
                     .filter { it.status == Status.WATCHING || it.status == Status.READING }
                     .sortedByDescending { it.lastUpdated }
                     .take(10)
-                _uiState.update { current ->
+                 _uiState.update { current ->
                     current.copy(
                         allItems = allItems,
                         items = filtered,
@@ -111,7 +129,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                         selectedCategoryId = catId,
                         searchQuery = query,
                         sortMode = sort,
-                        showFavoritesOnly = favOnly
+                        showFavoritesOnly = favOnly,
+                        allTags = allTags,
+                        selectedTag = tag
                     )
                 }
             }.collect()
@@ -172,6 +192,28 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleShowFavorites() {
         _showFavoritesOnly.value = !_showFavoritesOnly.value
     }
+   
+    fun setTagFilter(tag: String?) {
+        _selectedTag.value = tag
+    }
+
+    
+    // --- Selection / Multi-select ---
+
+    fun toggleSelection(itemId: String) {
+        val current = _uiState.value.selectedIds
+        val updated = if (current.contains(itemId)) current - itemId else current + itemId
+        _uiState.update { it.copy(selectedIds = updated, isSelectionMode = updated.isNotEmpty()) }
+    }
+
+    fun selectAllVisible() {
+        val visibleIds = _uiState.value.items.map { it.id }.toSet()
+        _uiState.update { it.copy(selectedIds = visibleIds, isSelectionMode = true) }
+    }
+
+    fun clearSelection() {
+        _uiState.update { it.copy(selectedIds = emptySet(), isSelectionMode = false) }
+    }
 
     fun addCategory(name: String) {
         viewModelScope.launch {
@@ -185,17 +227,67 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- Bulk Edit ---
+
+    fun bulkDelete() {
+        viewModelScope.launch {
+            _uiState.value.selectedIds.forEach { dao.deleteById(it) }
+            clearSelection()
+        }
+    }
+
+    fun bulkUpdateCategory(categoryId: String) {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            _uiState.value.allItems
+                .filter { it.id in _uiState.value.selectedIds }
+                .forEach { dao.insertOrUpdate(it.copy(categoryId = categoryId, lastUpdated = now)) }
+            clearSelection()
+        }
+    }
+
+    fun bulkUpdateStatus(status: Status) {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            _uiState.value.allItems
+                .filter { it.id in _uiState.value.selectedIds }
+                .forEach { item ->
+                    var updated = item.copy(status = status, lastUpdated = now)
+                    if ((status == Status.WATCHING || status == Status.READING) && item.startDate == null) {
+                        updated = updated.copy(startDate = now)
+                    }
+                    if (status == Status.COMPLETED && item.endDate == null) {
+                        updated = updated.copy(endDate = now)
+                    }
+                    dao.insertOrUpdate(updated)
+                }
+            clearSelection()
+        }
+    }
+
+    fun bulkToggleFavorite() {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            _uiState.value.allItems
+                .filter { it.id in _uiState.value.selectedIds }
+                .forEach { dao.insertOrUpdate(it.copy(isFavorite = !it.isFavorite, lastUpdated = now)) }
+            clearSelection()
+        }
+    }
+
     private fun filterItems(
         all: List<MediaItemEntity>,
         categoryId: String?,
         query: String,
         sort: SortMode,
-        favoritesOnly: Boolean
+        favoritesOnly: Boolean,
+        tag: String?
     ): List<MediaItemEntity> {
         val filtered = all
             .filter { categoryId == null || it.categoryId == categoryId }
             .filter { query.isBlank() || it.title.contains(query, ignoreCase = true) }
             .filter { !favoritesOnly || it.isFavorite }
+            .filter { tag == null || tag in it.tags }
 
         return when (sort) {
             SortMode.TITLE -> filtered.sortedBy { it.title.lowercase() }
@@ -390,6 +482,173 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 showMessage("Unexpected error: ${e.message}", isError = true)
             }
         }
+    }
+
+     // --- CSV Export ---
+
+    fun exportToCsv(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                val items = dao.getAllItemsSnapshot()
+                val csv = StringBuilder()
+                csv.appendLine("id,title,categoryId,status,currentProgress,totalCount,currentVolume,rating,coverImageUri,genres,tags,notes,rewatchCount,startDate,endDate,lastUpdated")
+                items.forEach { item ->
+                    val row = listOf(
+                        item.id,
+                        "\"${item.title.replace("\"", "\"\"")}\"",
+                        item.categoryId,
+                        item.status.name,
+                        item.currentProgress,
+                        item.totalCount,
+                        item.currentVolume ?: "",
+                        item.rating,
+                        item.coverImageUri ?: "",
+                        "\"${item.genres.joinToString(", ")}\"",
+                        "\"${item.tags.joinToString(", ")}\"",
+                        "\"${item.notes.replace("\"", "\"\"").replace("\n", " ")}\"",
+                        item.rewatchCount,
+                        item.startDate ?: "",
+                        item.endDate ?: "",
+                        item.lastUpdated
+                    ).joinToString(",")
+                    csv.appendLine(row)
+                }
+                getApplication<Application>().contentResolver.openOutputStream(uri)?.use { os ->
+                    os.write(csv.toString().toByteArray(Charsets.UTF_8))
+                }
+                showMessage("CSV exported successfully (${items.size} items)")
+            } catch (e: Exception) {
+                showMessage("CSV export failed: ${e.message}", isError = true)
+            }
+        }
+    }
+
+    // --- MAL XML Import ---
+
+    fun importFromMalXml(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                val xml = getApplication<Application>().contentResolver.openInputStream(uri)?.use {
+                    it.bufferedReader().readText()
+                } ?: return@launch showMessage("Failed to read XML file", isError = true)
+
+                val items = parseMalXml(xml)
+                if (items.isEmpty()) {
+                    showMessage("No valid entries found in XML", isError = true)
+                    return@launch
+                }
+                db.withTransaction {
+                    items.forEach { dao.insertOrUpdate(it) }
+                }
+                showMessage("Imported ${items.size} items from MAL XML")
+            } catch (e: Exception) {
+                showMessage("MAL import failed: ${e.message}", isError = true)
+            }
+        }
+    }
+
+    private fun parseMalXml(xml: String): List<MediaItemEntity> {
+        val items = mutableListOf<MediaItemEntity>()
+        val factory = org.xmlpull.v1.XmlPullParserFactory.newInstance()
+        val parser = factory.newPullParser()
+        parser.setInput(xml.reader())
+
+        var eventType = parser.eventType
+        var inEntry = false
+        val currentData = mutableMapOf<String, String>()
+        var currentTag = ""
+
+        while (eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+            when (eventType) {
+                org.xmlpull.v1.XmlPullParser.START_TAG -> {
+                    currentTag = parser.name
+                    if (currentTag == "anime" || currentTag == "manga") {
+                        inEntry = true
+                        currentData.clear()
+                    }
+                }
+                org.xmlpull.v1.XmlPullParser.TEXT -> {
+                    if (inEntry) {
+                        val text = parser.text.trim()
+                        if (text.isNotBlank()) {
+                            currentData[currentTag] = text
+                        }
+                    }
+                }
+                org.xmlpull.v1.XmlPullParser.END_TAG -> {
+                    if ((parser.name == "anime" || parser.name == "manga") && inEntry) {
+                        val title = currentData["series_title"] ?: ""
+                        if (title.isNotBlank()) {
+                            val isManga = parser.name == "manga"
+                            val malStatus = currentData["my_status"] ?: "Plan to Watch"
+                            val status = when (malStatus.lowercase()) {
+                                "watching", "reading" -> Status.WATCHING
+                                "completed" -> Status.COMPLETED
+                                "on-hold" -> Status.PLAN_TO_WATCH
+                                "dropped" -> Status.DROPPED
+                                "plan to watch", "plan to read" -> Status.PLAN_TO_WATCH
+                                else -> Status.PLAN_TO_WATCH
+                            }
+
+                            val progress = if (isManga) {
+                                currentData["my_read_chapters"]?.toIntOrNull() ?: 0
+                            } else {
+                                currentData["my_watched_episodes"]?.toIntOrNull() ?: 0
+                            }
+                            val total = if (isManga) {
+                                currentData["series_chapters"]?.toIntOrNull() ?: 0
+                            } else {
+                                currentData["series_episodes"]?.toIntOrNull() ?: 0
+                            }
+                            val volume = if (isManga) {
+                                currentData["my_read_volumes"]?.toIntOrNull()
+                            } else null
+
+                            val score = currentData["my_score"]?.toDoubleOrNull() ?: 0.0
+                            val rewatches = if (isManga) {
+                                currentData["my_times_read"]?.toIntOrNull() ?: 0
+                            } else {
+                                currentData["my_times_watched"]?.toIntOrNull() ?: 0
+                            }
+
+                            val categoryId = if (isManga) {
+                                uiState.value.categories.find { it.name.equals("Manga", ignoreCase = true) }?.id
+                                    ?: uiState.value.categories.find { it.name.equals("Novel", ignoreCase = true) }?.id
+                                    ?: uiState.value.categories.firstOrNull()?.id ?: ""
+                            } else {
+                                uiState.value.categories.find { it.name.equals("Anime", ignoreCase = true) }?.id
+                                    ?: uiState.value.categories.find { it.name.equals("TV Series", ignoreCase = true) }?.id
+                                    ?: uiState.value.categories.firstOrNull()?.id ?: ""
+                            }
+
+                            val tags = currentData["my_tags"]?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+                            val notes = currentData["my_comments"] ?: ""
+
+                            items.add(
+                                MediaItemEntity(
+                                    title = title,
+                                    categoryId = categoryId,
+                                    status = status,
+                                    currentProgress = progress,
+                                    totalCount = total,
+                                    currentVolume = volume,
+                                    rating = score,
+                                    genres = emptyList(),
+                                    tags = tags,
+                                    notes = notes,
+                                    rewatchCount = rewatches
+                                )
+                            )
+                        }
+                        inEntry = false
+                    }
+                }
+            }
+            eventType = parser.next()
+        }
+        return items
     }
 
     fun clearSyncMessage() {

@@ -8,6 +8,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,9 +24,12 @@ import java.util.Locale
 fun BackupScreen(
     onBack: () -> Unit,
     onBackup: (Uri) -> Unit,
-    onRestore: (Uri) -> Unit
+    onRestore: (Uri) -> Unit,
+    onExportCsv: (Uri) -> Unit = {},
+    onImportMalXml: (Uri) -> Unit = {}
 ) {
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingMalXmlUri by remember { mutableStateOf<Uri?>(null) }
 
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip")
@@ -34,9 +39,22 @@ fun BackupScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri -> pendingRestoreUri = uri }
 
+    val csvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri -> uri?.let(onExportCsv) }
+
+    val malXmlLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri -> pendingMalXmlUri = uri }
+
     fun launchBackup() {
         val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
         backupLauncher.launch("shouze-backup-$stamp.zip")
+    }
+
+    fun launchCsv() {
+        val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
+        csvLauncher.launch("shouze-export-$stamp.csv")
     }
 
     Scaffold(
@@ -58,6 +76,7 @@ fun BackupScreen(
                 .padding(horizontal = 16.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // --- Backup / Restore ---
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = ::launchBackup
@@ -121,6 +140,74 @@ fun BackupScreen(
                     }
                 }
             }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // --- CSV Export ---
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = ::launchCsv
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Description,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "Export to CSV",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "Download your library as a spreadsheet",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // --- MAL XML Import ---
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    malXmlLauncher.launch(arrayOf("text/xml", "application/xml"))
+                }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.UploadFile,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "Import MAL XML",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "Import from MyAnimeList XML export",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -138,6 +225,24 @@ fun BackupScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingRestoreUri = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (pendingMalXmlUri != null) {
+        AlertDialog(
+            onDismissRequest = { pendingMalXmlUri = null },
+            icon = { Icon(Icons.Filled.UploadFile, contentDescription = null) },
+            title = { Text("Import MAL XML?") },
+            text = { Text("This will add all entries from the MAL export to your library. Existing entries with the same title will not be overwritten.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingMalXmlUri?.let(onImportMalXml)
+                    pendingMalXmlUri = null
+                }) { Text("Import") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMalXmlUri = null }) { Text("Cancel") }
             }
         )
     }
