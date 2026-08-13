@@ -9,6 +9,7 @@ data class StatsUiState(
     val totalDropped: Int = 0,
     val totalPlanToWatch: Int = 0,
     val totalReading: Int = 0,
+    val totalFavorites: Int = 0,
     val completionRate: Float = 0f,
     val averageRating: Double = 0.0,
     val totalProgressConsumed: Int = 0,
@@ -30,4 +31,3 @@ data class CategoryStat(
     val colorHex: String?,
     val percentage: Float
 )
-

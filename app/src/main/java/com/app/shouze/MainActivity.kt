@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
                                 onStatisticsClick = { navController.navigate("statistics") },
                                 onSortModeChange = viewModel::setSortMode,
                                 onToggleFavorites = viewModel::toggleShowFavorites,
+                                onToggleFavorite = { viewModel.toggleFavorite(it.id) },
                                 showFavoritesOnly = uiState.showFavoritesOnly
                             )
                         }
@@ -125,7 +126,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                      
+
                         composable("settings") {
                             SettingsScreen(
                                 onBack = { navController.popBackStack() },

@@ -36,69 +36,7 @@ data class HomeUiState(
     val error: String? = null
 )
 
-// class MediaViewModel(application: Application) : AndroidViewModel(application) {
-//
-//     private val db = AppDatabase.getInstance(application)
-//     private val dao = db.mediaDao()
-//     private val categoryDao = db.categoryDao()
-//     private val syncController = DataSyncController(db)
-//     private val settingsRepo = SettingsRepository(application)
-//     private val json = Json { ignoreUnknownKeys = true }
-//
-//     val settings = settingsRepo.settings
-//
-//     private val _selectedCategoryId = MutableStateFlow<String?>(null)
-//     private val _searchQuery = MutableStateFlow("")
-//     private val _sortMode = MutableStateFlow(SortMode.LAST_UPDATED)
-//     private val _showFavoritesOnly = MutableStateFlow(false)
-//     private val _isLoading = MutableStateFlow(false)
-//     private val _syncMessage = MutableStateFlow<String?>(null)
-//     private val _error = MutableStateFlow<String?>(null)
-//
-//     private val _uiState = MutableStateFlow(HomeUiState())
-//     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
-//     val statsUiState: StateFlow<StatsUiState> = combine(
-//         dao.getAllItems(),
-//         categoryDao.getAll()
-//     ) { items, categories ->
-//         computeStats(items, categories)
-//     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsUiState())
-//
-//
-//     init {
-//         viewModelScope.launch {
-//             startLibraryCollection()
-//         }
-//     }
-//
-//     private suspend fun startLibraryCollection() {
-//         try {
-//              combine(
-//                  dao.getAllItems(),
-//                  categoryDao.getAll(),
-//                  _selectedCategoryId,
-//                  _searchQuery,
-//                  _sortMode,
-//                  _showFavoritesOnly
-//              ) { allItems, allCategories, catId, query, sort, favOnly ->
-//                  val filtered = filterItems(allItems, catId, query, sort, favOnly)
-//                  _uiState.update { current ->
-//                      current.copy(
-//                          allItems = allItems,
-//                          items = filtered,
-//                          categories = allCategories,
-//                          selectedCategoryId = catId,
-//                          searchQuery = query,
-//                          sortMode = sort,
-//                          showFavoritesOnly = favOnly
-//                      )
-//                  }
-//              }.collect()
-//         } catch (e: Exception) {
-//             showMessage("Failed to load library: ${e.message}", isError = true)
-//         }
-//     }
-    class MediaViewModel(application: Application) : AndroidViewModel(application) {
+class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getInstance(application)
     private val dao = db.mediaDao()
@@ -186,13 +124,12 @@ data class HomeUiState(
         }
     }
 
-   fun toggleFavorite(itemId: String) {
+    fun toggleFavorite(itemId: String) {
         viewModelScope.launch {
             val item = uiState.value.allItems.find { it.id == itemId } ?: return@launch
             dao.insertOrUpdate(item.copy(isFavorite = !item.isFavorite))
         }
     }
-
 
     fun deleteItem(itemId: String) {
         viewModelScope.launch {
@@ -215,7 +152,6 @@ data class HomeUiState(
     fun toggleShowFavorites() {
         _showFavoritesOnly.value = !_showFavoritesOnly.value
     }
-
 
     fun addCategory(name: String) {
         viewModelScope.launch {
@@ -356,6 +292,7 @@ data class HomeUiState(
         }
         _uiState.update { it.copy(isLoading = false, syncMessage = if (isError) null else message, error = if (isError) message else null) }
     }
+
     private fun computeStats(
         items: List<MediaItemEntity>,
         categories: List<CategoryEntity>
@@ -368,6 +305,7 @@ data class HomeUiState(
         val reading = items.count { it.status == Status.READING }
         val dropped = items.count { it.status == Status.DROPPED }
         val planToWatch = items.count { it.status == Status.PLAN_TO_WATCH }
+        val favorites = items.count { it.isFavorite }
 
         val ratedItems = items.filter { it.rating > 0.0 }
         val avgRating = if (ratedItems.isNotEmpty()) ratedItems.map { it.rating }.average() else 0.0
@@ -405,6 +343,7 @@ data class HomeUiState(
             totalReading = reading,
             totalDropped = dropped,
             totalPlanToWatch = planToWatch,
+            totalFavorites = favorites,
             completionRate = completed.toFloat() / total,
             averageRating = avgRating,
             totalProgressConsumed = totalProgress,

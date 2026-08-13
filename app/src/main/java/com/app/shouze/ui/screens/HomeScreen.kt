@@ -49,40 +49,13 @@ fun HomeScreen(
     onStatisticsClick: () -> Unit,
     onSortModeChange: (SortMode) -> Unit,
     onToggleFavorites: () -> Unit,
+    onToggleFavorite: (MediaItemEntity) -> Unit,
     showFavoritesOnly: Boolean = false
 ) {
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
 
     var selectedItem by remember { mutableStateOf<MediaItemEntity?>(null) }
-
-    val selection = selectedItem
-    if (selection != null) {
-        AlertDialog(
-            onDismissRequest = { selectedItem = null },
-            title = { Text(selection.title) },
-            text = { Text("What would you like to do with this entry?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onEditItem(selection)
-                    selectedItem = null
-                }) {
-                    Text("Edit")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        onDeleteItem(selection)
-                        selectedItem = null
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Delete")
-                }
-            }
-        )
-    }
 
     Scaffold(
         bottomBar = {
@@ -92,6 +65,13 @@ fun HomeScreen(
                     actions = {
                         IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
                             Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                        }
+                        IconButton(onClick = { onToggleFavorite(sel); selectedItem = null }) {
+                            Icon(
+                                imageVector = if (sel.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                contentDescription = if (sel.isFavorite) "Unfavorite" else "Favorite",
+                                tint = if (sel.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                            )
                         }
                         IconButton(
                             onClick = { onDeleteItem(sel); selectedItem = null }
@@ -113,15 +93,17 @@ fun HomeScreen(
                 actions = {
                     var expanded by remember { mutableStateOf(false) }
                     Box {
-                        IconButton(onClick = onToggleFavorites) {
-                            Icon(
-                                imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
-                                contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
-                                tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
-                            )
-                        }
-                        IconButton(onClick = { expanded = true }) {
-                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onToggleFavorites) {
+                                Icon(
+                                    imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                    contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
+                                    tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                                )
+                            }
+                            IconButton(onClick = { expanded = true }) {
+                                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                            }
                         }
                         DropdownMenu(
                             expanded = expanded,

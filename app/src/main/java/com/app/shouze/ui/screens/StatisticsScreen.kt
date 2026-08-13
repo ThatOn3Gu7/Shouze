@@ -191,6 +191,19 @@ private fun OverviewSection(stats: StatsUiState) {
                 modifier = Modifier.weight(1f)
             )
         }
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            StatCard(
+                value = "${stats.totalFavorites}",
+                label = "Favorites",
+                modifier = Modifier.weight(1f)
+            )
+            // Empty spacer to keep the row balanced (2 columns)
+            Spacer(modifier = Modifier.weight(1f))
+        }
     }
 }
 
