@@ -41,9 +41,10 @@ fun DetailScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onToggleFavorite: () -> Unit = {}
+    onToggleFavorite: () -> Unit = {},
+    onIncrementRewatch: () -> Unit = {}
 ) {
-    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault()) }
+    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -169,8 +170,47 @@ fun DetailScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
+                if (item.rewatchCount > 0 || item.status == Status.COMPLETED) {
+                    DetailInfoCard(title = "Rewatches") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${item.rewatchCount}",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Button(onClick = onIncrementRewatch) {
+                                Text("+1 Rewatch")
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                if (item.notes.isNotBlank()) {
+                    DetailInfoCard(title = "Notes") {
+                        Text(
+                            text = item.notes,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
                 DetailInfoCard(title = "Info") {
                     InfoRow(label = "Last Updated", value = dateFormat.format(Date(item.lastUpdated)))
+                    if (item.startDate != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        InfoRow(label = "Started", value = dateFormat.format(Date(item.startDate)))
+                    }
+                    if (item.endDate != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        InfoRow(label = "Finished", value = dateFormat.format(Date(item.endDate)))
+                    }
                     if (!item.coverImageUri.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(8.dp))
                         InfoRow(label = "Cover URI", value = item.coverImageUri)
@@ -184,7 +224,7 @@ fun DetailScreen(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("Delete item?") },
-            text = { Text("This will permanently remove \"${item.title}\" from your library.") },
+            text = { Text("This will permanently remove '${item.title}' from your library.") },
             confirmButton = {
                 Button(
                     onClick = {

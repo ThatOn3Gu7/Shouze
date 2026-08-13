@@ -44,6 +44,8 @@ fun DetailEditDialog(
     var coverImageUri by remember { mutableStateOf(item?.coverImageUri ?: "") }
     var genres by remember { mutableStateOf(item?.genres ?: emptyList()) }
     var newGenre by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf(item?.notes ?: "") }
+    var rewatchCount by remember { mutableStateOf(item?.rewatchCount?.toString() ?: "0") }
 
     var showCategoryPicker by remember { mutableStateOf(false) }
     var showStatusPicker by remember { mutableStateOf(false) }
@@ -184,6 +186,27 @@ fun DetailEditDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
+                    value = rewatchCount,
+                    onValueChange = { rewatchCount = it },
+                    label = { Text("Rewatch Count") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text("Notes / Review") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    minLines = 3,
+                    maxLines = 6
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
                     value = coverImageUri,
                     onValueChange = { coverImageUri = it },
                     label = { Text("Cover Image URL") },
@@ -279,19 +302,38 @@ fun DetailEditDialog(
                             if (cover != null) {
                                 CoverImageStore.forgetFailure(cover)
                             }
-                            val finalItem = MediaItemEntity(
-                                id = item?.id ?: UUID.randomUUID().toString(),
-                                title = title.trim(),
-                                categoryId = categoryId,
-                                status = status,
-                                currentProgress = clampedProgress,
-                                totalCount = totalInt,
-                                currentVolume = currentVolume.toIntOrNull(),
-                                rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
-                                coverImageUri = cover,
-                                genres = genres,
-                                lastUpdated = System.currentTimeMillis()
-                            )
+                            val rewatchInt = rewatchCount.toIntOrNull()?.coerceAtLeast(0) ?: 0
+                            val finalItem = if (item != null) {
+                                item.copy(
+                                    title = title.trim(),
+                                    categoryId = categoryId,
+                                    status = status,
+                                    currentProgress = clampedProgress,
+                                    totalCount = totalInt,
+                                    currentVolume = currentVolume.toIntOrNull(),
+                                    rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
+                                    coverImageUri = cover,
+                                    genres = genres,
+                                    notes = notes,
+                                    rewatchCount = rewatchInt,
+                                    lastUpdated = System.currentTimeMillis()
+                                )
+                            } else {
+                                MediaItemEntity(
+                                    title = title.trim(),
+                                    categoryId = categoryId,
+                                    status = status,
+                                    currentProgress = clampedProgress,
+                                    totalCount = totalInt,
+                                    currentVolume = currentVolume.toIntOrNull(),
+                                    rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
+                                    coverImageUri = cover,
+                                    genres = genres,
+                                    notes = notes,
+                                    rewatchCount = rewatchInt,
+                                    lastUpdated = System.currentTimeMillis()
+                                )
+                            }
                             onSave(finalItem)
                         },
                         enabled = isTitleValid && categoryId.isNotBlank()

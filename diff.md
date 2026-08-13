@@ -1,3722 +1,3945 @@
 diff --git a/app/src/main/java/com/app/shouze/MainActivity.kt b/app/src/main/java/com/app/shouze/MainActivity.kt
-index f7a31c6..b329def 100644
+index b329def..f822bc2 100644
 --- a/app/src/main/java/com/app/shouze/MainActivity.kt
 +++ b/app/src/main/java/com/app/shouze/MainActivity.kt
-@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
-                                 onStatisticsClick = { navController.navigate("statistics") },
-                                 onSortModeChange = viewModel::setSortMode,
-                                 onToggleFavorites = viewModel::toggleShowFavorites,
-+                                onToggleFavorite = { viewModel.toggleFavorite(it.id) },
-                                 showFavoritesOnly = uiState.showFavoritesOnly
-                             )
+@@ -100,6 +100,7 @@ class MainActivity : ComponentActivity() {
+                                         navController.popBackStack()
+                                     },
+                                     onToggleFavorite = { viewModel.toggleFavorite(item.id) },
++                                    onIncrementRewatch = { viewModel.incrementRewatch(item.id) }
+                                 )
+                             }
                          }
-@@ -125,7 +126,7 @@ class MainActivity : ComponentActivity() {
-                                 }
-                             )
-                         }
--                      
-+
-                         composable("settings") {
-                             SettingsScreen(
-                                 onBack = { navController.popBackStack() },
 diff --git a/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt b/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt
-index d1f1821..0ebb188 100644
+index 0ebb188..287579d 100644
 --- a/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt
 +++ b/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt
-@@ -36,69 +36,7 @@ data class HomeUiState(
-     val error: String? = null
- )
+@@ -52,7 +52,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
+     private val _sortMode = MutableStateFlow(SortMode.LAST_UPDATED)
+     private val _showFavoritesOnly = MutableStateFlow(false)
  
--// class MediaViewModel(application: Application) : AndroidViewModel(application) {
--//
--//     private val db = AppDatabase.getInstance(application)
--//     private val dao = db.mediaDao()
--//     private val categoryDao = db.categoryDao()
--//     private val syncController = DataSyncController(db)
--//     private val settingsRepo = SettingsRepository(application)
--//     private val json = Json { ignoreUnknownKeys = true }
--//
--//     val settings = settingsRepo.settings
--//
--//     private val _selectedCategoryId = MutableStateFlow<String?>(null)
--//     private val _searchQuery = MutableStateFlow("")
--//     private val _sortMode = MutableStateFlow(SortMode.LAST_UPDATED)
--//     private val _showFavoritesOnly = MutableStateFlow(false)
--//     private val _isLoading = MutableStateFlow(false)
--//     private val _syncMessage = MutableStateFlow<String?>(null)
--//     private val _error = MutableStateFlow<String?>(null)
--//
--//     private val _uiState = MutableStateFlow(HomeUiState())
--//     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
--//     val statsUiState: StateFlow<StatsUiState> = combine(
--//         dao.getAllItems(),
--//         categoryDao.getAll()
--//     ) { items, categories ->
--//         computeStats(items, categories)
--//     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsUiState())
--//
--//
--//     init {
--//         viewModelScope.launch {
--//             startLibraryCollection()
--//         }
--//     }
--//
--//     private suspend fun startLibraryCollection() {
--//         try {
--//              combine(
--//                  dao.getAllItems(),
--//                  categoryDao.getAll(),
--//                  _selectedCategoryId,
--//                  _searchQuery,
--//                  _sortMode,
--//                  _showFavoritesOnly
--//              ) { allItems, allCategories, catId, query, sort, favOnly ->
--//                  val filtered = filterItems(allItems, catId, query, sort, favOnly)
--//                  _uiState.update { current ->
--//                      current.copy(
--//                          allItems = allItems,
--//                          items = filtered,
--//                          categories = allCategories,
--//                          selectedCategoryId = catId,
--//                          searchQuery = query,
--//                          sortMode = sort,
--//                          showFavoritesOnly = favOnly
--//                      )
--//                  }
--//              }.collect()
--//         } catch (e: Exception) {
--//             showMessage("Failed to load library: ${e.message}", isError = true)
--//         }
--//     }
--    class MediaViewModel(application: Application) : AndroidViewModel(application) {
-+class MediaViewModel(application: Application) : AndroidViewModel(application) {
+-    // Merge sort + favorites into one flow so the main combine stays at 5 flows
+     private val _filterConfig = combine(_sortMode, _showFavoritesOnly) { sort, favOnly ->
+         sort to favOnly
+     }
+@@ -110,12 +109,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
+             val now = System.currentTimeMillis()
+             var updated = item.copy(lastUpdated = now)
  
-     private val db = AppDatabase.getInstance(application)
-     private val dao = db.mediaDao()
-@@ -186,14 +124,13 @@ data class HomeUiState(
+-            // Auto-set start date when beginning to watch/read
+             if ((item.status == Status.WATCHING || item.status == Status.READING) && item.startDate == null) {
+                 updated = updated.copy(startDate = now)
+             }
+ 
+-            // Auto-set end date when completed
+             if (item.status == Status.COMPLETED && item.endDate == null) {
+                 updated = updated.copy(endDate = now)
+             }
+@@ -131,6 +128,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
          }
      }
  
--   fun toggleFavorite(itemId: String) {
-+    fun toggleFavorite(itemId: String) {
-         viewModelScope.launch {
-             val item = uiState.value.allItems.find { it.id == itemId } ?: return@launch
-             dao.insertOrUpdate(item.copy(isFavorite = !item.isFavorite))
-         }
-     }
- 
--
++    fun incrementRewatch(itemId: String) {
++        viewModelScope.launch {
++            val item = uiState.value.allItems.find { it.id == itemId } ?: return@launch
++            dao.insertOrUpdate(item.copy(rewatchCount = item.rewatchCount + 1, lastUpdated = System.currentTimeMillis()))
++        }
++    }
++
      fun deleteItem(itemId: String) {
          viewModelScope.launch {
              dao.deleteById(itemId)
-@@ -216,7 +153,6 @@ data class HomeUiState(
-         _showFavoritesOnly.value = !_showFavoritesOnly.value
-     }
+diff --git a/app/src/main/java/com/app/shouze/ui/components/DetailEditDialog.kt b/app/src/main/java/com/app/shouze/ui/components/DetailEditDialog.kt
+index c87ff84..ba3a735 100644
+--- a/app/src/main/java/com/app/shouze/ui/components/DetailEditDialog.kt
++++ b/app/src/main/java/com/app/shouze/ui/components/DetailEditDialog.kt
+@@ -44,6 +44,8 @@ fun DetailEditDialog(
+     var coverImageUri by remember { mutableStateOf(item?.coverImageUri ?: "") }
+     var genres by remember { mutableStateOf(item?.genres ?: emptyList()) }
+     var newGenre by remember { mutableStateOf("") }
++    var notes by remember { mutableStateOf(item?.notes ?: "") }
++    var rewatchCount by remember { mutableStateOf(item?.rewatchCount?.toString() ?: "0") }
  
--
-     fun addCategory(name: String) {
-         viewModelScope.launch {
-             categoryDao.insert(CategoryEntity(name = name.trim()))
-@@ -356,6 +292,7 @@ data class HomeUiState(
-         }
-         _uiState.update { it.copy(isLoading = false, syncMessage = if (isError) null else message, error = if (isError) message else null) }
-     }
+     var showCategoryPicker by remember { mutableStateOf(false) }
+     var showStatusPicker by remember { mutableStateOf(false) }
+@@ -183,6 +185,27 @@ fun DetailEditDialog(
+                 )
+                 Spacer(modifier = Modifier.height(12.dp))
+ 
++                OutlinedTextField(
++                    value = rewatchCount,
++                    onValueChange = { rewatchCount = it },
++                    label = { Text("Rewatch Count") },
++                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
++                    modifier = Modifier.fillMaxWidth(),
++                    shape = MaterialTheme.shapes.medium
++                )
++                Spacer(modifier = Modifier.height(12.dp))
 +
-     private fun computeStats(
-         items: List<MediaItemEntity>,
-         categories: List<CategoryEntity>
-@@ -368,6 +305,7 @@ data class HomeUiState(
-         val reading = items.count { it.status == Status.READING }
-         val dropped = items.count { it.status == Status.DROPPED }
-         val planToWatch = items.count { it.status == Status.PLAN_TO_WATCH }
-+        val favorites = items.count { it.isFavorite }
- 
-         val ratedItems = items.filter { it.rating > 0.0 }
-         val avgRating = if (ratedItems.isNotEmpty()) ratedItems.map { it.rating }.average() else 0.0
-@@ -405,6 +343,7 @@ data class HomeUiState(
-             totalReading = reading,
-             totalDropped = dropped,
-             totalPlanToWatch = planToWatch,
-+            totalFavorites = favorites,
-             completionRate = completed.toFloat() / total,
-             averageRating = avgRating,
-             totalProgressConsumed = totalProgress,
-diff --git a/app/src/main/java/com/app/shouze/ui/StatsUiState.kt b/app/src/main/java/com/app/shouze/ui/StatsUiState.kt
-index de66914..27b6181 100644
---- a/app/src/main/java/com/app/shouze/ui/StatsUiState.kt
-+++ b/app/src/main/java/com/app/shouze/ui/StatsUiState.kt
-@@ -9,6 +9,7 @@ data class StatsUiState(
-     val totalDropped: Int = 0,
-     val totalPlanToWatch: Int = 0,
-     val totalReading: Int = 0,
-+    val totalFavorites: Int = 0,
-     val completionRate: Float = 0f,
-     val averageRating: Double = 0.0,
-     val totalProgressConsumed: Int = 0,
-@@ -30,4 +31,3 @@ data class CategoryStat(
-     val colorHex: String?,
-     val percentage: Float
- )
--
-diff --git a/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt b/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt
-index a2ffdab..ff20104 100644
---- a/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt
-+++ b/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt
-@@ -49,6 +49,7 @@ fun HomeScreen(
-     onStatisticsClick: () -> Unit,
-     onSortModeChange: (SortMode) -> Unit,
-     onToggleFavorites: () -> Unit,
-+    onToggleFavorite: (MediaItemEntity) -> Unit,
-     showFavoritesOnly: Boolean = false
- ) {
-     val isError = uiState.error != null
-@@ -56,34 +57,6 @@ fun HomeScreen(
- 
-     var selectedItem by remember { mutableStateOf<MediaItemEntity?>(null) }
- 
--    val selection = selectedItem
--    if (selection != null) {
--        AlertDialog(
--            onDismissRequest = { selectedItem = null },
--            title = { Text(selection.title) },
--            text = { Text("What would you like to do with this entry?") },
--            confirmButton = {
--                TextButton(onClick = {
--                    onEditItem(selection)
--                    selectedItem = null
--                }) {
--                    Text("Edit")
--                }
--            },
--            dismissButton = {
--                TextButton(
--                    onClick = {
--                        onDeleteItem(selection)
--                        selectedItem = null
--                    },
--                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
--                ) {
--                    Text("Delete")
--                }
--            }
--        )
--    }
--
-     Scaffold(
-         bottomBar = {
-             val sel = selectedItem
-@@ -93,6 +66,13 @@ fun HomeScreen(
-                         IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
-                             Icon(Icons.Filled.Edit, contentDescription = "Edit")
-                         }
-+                        IconButton(onClick = { onToggleFavorite(sel); selectedItem = null }) {
-+                            Icon(
-+                                imageVector = if (sel.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
-+                                contentDescription = if (sel.isFavorite) "Unfavorite" else "Favorite",
-+                                tint = if (sel.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
-+                            )
-+                        }
-                         IconButton(
-                             onClick = { onDeleteItem(sel); selectedItem = null }
-                         ) {
-@@ -113,15 +93,17 @@ fun HomeScreen(
-                 actions = {
-                     var expanded by remember { mutableStateOf(false) }
-                     Box {
--                        IconButton(onClick = onToggleFavorites) {
--                            Icon(
--                                imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
--                                contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
--                                tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
++                OutlinedTextField(
++                    value = notes,
++                    onValueChange = { notes = it },
++                    label = { Text("Notes / Review") },
++                    modifier = Modifier.fillMaxWidth(),
++                    shape = MaterialTheme.shapes.medium,
++                    minLines = 3,
++                    maxLines = 6
++                )
++                Spacer(modifier = Modifier.height(12.dp))
++
+                 OutlinedTextField(
+                     value = coverImageUri,
+                     onValueChange = { coverImageUri = it },
+@@ -279,19 +302,38 @@ fun DetailEditDialog(
+                             if (cover != null) {
+                                 CoverImageStore.forgetFailure(cover)
+                             }
+-                            val finalItem = MediaItemEntity(
+-                                id = item?.id ?: UUID.randomUUID().toString(),
+-                                title = title.trim(),
+-                                categoryId = categoryId,
+-                                status = status,
+-                                currentProgress = clampedProgress,
+-                                totalCount = totalInt,
+-                                currentVolume = currentVolume.toIntOrNull(),
+-                                rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
+-                                coverImageUri = cover,
+-                                genres = genres,
+-                                lastUpdated = System.currentTimeMillis()
 -                            )
--                        }
--                        IconButton(onClick = { expanded = true }) {
--                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
-+                        Row(verticalAlignment = Alignment.CenterVertically) {
-+                            IconButton(onClick = onToggleFavorites) {
-+                                Icon(
-+                                    imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
-+                                    contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
-+                                    tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
++                            val rewatchInt = rewatchCount.toIntOrNull()?.coerceAtLeast(0) ?: 0
++                            val finalItem = if (item != null) {
++                                item.copy(
++                                    title = title.trim(),
++                                    categoryId = categoryId,
++                                    status = status,
++                                    currentProgress = clampedProgress,
++                                    totalCount = totalInt,
++                                    currentVolume = currentVolume.toIntOrNull(),
++                                    rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
++                                    coverImageUri = cover,
++                                    genres = genres,
++                                    notes = notes,
++                                    rewatchCount = rewatchInt,
++                                    lastUpdated = System.currentTimeMillis()
++                                )
++                            } else {
++                                MediaItemEntity(
++                                    title = title.trim(),
++                                    categoryId = categoryId,
++                                    status = status,
++                                    currentProgress = clampedProgress,
++                                    totalCount = totalInt,
++                                    currentVolume = currentVolume.toIntOrNull(),
++                                    rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
++                                    coverImageUri = cover,
++                                    genres = genres,
++                                    notes = notes,
++                                    rewatchCount = rewatchInt,
++                                    lastUpdated = System.currentTimeMillis()
 +                                )
 +                            }
-+                            IconButton(onClick = { expanded = true }) {
-+                                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
-+                            }
-                         }
-                         DropdownMenu(
-                             expanded = expanded,
-diff --git a/app/src/main/java/com/app/shouze/ui/screens/StatisticsScreen.kt b/app/src/main/java/com/app/shouze/ui/screens/StatisticsScreen.kt
-index 28584b0..2f1bb80 100644
---- a/app/src/main/java/com/app/shouze/ui/screens/StatisticsScreen.kt
-+++ b/app/src/main/java/com/app/shouze/ui/screens/StatisticsScreen.kt
-@@ -191,6 +191,19 @@ private fun OverviewSection(stats: StatsUiState) {
-                 modifier = Modifier.weight(1f)
-             )
-         }
-+        Spacer(modifier = Modifier.height(12.dp))
-+        Row(
-+            modifier = Modifier.fillMaxWidth(),
-+            horizontalArrangement = Arrangement.spacedBy(12.dp)
-+        ) {
-+            StatCard(
-+                value = "${stats.totalFavorites}",
-+                label = "Favorites",
-+                modifier = Modifier.weight(1f)
-+            )
-+            // Empty spacer to keep the row balanced (2 columns)
-+            Spacer(modifier = Modifier.weight(1f))
-+        }
-     }
- }
+                             onSave(finalItem)
+                         },
+                         enabled = isTitleValid && categoryId.isNotBlank()
+diff --git a/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt b/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt
+index 6456721..3355e18 100644
+--- a/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt
++++ b/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt
+@@ -41,9 +41,10 @@ fun DetailScreen(
+     onBack: () -> Unit,
+     onEdit: () -> Unit,
+     onDelete: () -> Unit,
+-    onToggleFavorite: () -> Unit = {}
++    onToggleFavorite: () -> Unit = {},
++    onIncrementRewatch: () -> Unit = {}
+ ) {
+-    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault()) }
++    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+     var showDeleteConfirm by remember { mutableStateOf(false) }
  
+     Scaffold(
+@@ -169,8 +170,47 @@ fun DetailScreen(
+                     Spacer(modifier = Modifier.height(12.dp))
+                 }
+ 
++                if (item.rewatchCount > 0 || item.status == Status.COMPLETED) {
++                    DetailInfoCard(title = "Rewatches") {
++                        Row(
++                            modifier = Modifier.fillMaxWidth(),
++                            horizontalArrangement = Arrangement.SpaceBetween,
++                            verticalAlignment = Alignment.CenterVertically
++                        ) {
++                            Text(
++                                text = "${item.rewatchCount}",
++                                style = MaterialTheme.typography.headlineSmall,
++                                color = MaterialTheme.colorScheme.onSurface
++                            )
++                            Button(onClick = onIncrementRewatch) {
++                                Text("+1 Rewatch")
++                            }
++                        }
++                    }
++                    Spacer(modifier = Modifier.height(12.dp))
++                }
++
++                if (item.notes.isNotBlank()) {
++                    DetailInfoCard(title = "Notes") {
++                        Text(
++                            text = item.notes,
++                            style = MaterialTheme.typography.bodyLarge,
++                            color = MaterialTheme.colorScheme.onSurfaceVariant
++                        )
++                    }
++                    Spacer(modifier = Modifier.height(12.dp))
++                }
++
+                 DetailInfoCard(title = "Info") {
+                     InfoRow(label = "Last Updated", value = dateFormat.format(Date(item.lastUpdated)))
++                    if (item.startDate != null) {
++                        Spacer(modifier = Modifier.height(8.dp))
++                        InfoRow(label = "Started", value = dateFormat.format(Date(item.startDate)))
++                    }
++                    if (item.endDate != null) {
++                        Spacer(modifier = Modifier.height(8.dp))
++                        InfoRow(label = "Finished", value = dateFormat.format(Date(item.endDate)))
++                    }
+                     if (!item.coverImageUri.isNullOrBlank()) {
+                         Spacer(modifier = Modifier.height(8.dp))
+                         InfoRow(label = "Cover URI", value = item.coverImageUri)
+@@ -184,7 +224,7 @@ fun DetailScreen(
+         AlertDialog(
+             onDismissRequest = { showDeleteConfirm = false },
+             title = { Text("Delete item?") },
+-            text = { Text("This will permanently remove \"${item.title}\" from your library.") },
++            text = { Text("This will permanently remove '${item.title}' from your library.") },
+             confirmButton = {
+                 Button(
+                     onClick = {
 diff --git a/diff.md b/diff.md
-index 97414b8..d050085 100644
+index b85c980..365fa45 100644
 --- a/diff.md
 +++ b/diff.md
-@@ -1,3444 +0,0 @@
+@@ -1,3722 +0,0 @@
 -diff --git a/app/src/main/java/com/app/shouze/MainActivity.kt b/app/src/main/java/com/app/shouze/MainActivity.kt
--index fba9104..f7a31c6 100644
+-index f7a31c6..b329def 100644
 ---- a/app/src/main/java/com/app/shouze/MainActivity.kt
 -+++ b/app/src/main/java/com/app/shouze/MainActivity.kt
--@@ -76,7 +76,10 @@ class MainActivity : ComponentActivity() {
--                                 onSearchQueryChange = viewModel::setSearchQuery,
--                                 onClearMessage = viewModel::clearSyncMessage,
--                                 onSettingsClick = { navController.navigate("settings") },
---                                onStatisticsClick = { navController.navigate("statistics") } 
--+                                onStatisticsClick = { navController.navigate("statistics") },
--+                                onSortModeChange = viewModel::setSortMode,
--+                                onToggleFavorites = viewModel::toggleShowFavorites,
--+                                showFavoritesOnly = uiState.showFavoritesOnly
+-@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
+-                                 onStatisticsClick = { navController.navigate("statistics") },
+-                                 onSortModeChange = viewModel::setSortMode,
+-                                 onToggleFavorites = viewModel::toggleShowFavorites,
+-+                                onToggleFavorite = { viewModel.toggleFavorite(it.id) },
+-                                 showFavoritesOnly = uiState.showFavoritesOnly
 -                             )
 -                         }
-- 
--@@ -94,7 +97,8 @@ class MainActivity : ComponentActivity() {
--                                     onDelete = {
--                                         viewModel.deleteItem(item.id)
--                                         navController.popBackStack()
---                                    }
--+                                    },
--+                                    onToggleFavorite = { viewModel.toggleFavorite(item.id) },
--                                 )
--                             }
+-@@ -125,7 +126,7 @@ class MainActivity : ComponentActivity() {
+-                                 }
+-                             )
 -                         }
--diff --git a/app/src/main/java/com/app/shouze/data/local/AppDatabase.kt b/app/src/main/java/com/app/shouze/data/local/AppDatabase.kt
--index c8a0bd0..18f4d77 100644
----- a/app/src/main/java/com/app/shouze/data/local/AppDatabase.kt
--+++ b/app/src/main/java/com/app/shouze/data/local/AppDatabase.kt
--@@ -12,9 +12,10 @@ import java.io.File
-- 
-- @Database(
--     entities = [MediaItemEntity::class, CategoryEntity::class],
---    version = 3,
--+    version = 4,
--     exportSchema = false
-- )
+--                      
 -+
-- @TypeConverters(Converters::class)
-- abstract class AppDatabase : RoomDatabase() {
--     abstract fun mediaDao(): MediaDao
--@@ -58,6 +59,17 @@ abstract class AppDatabase : RoomDatabase() {
--             }
--         }
-- 
--+        val MIGRATION_3_4 = object : Migration(3, 4) {
--+            override fun migrate(db: SupportSQLiteDatabase) {
--+                db.execSQL("ALTER TABLE media_items ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
--+                db.execSQL("ALTER TABLE media_items ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
--+                db.execSQL("ALTER TABLE media_items ADD COLUMN rewatchCount INTEGER NOT NULL DEFAULT 0")
--+                db.execSQL("ALTER TABLE media_items ADD COLUMN startDate INTEGER")
--+                db.execSQL("ALTER TABLE media_items ADD COLUMN endDate INTEGER")
--+            }
--+        }
--+
--+
--         fun getInstance(context: Context): AppDatabase {
--     return INSTANCE ?: synchronized(this) {
--         val instance = Room.databaseBuilder(
--@@ -65,7 +77,7 @@ abstract class AppDatabase : RoomDatabase() {
--             AppDatabase::class.java,
--             DB_NAME
--         )
---        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
--+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
--         .addCallback(object : RoomDatabase.Callback() {
--             override fun onCreate(db: SupportSQLiteDatabase) {
--                 super.onCreate(db)
--diff --git a/app/src/main/java/com/app/shouze/data/local/MediaItemEntity.kt b/app/src/main/java/com/app/shouze/data/local/MediaItemEntity.kt
--index dd153fe..eee542e 100644
----- a/app/src/main/java/com/app/shouze/data/local/MediaItemEntity.kt
--+++ b/app/src/main/java/com/app/shouze/data/local/MediaItemEntity.kt
--@@ -17,5 +17,11 @@ data class MediaItemEntity(
--     val rating: Double = 0.0,
--     val coverImageUri: String? = null,
--     val genres: List<String> = emptyList(),
---    val lastUpdated: Long = System.currentTimeMillis()
--+    val lastUpdated: Long = System.currentTimeMillis(),
--+    val isFavorite: Boolean = false,
--+    val notes: String = "",
--+    val rewatchCount: Int = 0,
--+    val startDate: Long? = null,
--+    val endDate: Long? = null
-- )
--+
+-                         composable("settings") {
+-                             SettingsScreen(
+-                                 onBack = { navController.popBackStack() },
 -diff --git a/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt b/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt
--index 90db392..d1f1821 100644
+-index d1f1821..0ebb188 100644
 ---- a/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt
 -+++ b/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt
--@@ -2,23 +2,26 @@ package com.app.shouze.ui
-- 
-- import android.app.Application
-- import android.net.Uri
---import android.util.Log
-- import androidx.lifecycle.AndroidViewModel
-- import androidx.lifecycle.viewModelScope
-- import com.app.shouze.data.SettingsRepository
-- import com.app.shouze.data.ThemeMode
-- import com.app.shouze.data.local.*
---import com.app.shouze.ui.StatsUiState
---import com.app.shouze.ui.GenreStat
---import com.app.shouze.ui.CategoryStat
---import kotlinx.coroutines.flow.SharingStarted
---import kotlinx.coroutines.flow.stateIn
-- import kotlinx.coroutines.flow.*
-- import kotlinx.coroutines.launch
-- import kotlinx.serialization.json.Json
-- import java.util.zip.ZipEntry
-- import java.util.zip.ZipInputStream
-- import java.util.zip.ZipOutputStream
--+import com.app.shouze.ui.StatsUiState
--+import com.app.shouze.ui.GenreStat
--+import com.app.shouze.ui.CategoryStat
--+import kotlinx.coroutines.flow.SharingStarted
--+import kotlinx.coroutines.flow.stateIn
--+
--+enum class SortMode {
--+    LAST_UPDATED, TITLE, RATING_HIGH, PROGRESS
--+}
-- 
-- data class HomeUiState(
--     val allItems: List<MediaItemEntity> = emptyList(),
--@@ -26,28 +29,96 @@ data class HomeUiState(
--     val categories: List<CategoryEntity> = emptyList(),
--     val selectedCategoryId: String? = null,
--     val searchQuery: String = "",
--+    val sortMode: SortMode = SortMode.LAST_UPDATED,
--+    val showFavoritesOnly: Boolean = false,
--     val isLoading: Boolean = false,
--     val syncMessage: String? = null,
+-@@ -36,69 +36,7 @@ data class HomeUiState(
 -     val error: String? = null
 - )
 - 
---class MediaViewModel(application: Application) : AndroidViewModel(application) {
--+// class MediaViewModel(application: Application) : AndroidViewModel(application) {
--+//
--+//     private val db = AppDatabase.getInstance(application)
--+//     private val dao = db.mediaDao()
--+//     private val categoryDao = db.categoryDao()
--+//     private val syncController = DataSyncController(db)
--+//     private val settingsRepo = SettingsRepository(application)
--+//     private val json = Json { ignoreUnknownKeys = true }
--+//
--+//     val settings = settingsRepo.settings
--+//
--+//     private val _selectedCategoryId = MutableStateFlow<String?>(null)
--+//     private val _searchQuery = MutableStateFlow("")
--+//     private val _sortMode = MutableStateFlow(SortMode.LAST_UPDATED)
--+//     private val _showFavoritesOnly = MutableStateFlow(false)
--+//     private val _isLoading = MutableStateFlow(false)
--+//     private val _syncMessage = MutableStateFlow<String?>(null)
--+//     private val _error = MutableStateFlow<String?>(null)
--+//
--+//     private val _uiState = MutableStateFlow(HomeUiState())
--+//     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
--+//     val statsUiState: StateFlow<StatsUiState> = combine(
--+//         dao.getAllItems(),
--+//         categoryDao.getAll()
--+//     ) { items, categories ->
--+//         computeStats(items, categories)
--+//     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsUiState())
--+//
--+//
--+//     init {
--+//         viewModelScope.launch {
--+//             startLibraryCollection()
--+//         }
--+//     }
--+//
--+//     private suspend fun startLibraryCollection() {
--+//         try {
--+//              combine(
--+//                  dao.getAllItems(),
--+//                  categoryDao.getAll(),
--+//                  _selectedCategoryId,
--+//                  _searchQuery,
--+//                  _sortMode,
--+//                  _showFavoritesOnly
--+//              ) { allItems, allCategories, catId, query, sort, favOnly ->
--+//                  val filtered = filterItems(allItems, catId, query, sort, favOnly)
--+//                  _uiState.update { current ->
--+//                      current.copy(
--+//                          allItems = allItems,
--+//                          items = filtered,
--+//                          categories = allCategories,
--+//                          selectedCategoryId = catId,
--+//                          searchQuery = query,
--+//                          sortMode = sort,
--+//                          showFavoritesOnly = favOnly
--+//                      )
--+//                  }
--+//              }.collect()
--+//         } catch (e: Exception) {
--+//             showMessage("Failed to load library: ${e.message}", isError = true)
--+//         }
--+//     }
--+    class MediaViewModel(application: Application) : AndroidViewModel(application) {
+--// class MediaViewModel(application: Application) : AndroidViewModel(application) {
+--//
+--//     private val db = AppDatabase.getInstance(application)
+--//     private val dao = db.mediaDao()
+--//     private val categoryDao = db.categoryDao()
+--//     private val syncController = DataSyncController(db)
+--//     private val settingsRepo = SettingsRepository(application)
+--//     private val json = Json { ignoreUnknownKeys = true }
+--//
+--//     val settings = settingsRepo.settings
+--//
+--//     private val _selectedCategoryId = MutableStateFlow<String?>(null)
+--//     private val _searchQuery = MutableStateFlow("")
+--//     private val _sortMode = MutableStateFlow(SortMode.LAST_UPDATED)
+--//     private val _showFavoritesOnly = MutableStateFlow(false)
+--//     private val _isLoading = MutableStateFlow(false)
+--//     private val _syncMessage = MutableStateFlow<String?>(null)
+--//     private val _error = MutableStateFlow<String?>(null)
+--//
+--//     private val _uiState = MutableStateFlow(HomeUiState())
+--//     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+--//     val statsUiState: StateFlow<StatsUiState> = combine(
+--//         dao.getAllItems(),
+--//         categoryDao.getAll()
+--//     ) { items, categories ->
+--//         computeStats(items, categories)
+--//     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsUiState())
+--//
+--//
+--//     init {
+--//         viewModelScope.launch {
+--//             startLibraryCollection()
+--//         }
+--//     }
+--//
+--//     private suspend fun startLibraryCollection() {
+--//         try {
+--//              combine(
+--//                  dao.getAllItems(),
+--//                  categoryDao.getAll(),
+--//                  _selectedCategoryId,
+--//                  _searchQuery,
+--//                  _sortMode,
+--//                  _showFavoritesOnly
+--//              ) { allItems, allCategories, catId, query, sort, favOnly ->
+--//                  val filtered = filterItems(allItems, catId, query, sort, favOnly)
+--//                  _uiState.update { current ->
+--//                      current.copy(
+--//                          allItems = allItems,
+--//                          items = filtered,
+--//                          categories = allCategories,
+--//                          selectedCategoryId = catId,
+--//                          searchQuery = query,
+--//                          sortMode = sort,
+--//                          showFavoritesOnly = favOnly
+--//                      )
+--//                  }
+--//              }.collect()
+--//         } catch (e: Exception) {
+--//             showMessage("Failed to load library: ${e.message}", isError = true)
+--//         }
+--//     }
+--    class MediaViewModel(application: Application) : AndroidViewModel(application) {
+-+class MediaViewModel(application: Application) : AndroidViewModel(application) {
 - 
 -     private val db = AppDatabase.getInstance(application)
--+    private val dao = db.mediaDao()
--+    private val categoryDao = db.categoryDao()
--     private val syncController = DataSyncController(db)
--     private val settingsRepo = SettingsRepository(application)
--     private val json = Json { ignoreUnknownKeys = true }
-- 
--     val settings = settingsRepo.settings
-- 
---    private val app: Application = getApplication()
---
---    private var recoveryTried = false
---
---    private fun currentDb(): AppDatabase = AppDatabase.getInstance(app)
---
--     private val _selectedCategoryId = MutableStateFlow<String?>(null)
--     private val _searchQuery = MutableStateFlow("")
--+    private val _sortMode = MutableStateFlow(SortMode.LAST_UPDATED)
--+    private val _showFavoritesOnly = MutableStateFlow(false)
--+
--+    // Merge sort + favorites into one flow so the main combine stays at 5 flows
--+    private val _filterConfig = combine(_sortMode, _showFavoritesOnly) { sort, favOnly ->
--+        sort to favOnly
--+    }
--+
--     private val _isLoading = MutableStateFlow(false)
--     private val _syncMessage = MutableStateFlow<String?>(null)
--     private val _error = MutableStateFlow<String?>(null)
--@@ -56,72 +127,76 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
--     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
-- 
--     val statsUiState: StateFlow<StatsUiState> = combine(
---        currentDb().mediaDao().getAllItems(),
---        currentDb().categoryDao().getAll()
--+        dao.getAllItems(),
--+        categoryDao.getAll()
--     ) { items, categories ->
---        try {
---            computeStats(items, categories)
---        } catch (e: Exception) {
---            Log.e("Shouze", "Failed to compute statistics", e)
---            StatsUiState()
---        }
---    }.catch { e ->
---        Log.e("Shouze", "Statistics data flow failed", e)
---        emit(StatsUiState())
--+        computeStats(items, categories)
--     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsUiState())
-- 
---
--     init {
---        startLibraryCollection()
--+        viewModelScope.launch {
--+            startLibraryCollection()
--+        }
--     }
-- 
---    private fun startLibraryCollection() {
---        viewModelScope.launch {
---            try {
---                val db = currentDb()
---                combine(
---                    db.mediaDao().getAllItems(),
---                    db.categoryDao().getAll(),
---                    _selectedCategoryId,
---                    _searchQuery
---                ) { allItems, allCategories, catId, query ->
---                    val filtered = filterItems(allItems, catId, query)
---                    _uiState.update { current ->
---                        current.copy(
---                            allItems = allItems,
---                            items = filtered,
---                            categories = allCategories,
---                            selectedCategoryId = catId,
---                            searchQuery = query
---                        )
---                    }
---                }.collect()
---            } catch (e: Exception) {
---                Log.e("Shouze", "Failed to load library data", e)
---                if (!recoveryTried && AppDatabase.isCorruptionError(e)) {
---                    recoveryTried = true
---                    Log.w("Shouze", "Database corruption detected, deleting database and retrying")
---                    AppDatabase.recoverFromCorruption(app)
---                    startLibraryCollection()
---                } else {
---                    _error.value = "Failed to load data: ${e.message}"
---                    _uiState.update {
---                        it.copy(error = "Failed to load data: ${e.message}", isLoading = false)
---                    }
--+    private suspend fun startLibraryCollection() {
--+        try {
--+            combine(
--+                dao.getAllItems(),
--+                categoryDao.getAll(),
--+                _selectedCategoryId,
--+                _searchQuery,
--+                _filterConfig
--+            ) { allItems, allCategories, catId, query, filterConfig ->
--+                val (sort, favOnly) = filterConfig
--+                val filtered = filterItems(allItems, catId, query, sort, favOnly)
--+                _uiState.update { current ->
--+                    current.copy(
--+                        allItems = allItems,
--+                        items = filtered,
--+                        categories = allCategories,
--+                        selectedCategoryId = catId,
--+                        searchQuery = query,
--+                        sortMode = sort,
--+                        showFavoritesOnly = favOnly
--+                    )
--                 }
---            }
--+            }.collect()
--+        } catch (e: Exception) {
--+            showMessage("Failed to load library: ${e.message}", isError = true)
+-     private val dao = db.mediaDao()
+-@@ -186,14 +124,13 @@ data class HomeUiState(
 -         }
 -     }
 - 
--     fun addOrUpdate(item: MediaItemEntity) {
+--   fun toggleFavorite(itemId: String) {
+-+    fun toggleFavorite(itemId: String) {
 -         viewModelScope.launch {
---            currentDb().mediaDao().insertOrUpdate(item.copy(lastUpdated = System.currentTimeMillis()))
--+            val now = System.currentTimeMillis()
--+            var updated = item.copy(lastUpdated = now)
--+
--+            // Auto-set start date when beginning to watch/read
--+            if ((item.status == Status.WATCHING || item.status == Status.READING) && item.startDate == null) {
--+                updated = updated.copy(startDate = now)
--+            }
--+
--+            // Auto-set end date when completed
--+            if (item.status == Status.COMPLETED && item.endDate == null) {
--+                updated = updated.copy(endDate = now)
--+            }
--+
--+            dao.insertOrUpdate(updated)
--+        }
--+    }
--+
--+   fun toggleFavorite(itemId: String) {
--+        viewModelScope.launch {
--+            val item = uiState.value.allItems.find { it.id == itemId } ?: return@launch
--+            dao.insertOrUpdate(item.copy(isFavorite = !item.isFavorite))
+-             val item = uiState.value.allItems.find { it.id == itemId } ?: return@launch
+-             dao.insertOrUpdate(item.copy(isFavorite = !item.isFavorite))
 -         }
 -     }
 - 
--+
+--
 -     fun deleteItem(itemId: String) {
 -         viewModelScope.launch {
---            currentDb().mediaDao().deleteById(itemId)
--+            dao.deleteById(itemId)
--         }
+-             dao.deleteById(itemId)
+-@@ -216,7 +153,6 @@ data class HomeUiState(
+-         _showFavoritesOnly.value = !_showFavoritesOnly.value
 -     }
 - 
--@@ -133,26 +208,47 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
--         _searchQuery.value = query
--     }
-- 
--+    fun setSortMode(mode: SortMode) {
--+        _sortMode.value = mode
--+    }
--+
--+    fun toggleShowFavorites() {
--+        _showFavoritesOnly.value = !_showFavoritesOnly.value
--+    }
--+
--+
+--
 -     fun addCategory(name: String) {
 -         viewModelScope.launch {
---            currentDb().categoryDao().insert(CategoryEntity(name = name.trim()))
--+            categoryDao.insert(CategoryEntity(name = name.trim()))
+-             categoryDao.insert(CategoryEntity(name = name.trim()))
+-@@ -356,6 +292,7 @@ data class HomeUiState(
 -         }
+-         _uiState.update { it.copy(isLoading = false, syncMessage = if (isError) null else message, error = if (isError) message else null) }
 -     }
-- 
--     fun deleteCategory(categoryId: String) {
--         viewModelScope.launch {
---            currentDb().categoryDao().delete(categoryId)
--+            categoryDao.delete(categoryId)
--         }
--     }
-- 
--     private fun filterItems(
--         all: List<MediaItemEntity>,
--         categoryId: String?,
---        query: String
--+        query: String,
--+        sort: SortMode,
--+        favoritesOnly: Boolean
--     ): List<MediaItemEntity> {
---        return all
--+        val filtered = all
--             .filter { categoryId == null || it.categoryId == categoryId }
--             .filter { query.isBlank() || it.title.contains(query, ignoreCase = true) }
--+            .filter { !favoritesOnly || it.isFavorite }
 -+
--+        return when (sort) {
--+            SortMode.TITLE -> filtered.sortedBy { it.title.lowercase() }
--+            SortMode.RATING_HIGH -> filtered.sortedByDescending { it.rating }
--+            SortMode.PROGRESS -> filtered.sortedByDescending {
--+                if (it.totalCount > 0) it.currentProgress.toFloat() / it.totalCount else 0f
--+            }
--+            SortMode.LAST_UPDATED -> filtered.sortedByDescending { it.lastUpdated }
--+        }
--     }
-- 
--     fun setThemeMode(mode: ThemeMode) = settingsRepo.setThemeMode(mode)
--@@ -265,22 +361,18 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
+-     private fun computeStats(
+-         items: List<MediaItemEntity>,
 -         categories: List<CategoryEntity>
--     ): StatsUiState {
--         if (items.isEmpty()) return StatsUiState()
---       
--+
--         val total = items.size
--         val completed = items.count { it.status == Status.COMPLETED }
--         val watching = items.count { it.status == Status.WATCHING }
+-@@ -368,6 +305,7 @@ data class HomeUiState(
 -         val reading = items.count { it.status == Status.READING }
 -         val dropped = items.count { it.status == Status.DROPPED }
 -         val planToWatch = items.count { it.status == Status.PLAN_TO_WATCH }
---       
--+
+-+        val favorites = items.count { it.isFavorite }
+- 
 -         val ratedItems = items.filter { it.rating > 0.0 }
---        val avgRating = if (ratedItems.isNotEmpty()) {
---            ratedItems.map { it.rating }.average()
---        } else 0.0
---       
--+        val avgRating = if (ratedItems.isNotEmpty()) ratedItems.map { it.rating }.average() else 0.0
--         val totalProgress = items.sumOf { it.currentProgress }
---       
---        // Genre distribution
--+
--         val genreCounts = mutableMapOf<String, Int>()
--         items.forEach { item ->
--             item.genres.forEach { genre ->
--@@ -291,8 +383,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
--             .map { (genre, count) -> GenreStat(genre, count, count.toFloat() / total) }
--             .sortedByDescending { it.count }
--             .take(8)
---       
---        // Category distribution
--+
--         val categoryCounts = items.groupingBy { it.categoryId }.eachCount()
--         val categoryDistribution = categoryCounts.map { (catId, count) ->
--             val cat = categories.find { it.id == catId }
--@@ -303,17 +394,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
--                 percentage = count.toFloat() / total
--             )
--         }.sortedByDescending { it.count }
---       
---        // Top rated (at least 5 items with rating > 0, sorted desc)
---        val topRated = ratedItems
---            .sortedByDescending { it.rating }
---            .take(10)
---       
---        // Recently updated (last 10)
---        val recentlyUpdated = items
---            .sortedByDescending { it.lastUpdated }
---            .take(10)
---       
--+
--+        val topRated = ratedItems.sortedByDescending { it.rating }.take(10)
--+        val recentlyUpdated = items.sortedByDescending { it.lastUpdated }.take(10)
--+
--         return StatsUiState(
--             totalEntries = total,
--             totalCompleted = completed,
--@@ -330,5 +414,4 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
--             recentlyUpdatedItems = recentlyUpdated
--         )
--     }
+-         val avgRating = if (ratedItems.isNotEmpty()) ratedItems.map { it.rating }.average() else 0.0
+-@@ -405,6 +343,7 @@ data class HomeUiState(
+-             totalReading = reading,
+-             totalDropped = dropped,
+-             totalPlanToWatch = planToWatch,
+-+            totalFavorites = favorites,
+-             completionRate = completed.toFloat() / total,
+-             averageRating = avgRating,
+-             totalProgressConsumed = totalProgress,
+-diff --git a/app/src/main/java/com/app/shouze/ui/StatsUiState.kt b/app/src/main/java/com/app/shouze/ui/StatsUiState.kt
+-index de66914..27b6181 100644
+---- a/app/src/main/java/com/app/shouze/ui/StatsUiState.kt
+-+++ b/app/src/main/java/com/app/shouze/ui/StatsUiState.kt
+-@@ -9,6 +9,7 @@ data class StatsUiState(
+-     val totalDropped: Int = 0,
+-     val totalPlanToWatch: Int = 0,
+-     val totalReading: Int = 0,
+-+    val totalFavorites: Int = 0,
+-     val completionRate: Float = 0f,
+-     val averageRating: Double = 0.0,
+-     val totalProgressConsumed: Int = 0,
+-@@ -30,4 +31,3 @@ data class CategoryStat(
+-     val colorHex: String?,
+-     val percentage: Float
+- )
 --
-- }
--diff --git a/app/src/main/java/com/app/shouze/ui/components/MediaCardItem.kt b/app/src/main/java/com/app/shouze/ui/components/MediaCardItem.kt
--index 812ec08..81527df 100644
----- a/app/src/main/java/com/app/shouze/ui/components/MediaCardItem.kt
--+++ b/app/src/main/java/com/app/shouze/ui/components/MediaCardItem.kt
--@@ -94,6 +94,15 @@ fun MediaCardItem(
--             }
--             Spacer(modifier = Modifier.width(12.dp))
--             StatusBadge(status = item.status)
--+            if (item.isFavorite) {
--+                Spacer(modifier = Modifier.width(8.dp))
--+                Icon(
--+                    imageVector = Icons.Filled.Star,
--+                    contentDescription = "Favorite",
--+                    tint = MaterialTheme.colorScheme.tertiary,
--+                    modifier = Modifier.size(16.dp)
--+                )
--+            }
--         }
--     }
-- }
--diff --git a/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt b/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt
--index 4d809ee..6456721 100644
----- a/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt
--+++ b/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt
--@@ -40,7 +40,8 @@ fun DetailScreen(
--     category: CategoryEntity?,
--     onBack: () -> Unit,
--     onEdit: () -> Unit,
---    onDelete: () -> Unit
--+    onDelete: () -> Unit,
--+    onToggleFavorite: () -> Unit = {}
-- ) {
--     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault()) }
--     var showDeleteConfirm by remember { mutableStateOf(false) }
--@@ -55,6 +56,13 @@ fun DetailScreen(
--                     }
--                 },
--                 actions = {
--+                    IconButton(onClick = onToggleFavorite) {
--+                        Icon(
--+                            imageVector = if (item.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
--+                            contentDescription = if (item.isFavorite) "Unfavorite" else "Favorite",
--+                            tint = if (item.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
--+                        )
--+                    }
--                     IconButton(onClick = onEdit) {
--                         Icon(Icons.Filled.Edit, contentDescription = "Edit")
--                     }
 -diff --git a/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt b/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt
--index ee6107c..a2ffdab 100644
+-index a2ffdab..ff20104 100644
 ---- a/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt
 -+++ b/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt
--@@ -15,11 +15,15 @@ import androidx.compose.material.icons.filled.BarChart
-- import androidx.compose.material.icons.filled.Check
-- import androidx.compose.material.icons.filled.CheckCircle
-- import androidx.compose.material.icons.filled.Delete
---import androidx.compose.material.icons.filled.Edit
-- import androidx.compose.material.icons.filled.ErrorOutline
-- import androidx.compose.material.icons.filled.MovieFilter
-- import androidx.compose.material.icons.filled.Search
-- import androidx.compose.material.icons.filled.Settings
--+import androidx.compose.material.icons.automirrored.filled.Sort
--+import androidx.compose.material.icons.filled.Close
--+import androidx.compose.material.icons.filled.Edit
--+import androidx.compose.material.icons.filled.Star
--+import androidx.compose.material.icons.filled.StarBorder
-- import androidx.compose.material3.*
-- import androidx.compose.runtime.*
-- import androidx.compose.ui.Alignment
--@@ -27,6 +31,7 @@ import androidx.compose.ui.Modifier
-- import androidx.compose.ui.unit.dp
-- import com.app.shouze.data.local.MediaItemEntity
-- import com.app.shouze.ui.HomeUiState
--+import com.app.shouze.ui.SortMode
-- import com.app.shouze.ui.components.MediaCardItem
-- 
-- @OptIn(ExperimentalMaterial3Api::class)
--@@ -41,90 +46,125 @@ fun HomeScreen(
--     onSearchQueryChange: (String) -> Unit,
--     onClearMessage: () -> Unit,
--     onSettingsClick: () -> Unit,
---    onStatisticsClick: () -> Unit
--+    onStatisticsClick: () -> Unit,
--+    onSortModeChange: (SortMode) -> Unit,
--+    onToggleFavorites: () -> Unit,
--+    showFavoritesOnly: Boolean = false
+-@@ -49,6 +49,7 @@ fun HomeScreen(
+-     onStatisticsClick: () -> Unit,
+-     onSortModeChange: (SortMode) -> Unit,
+-     onToggleFavorites: () -> Unit,
+-+    onToggleFavorite: (MediaItemEntity) -> Unit,
+-     showFavoritesOnly: Boolean = false
 - ) {
 -     val isError = uiState.error != null
--     val message = uiState.error ?: uiState.syncMessage
+-@@ -56,34 +57,6 @@ fun HomeScreen(
 - 
 -     var selectedItem by remember { mutableStateOf<MediaItemEntity?>(null) }
---    var showDeleteConfirm by remember { mutableStateOf(false) }
 - 
---    if (showDeleteConfirm && selectedItem != null) {
---        val target = selectedItem!!
--+    val selection = selectedItem
--+    if (selection != null) {
--         AlertDialog(
---            onDismissRequest = { showDeleteConfirm = false },
---            title = { Text("Delete \"${target.title}\"?") },
---            text = { Text("This entry will be permanently removed.") },
--+            onDismissRequest = { selectedItem = null },
--+            title = { Text(selection.title) },
--+            text = { Text("What would you like to do with this entry?") },
--             confirmButton = {
---                Button(
--+                TextButton(onClick = {
--+                    onEditItem(selection)
--+                    selectedItem = null
--+                }) {
--+                    Text("Edit")
--+                }
--+            },
--+            dismissButton = {
--+                TextButton(
--                     onClick = {
---                        onDeleteItem(target)
--+                        onDeleteItem(selection)
--                         selectedItem = null
---                        showDeleteConfirm = false
--                     },
---                    colors = ButtonDefaults.buttonColors(
---                        containerColor = MaterialTheme.colorScheme.error,
---                        contentColor = MaterialTheme.colorScheme.onError
---                    )
--+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
--                 ) {
--                     Text("Delete")
--                 }
+--    val selection = selectedItem
+--    if (selection != null) {
+--        AlertDialog(
+--            onDismissRequest = { selectedItem = null },
+--            title = { Text(selection.title) },
+--            text = { Text("What would you like to do with this entry?") },
+--            confirmButton = {
+--                TextButton(onClick = {
+--                    onEditItem(selection)
+--                    selectedItem = null
+--                }) {
+--                    Text("Edit")
+--                }
 --            },
 --            dismissButton = {
---                TextButton(onClick = { showDeleteConfirm = false }) {
---                    Text("Cancel")
+--                TextButton(
+--                    onClick = {
+--                        onDeleteItem(selection)
+--                        selectedItem = null
+--                    },
+--                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+--                ) {
+--                    Text("Delete")
 --                }
--             }
--         )
--     }
-- 
+--            }
+--        )
+--    }
+--
 -     Scaffold(
 -         bottomBar = {
---            val selection = selectedItem
---            if (selection != null) {
---                Surface(
---                    color = MaterialTheme.colorScheme.surfaceContainer,
---                    shadowElevation = 8.dp
---                ) {
---                    Row(
---                        modifier = Modifier
---                            .fillMaxWidth()
---                            .navigationBarsPadding()
---                            .padding(horizontal = 24.dp, vertical = 8.dp),
---                        horizontalArrangement = Arrangement.SpaceEvenly,
---                        verticalAlignment = Alignment.CenterVertically
---                    ) {
---                        TextButton(onClick = {
---                            val item = selection
---                            selectedItem = null
---                            onEditItem(item)
---                        }) {
---                            Icon(Icons.Filled.Edit, contentDescription = null)
---                            Spacer(Modifier.width(6.dp))
---                            Text("Edit")
--+            val sel = selectedItem
--+            if (sel != null) {
--+                BottomAppBar(
--+                    actions = {
--+                        IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
--+                            Icon(Icons.Filled.Edit, contentDescription = "Edit")
+-             val sel = selectedItem
+-@@ -93,6 +66,13 @@ fun HomeScreen(
+-                         IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
+-                             Icon(Icons.Filled.Edit, contentDescription = "Edit")
 -                         }
---                        Button(
---                            onClick = { showDeleteConfirm = true },
---                            colors = ButtonDefaults.buttonColors(
---                                containerColor = MaterialTheme.colorScheme.error,
---                                contentColor = MaterialTheme.colorScheme.onError
---                            )
--+                        IconButton(
--+                            onClick = { onDeleteItem(sel); selectedItem = null }
--                         ) {
---                            Icon(Icons.Filled.Delete, contentDescription = null)
---                            Spacer(Modifier.width(6.dp))
---                            Text("Delete")
--+                            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
--                         }
---                        TextButton(onClick = { selectedItem = null }) {
---                            Text("Cancel")
--+                    },
--+                    floatingActionButton = {
--+                        FloatingActionButton(onClick = { selectedItem = null }) {
--+                            Icon(Icons.Filled.Close, contentDescription = "Close")
--                         }
--                     }
---                }
--+                )
--             }
--         },
--         topBar = {
--             TopAppBar(
--                 title = { Text("Shouze") },
--                 actions = {
--+                    var expanded by remember { mutableStateOf(false) }
--+                    Box {
--+                        IconButton(onClick = onToggleFavorites) {
+-+                        IconButton(onClick = { onToggleFavorite(sel); selectedItem = null }) {
 -+                            Icon(
--+                                imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
--+                                contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
--+                                tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+-+                                imageVector = if (sel.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+-+                                contentDescription = if (sel.isFavorite) "Unfavorite" else "Favorite",
+-+                                tint = if (sel.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
 -+                            )
 -+                        }
--+                        IconButton(onClick = { expanded = true }) {
--+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
--+                        }
--+                        DropdownMenu(
--+                            expanded = expanded,
--+                            onDismissRequest = { expanded = false }
--+                        ) {
--+                            DropdownMenuItem(
--+                                text = { Text("Last Updated") },
--+                                onClick = { onSortModeChange(SortMode.LAST_UPDATED); expanded = false },
--+                                trailingIcon = {
--+                                    if (uiState.sortMode == SortMode.LAST_UPDATED) {
--+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
--+                                    }
--+                                }
--+                            )
--+                            DropdownMenuItem(
--+                                text = { Text("Title (A-Z)") },
--+                                onClick = { onSortModeChange(SortMode.TITLE); expanded = false },
--+                                trailingIcon = {
--+                                    if (uiState.sortMode == SortMode.TITLE) {
--+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
--+                                    }
--+                                }
--+                            )
--+                            DropdownMenuItem(
--+                                text = { Text("Rating (High-Low)") },
--+                                onClick = { onSortModeChange(SortMode.RATING_HIGH); expanded = false },
--+                                trailingIcon = {
--+                                    if (uiState.sortMode == SortMode.RATING_HIGH) {
--+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
--+                                    }
--+                                }
--+                            )
--+                            DropdownMenuItem(
--+                                text = { Text("Progress (Most Complete)") },
--+                                onClick = { onSortModeChange(SortMode.PROGRESS); expanded = false },
--+                                trailingIcon = {
--+                                    if (uiState.sortMode == SortMode.PROGRESS) {
--+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
--+                                    }
--+                                }
--+                            )
--+                        }
--+                    }
--                     IconButton(onClick = onStatisticsClick) {
--                         Icon(Icons.Filled.BarChart, contentDescription = "Statistics")
--                     }
--@@ -250,15 +290,8 @@ fun HomeScreen(
--                         MediaCardItem(
--                             item = item,
--                             categoryName = categoryName,
---                            onClick = {
---                                if (selectedItem != null) {
---                                    selectedItem = if (selectedItem?.id == item.id) null else item
---                                } else {
---                                    onItemClick(item)
---                                }
---                            },
--+                            onClick = { onItemClick(item) },
--                             onLongClick = { selectedItem = item },
---                            selected = selectedItem?.id == item.id,
--                             modifier = Modifier.animateItem()
--                         )
--                     }
+-                         IconButton(
+-                             onClick = { onDeleteItem(sel); selectedItem = null }
+-                         ) {
+-@@ -113,15 +93,17 @@ fun HomeScreen(
+-                 actions = {
+-                     var expanded by remember { mutableStateOf(false) }
+-                     Box {
+--                        IconButton(onClick = onToggleFavorites) {
+--                            Icon(
+--                                imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
+--                                contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
+--                                tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+--                            )
+--                        }
+--                        IconButton(onClick = { expanded = true }) {
+--                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+-+                        Row(verticalAlignment = Alignment.CenterVertically) {
+-+                            IconButton(onClick = onToggleFavorites) {
+-+                                Icon(
+-+                                    imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
+-+                                    contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
+-+                                    tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+-+                                )
+-+                            }
+-+                            IconButton(onClick = { expanded = true }) {
+-+                                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+-+                            }
+-                         }
+-                         DropdownMenu(
+-                             expanded = expanded,
+-diff --git a/app/src/main/java/com/app/shouze/ui/screens/StatisticsScreen.kt b/app/src/main/java/com/app/shouze/ui/screens/StatisticsScreen.kt
+-index 28584b0..2f1bb80 100644
+---- a/app/src/main/java/com/app/shouze/ui/screens/StatisticsScreen.kt
+-+++ b/app/src/main/java/com/app/shouze/ui/screens/StatisticsScreen.kt
+-@@ -191,6 +191,19 @@ private fun OverviewSection(stats: StatsUiState) {
+-                 modifier = Modifier.weight(1f)
+-             )
+-         }
+-+        Spacer(modifier = Modifier.height(12.dp))
+-+        Row(
+-+            modifier = Modifier.fillMaxWidth(),
+-+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+-+        ) {
+-+            StatCard(
+-+                value = "${stats.totalFavorites}",
+-+                label = "Favorites",
+-+                modifier = Modifier.weight(1f)
+-+            )
+-+            // Empty spacer to keep the row balanced (2 columns)
+-+            Spacer(modifier = Modifier.weight(1f))
+-+        }
+-     }
+- }
+- 
 -diff --git a/diff.md b/diff.md
--index 8e28f73..5d46ef5 100644
+-index 97414b8..d050085 100644
 ---- a/diff.md
 -+++ b/diff.md
--@@ -1,2696 +0,0 @@
---diff --git a/app/build.gradle.kts b/app/build.gradle.kts
---index 7825847..a0a0263 100644
------ a/app/build.gradle.kts
---+++ b/app/build.gradle.kts
---@@ -93,4 +93,4 @@ dependencies {
---     testImplementation(libs.junit)
---     androidTestImplementation(libs.androidx.test.ext.junit)
---     debugImplementation(libs.androidx.compose.ui.tooling)
----}
---\ No newline at end of file
---+}
---diff --git a/app/src/main/java/com/app/Shouze/MainActivity.kt b/app/src/main/java/com/app/Shouze/MainActivity.kt
---deleted file mode 100644
---index 9cb7da9..0000000
------ a/app/src/main/java/com/app/Shouze/MainActivity.kt
---+++ /dev/null
---@@ -1,150 +0,0 @@
----package com.app.shouze
----
----import android.os.Bundle
----import androidx.activity.ComponentActivity
----import androidx.activity.compose.setContent
----import androidx.activity.enableEdgeToEdge
----import androidx.compose.foundation.layout.fillMaxSize
----import androidx.compose.material3.Surface
----import androidx.compose.runtime.*
----import androidx.compose.ui.Modifier
----import androidx.lifecycle.viewmodel.compose.viewModel
----import androidx.navigation.compose.NavHost
----import androidx.navigation.compose.composable
----import androidx.navigation.compose.rememberNavController
----import com.app.shouze.ui.MediaViewModel
----import com.app.shouze.ui.components.DetailEditDialog
----import com.app.shouze.ui.screens.*
----
----class MainActivity : ComponentActivity() {
----    override fun onCreate(savedInstanceState: Bundle?) {
----        super.onCreate(savedInstanceState)
----        enableEdgeToEdge()
----
----        setContent {
----            val viewModel: MediaViewModel = viewModel()
----            val uiState by viewModel.uiState.collectAsState()
----            val settings by viewModel.settings.collectAsState()
----            val navController = rememberNavController()
----
----            com.app.shouze.ui.theme.MediaTrackerTheme(settings = settings) {
----                Surface(modifier = Modifier.fillMaxSize()) {
----                    NavHost(
----                        navController = navController,
----                        startDestination = if (settings.hasSeenOnboarding) "home" else "onboarding"
----                    ) {
----                        composable("onboarding") {
----                            OnboardingScreen(
----                                onGetStarted = {
----                                    viewModel.setHasSeenOnboarding(true)
----                                    navController.navigate("home") {
----                                        popUpTo("onboarding") { inclusive = true }
+-@@ -1,3444 +0,0 @@
+--diff --git a/app/src/main/java/com/app/shouze/MainActivity.kt b/app/src/main/java/com/app/shouze/MainActivity.kt
+--index fba9104..f7a31c6 100644
+----- a/app/src/main/java/com/app/shouze/MainActivity.kt
+--+++ b/app/src/main/java/com/app/shouze/MainActivity.kt
+--@@ -76,7 +76,10 @@ class MainActivity : ComponentActivity() {
+--                                 onSearchQueryChange = viewModel::setSearchQuery,
+--                                 onClearMessage = viewModel::clearSyncMessage,
+--                                 onSettingsClick = { navController.navigate("settings") },
+---                                onStatisticsClick = { navController.navigate("statistics") } 
+--+                                onStatisticsClick = { navController.navigate("statistics") },
+--+                                onSortModeChange = viewModel::setSortMode,
+--+                                onToggleFavorites = viewModel::toggleShowFavorites,
+--+                                showFavoritesOnly = uiState.showFavoritesOnly
+--                             )
+--                         }
+-- 
+--@@ -94,7 +97,8 @@ class MainActivity : ComponentActivity() {
+--                                     onDelete = {
+--                                         viewModel.deleteItem(item.id)
+--                                         navController.popBackStack()
 ---                                    }
----                                },
----                                onNotNow = {
----                                    finish()
----                                }
----                            )
----                        }
----
----                        composable("home") {
----                            HomeScreen(
----                                uiState = uiState,
----                                onAddClick = { navController.navigate("edit?itemId=null") },
----                                onItemClick = { item ->
----                                    navController.navigate("detail/${item.id}")
----                                },
----                                onCategorySelected = viewModel::setCategoryFilter,
----                                onSearchQueryChange = viewModel::setSearchQuery,
----                                onClearMessage = viewModel::clearSyncMessage,
----                                onSettingsClick = { navController.navigate("settings") }
----                            )
----                        }
----
----                        composable("detail/{itemId}") { backStackEntry ->
----                            val itemId = backStackEntry.arguments?.getString("itemId")
----                            val item = uiState.allItems.find { it.id == itemId }
----
----                            if (item != null) {
----                                val category = uiState.categories.find { it.id == item.categoryId }
----                                DetailScreen(
----                                    item = item,
----                                    category = category,
----                                    onBack = { navController.popBackStack() },
----                                    onEdit = { navController.navigate("edit?itemId=${item.id}") },
----                                    onDelete = {
----                                        viewModel.deleteItem(item.id)
----                                        navController.popBackStack()
----                                    }
----                                )
----                            }
----                        }
----
----                        composable("edit?itemId={itemId}") { backStackEntry ->
----                            val itemId = backStackEntry.arguments?.getString("itemId")
----                            val item = if (itemId == null || itemId == "null") {
----                                null
----                            } else {
----                                uiState.allItems.find { it.id == itemId }
----                            }
----
----                            DetailEditDialog(
----                                item = item,
----                                categories = uiState.categories,
----                                onDismiss = { navController.popBackStack() },
----                                onSave = viewModel::addOrUpdate,
----                                onDelete = {
----                                    viewModel.deleteItem(it)
----                                    navController.popBackStack()
----                                }
----                            )
----                        }
----
----                        composable("settings") {
----                            SettingsScreen(
----                                onBack = { navController.popBackStack() },
----                                onNavigateToAppearance = { navController.navigate("appearance") },
----                                onNavigateToCategories = { navController.navigate("categories") },
----                                onNavigateToBackup = { navController.navigate("backup") },
----                                onNavigateToAbout = { navController.navigate("about") }
----                            )
----                        }
----
----                        composable("appearance") {
----                            AppearanceScreen(
----                                settings = settings,
----                                onBack = { navController.popBackStack() },
----                                onThemeModeChange = viewModel::setThemeMode,
----                                onDynamicColorChange = viewModel::setDynamicColor,
----                                onAmoledBlackChange = viewModel::setAmoledBlack
----                            )
----                        }
----
----                        composable("categories") {
----                            CategoriesScreen(
----                                categories = uiState.categories,
----                                onBack = { navController.popBackStack() },
----                                onAddCategory = viewModel::addCategory,
----                                onDeleteCategory = viewModel::deleteCategory
----                            )
----                        }
----
----                        composable("backup") {
----                            BackupScreen(
----                                onBack = { navController.popBackStack() },
----                                onBackup = viewModel::backupToLocalZip,
----                                onRestore = viewModel::restoreFromLocalZip
----                            )
----                        }
----
----                        composable("about") {
----                            AboutScreen(
----                                onBack = { navController.popBackStack() }
----                            )
----                        }
----                    }
----                }
----            }
----        }
----    }
----}
---diff --git a/app/src/main/java/com/app/Shouze/data/SettingsRepository.kt b/app/src/main/java/com/app/Shouze/data/SettingsRepository.kt
---deleted file mode 100644
---index 29d6fb2..0000000
------ a/app/src/main/java/com/app/Shouze/data/SettingsRepository.kt
---+++ /dev/null
---@@ -1,59 +0,0 @@
----package com.app.shouze.data
----
----import android.content.Context
----import android.content.SharedPreferences
----import kotlinx.coroutines.flow.MutableStateFlow
----import kotlinx.coroutines.flow.StateFlow
----import kotlinx.coroutines.flow.asStateFlow
----
----enum class ThemeMode { SYSTEM, LIGHT, DARK }
----
----data class AppSettings(
----    val themeMode: ThemeMode = ThemeMode.SYSTEM,
----    val useDynamicColor: Boolean = true,
----    val amoledBlack: Boolean = false,
----    val hasSeenOnboarding: Boolean = false
----)
----
----class SettingsRepository(context: Context) {
----    private val prefs: SharedPreferences =
----        context.getSharedPreferences("media_tracker_settings", Context.MODE_PRIVATE)
----
----    private val _settings = MutableStateFlow(loadSettings())
----    val settings: StateFlow<AppSettings> = _settings.asStateFlow()
----
----    fun setThemeMode(mode: ThemeMode) {
----        prefs.edit().putString("theme_mode", mode.name).apply()
----        _settings.value = loadSettings()
----    }
----
----    fun setDynamicColor(enabled: Boolean) {
----        prefs.edit().putBoolean("dynamic_color", enabled).apply()
----        _settings.value = loadSettings()
----    }
----
----    fun setAmoledBlack(enabled: Boolean) {
----        prefs.edit().putBoolean("amoled_black", enabled).apply()
----        _settings.value = loadSettings()
----    }
----
----    fun setHasSeenOnboarding(seen: Boolean) {
----        prefs.edit().putBoolean("has_seen_onboarding", seen).apply()
----        _settings.value = loadSettings()
----    }
----
----    private fun loadSettings(): AppSettings {
----        val themeName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name)
----            ?: ThemeMode.SYSTEM.name
----        return AppSettings(
----            themeMode = try {
----                ThemeMode.valueOf(themeName)
----            } catch (_: Exception) {
----                ThemeMode.SYSTEM
----            },
----            useDynamicColor = prefs.getBoolean("dynamic_color", true),
----            amoledBlack = prefs.getBoolean("amoled_black", false),
----            hasSeenOnboarding = prefs.getBoolean("has_seen_onboarding", false)
----        )
----    }
----}
---diff --git a/app/src/main/java/com/app/Shouze/data/local/AppDatabase.kt b/app/src/main/java/com/app/Shouze/data/local/AppDatabase.kt
---deleted file mode 100644
---index 19f425d..0000000
------ a/app/src/main/java/com/app/Shouze/data/local/AppDatabase.kt
---+++ /dev/null
---@@ -1,82 +0,0 @@
----package com.app.shouze.data.local
----
----import android.content.Context
----import androidx.room.Database
----import androidx.room.Room
----import androidx.room.RoomDatabase
----import androidx.room.TypeConverters
----import androidx.room.migration.Migration
----import androidx.sqlite.db.SupportSQLiteDatabase
----
----@Database(
----    entities = [MediaItemEntity::class, CategoryEntity::class],
+--+                                    },
+--+                                    onToggleFavorite = { viewModel.toggleFavorite(item.id) },
+--                                 )
+--                             }
+--                         }
+--diff --git a/app/src/main/java/com/app/shouze/data/local/AppDatabase.kt b/app/src/main/java/com/app/shouze/data/local/AppDatabase.kt
+--index c8a0bd0..18f4d77 100644
+----- a/app/src/main/java/com/app/shouze/data/local/AppDatabase.kt
+--+++ b/app/src/main/java/com/app/shouze/data/local/AppDatabase.kt
+--@@ -12,9 +12,10 @@ import java.io.File
+-- 
+-- @Database(
+--     entities = [MediaItemEntity::class, CategoryEntity::class],
 ---    version = 3,
----    exportSchema = false
----)
----@TypeConverters(Converters::class)
----abstract class AppDatabase : RoomDatabase() {
----    abstract fun mediaDao(): MediaDao
----    abstract fun categoryDao(): CategoryDao
----
----    companion object {
----        @Volatile
----        private var INSTANCE: AppDatabase? = null
----
----        val MIGRATION_1_2 = object : Migration(1, 2) {
----            override fun migrate(db: SupportSQLiteDatabase) {
----                db.execSQL("""
----                    CREATE TABLE IF NOT EXISTS categories (
----                        id TEXT PRIMARY KEY NOT NULL,
----                        name TEXT NOT NULL,
----                        colorHex TEXT,
----                        createdAt INTEGER NOT NULL
----                    )
----                """.trimIndent())
----
----                db.execSQL("ALTER TABLE media_items ADD COLUMN categoryId TEXT NOT NULL DEFAULT 'TV_SERIES'")
----
----                db.execSQL("""
----                    UPDATE media_items SET categoryId = CASE
----                        WHEN mediaType = '0' OR mediaType = 'TV_SERIES' THEN 'TV_SERIES'
----                        WHEN mediaType = '1' OR mediaType = 'ANIME' THEN 'ANIME'
----                        WHEN mediaType = '2' OR mediaType = 'NOVEL' THEN 'NOVEL'
----                        ELSE 'TV_SERIES'
----                    END
----                """.trimIndent())
----
----                db.execSQL("INSERT OR IGNORE INTO categories (id, name, colorHex, createdAt) VALUES ('TV_SERIES', 'TV Series', NULL, 0)")
----                db.execSQL("INSERT OR IGNORE INTO categories (id, name, colorHex, createdAt) VALUES ('ANIME', 'Anime', NULL, 0)")
----                db.execSQL("INSERT OR IGNORE INTO categories (id, name, colorHex, createdAt) VALUES ('NOVEL', 'Novel', NULL, 0)")
----            }
----        }
----
----        val MIGRATION_2_3 = object : Migration(2, 3) {
----            override fun migrate(db: SupportSQLiteDatabase) {
----                db.execSQL("ALTER TABLE media_items ADD COLUMN genres TEXT NOT NULL DEFAULT ''")
----            }
----        }
----
----        fun getInstance(context: Context): AppDatabase {
----    return INSTANCE ?: synchronized(this) {
----        val instance = Room.databaseBuilder(
----            context.applicationContext,
----            AppDatabase::class.java,
----            "media_tracker.db"
----        )
+--+    version = 4,
+--     exportSchema = false
+-- )
+--+
+-- @TypeConverters(Converters::class)
+-- abstract class AppDatabase : RoomDatabase() {
+--     abstract fun mediaDao(): MediaDao
+--@@ -58,6 +59,17 @@ abstract class AppDatabase : RoomDatabase() {
+--             }
+--         }
+-- 
+--+        val MIGRATION_3_4 = object : Migration(3, 4) {
+--+            override fun migrate(db: SupportSQLiteDatabase) {
+--+                db.execSQL("ALTER TABLE media_items ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
+--+                db.execSQL("ALTER TABLE media_items ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+--+                db.execSQL("ALTER TABLE media_items ADD COLUMN rewatchCount INTEGER NOT NULL DEFAULT 0")
+--+                db.execSQL("ALTER TABLE media_items ADD COLUMN startDate INTEGER")
+--+                db.execSQL("ALTER TABLE media_items ADD COLUMN endDate INTEGER")
+--+            }
+--+        }
+--+
+--+
+--         fun getInstance(context: Context): AppDatabase {
+--     return INSTANCE ?: synchronized(this) {
+--         val instance = Room.databaseBuilder(
+--@@ -65,7 +77,7 @@ abstract class AppDatabase : RoomDatabase() {
+--             AppDatabase::class.java,
+--             DB_NAME
+--         )
 ---        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
----        .addCallback(object : RoomDatabase.Callback() {
----            override fun onCreate(db: SupportSQLiteDatabase) {
----                super.onCreate(db)
----                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('TV_SERIES', 'TV Series', NULL, 0)")
----                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('ANIME', 'Anime', NULL, 0)")
----                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('NOVEL', 'Novel', NULL, 0)")
----            }
----        })
----        .build()
----        INSTANCE = instance
----        instance
----    }
----}
----
----    }
----}
---diff --git a/app/src/main/java/com/app/Shouze/data/local/CategoryDao.kt b/app/src/main/java/com/app/Shouze/data/local/CategoryDao.kt
---deleted file mode 100644
---index eb05cb7..0000000
------ a/app/src/main/java/com/app/Shouze/data/local/CategoryDao.kt
---+++ /dev/null
---@@ -1,26 +0,0 @@
----package com.app.shouze.data.local
----
----import androidx.room.*
----import kotlinx.coroutines.flow.Flow
----
----@Dao
----interface CategoryDao {
----
----    @Query("SELECT * FROM categories ORDER BY createdAt ASC")
----    fun getAll(): Flow<List<CategoryEntity>>
----
----    @Query("SELECT * FROM categories")
----    suspend fun getAllSnapshot(): List<CategoryEntity>
----
----    @Insert(onConflict = OnConflictStrategy.REPLACE)
----    suspend fun insert(category: CategoryEntity)
----
----    @Insert(onConflict = OnConflictStrategy.REPLACE)
----    suspend fun insertOrUpdate(category: CategoryEntity)
----
----    @Query("DELETE FROM categories WHERE id = :categoryId")
----    suspend fun delete(categoryId: String)
----
----    @Query("DELETE FROM categories")
----    suspend fun clearAll()
----}
---diff --git a/app/src/main/java/com/app/Shouze/data/local/CategoryEntity.kt b/app/src/main/java/com/app/Shouze/data/local/CategoryEntity.kt
---deleted file mode 100644
---index 1ef53e8..0000000
------ a/app/src/main/java/com/app/Shouze/data/local/CategoryEntity.kt
---+++ /dev/null
---@@ -1,13 +0,0 @@
----package com.app.shouze.data.local
----
----import androidx.room.Entity
----import androidx.room.PrimaryKey
----import java.util.UUID
----
----@Entity(tableName = "categories")
----data class CategoryEntity(
----    @PrimaryKey val id: String = UUID.randomUUID().toString(),
----    val name: String,
----    val colorHex: String? = null,
----    val createdAt: Long = System.currentTimeMillis()
----)
---diff --git a/app/src/main/java/com/app/Shouze/data/local/Converters.kt b/app/src/main/java/com/app/Shouze/data/local/Converters.kt
---deleted file mode 100644
---index 14f6bfa..0000000
------ a/app/src/main/java/com/app/Shouze/data/local/Converters.kt
---+++ /dev/null
---@@ -1,13 +0,0 @@
----package com.app.shouze.data.local
----
----import androidx.room.TypeConverter
----
----class Converters {
----    @TypeConverter
----    fun fromGenresList(genres: List<String>): String = genres.joinToString("|")
----
----    @TypeConverter
----    fun toGenresList(genresString: String): List<String> =
----        if (genresString.isBlank()) emptyList()
----        else genresString.split("|").filter { it.isNotBlank() }
----}
---diff --git a/app/src/main/java/com/app/Shouze/data/local/DataSyncController.kt b/app/src/main/java/com/app/Shouze/data/local/DataSyncController.kt
---deleted file mode 100644
---index db01cdd..0000000
------ a/app/src/main/java/com/app/Shouze/data/local/DataSyncController.kt
---+++ /dev/null
---@@ -1,141 +0,0 @@
----package com.app.shouze.data.local
----
----import androidx.room.withTransaction
----import kotlinx.serialization.Serializable
----import kotlinx.serialization.json.Json
----import kotlinx.serialization.encodeToString
----import kotlinx.serialization.decodeFromString
----
----@Serializable
----data class MediaItemExport(
----    val id: String,
----    val title: String,
----    val categoryId: String? = null,
----    val mediaType: String? = null,
----    val status: String,
----    val currentProgress: Int,
----    val totalCount: Int,
----    val currentVolume: Int?,
----    val rating: Double,
----    val coverImageUri: String?,
----    val genres: List<String> = emptyList(),
----    val lastUpdated: Long
----)
----
----@Serializable
----data class CategoryExport(
----    val id: String,
----    val name: String,
----    val colorHex: String? = null,
----    val createdAt: Long
----)
----
----@Serializable
----data class BackupPayload(
----    val version: Int = 2,
----    val exportedAt: Long = System.currentTimeMillis(),
----    val itemCount: Int = 0,
----    val items: List<MediaItemExport> = emptyList(),
----    val categories: List<CategoryExport> = emptyList()
----)
----
----class DataSyncController(private val db: AppDatabase) {
----
----    private val json = Json {
----        ignoreUnknownKeys = true
----        prettyPrint = false
----    }
----
----    suspend fun exportToJson(): Result<String> {
----        return try {
----            val snapshot = db.mediaDao().getAllItemsSnapshot()
----            val categorySnapshot = db.categoryDao().getAllSnapshot()
----            val exports = snapshot.map { it.toExport() }
----            val catExports = categorySnapshot.map { it.toExport() }
----            val payload = BackupPayload(
----                itemCount = exports.size,
----                items = exports,
----                categories = catExports
----            )
----            Result.success(json.encodeToString(payload))
----        } catch (e: Exception) {
----            Result.failure(e)
----        }
----    }
----
----    suspend fun importFromJson(jsonString: String): Result<Int> {
----        return try {
----            val payload = json.decodeFromString<BackupPayload>(jsonString)
----            if (payload.version != 1 && payload.version != 2) {
----                return Result.failure(IllegalArgumentException("Unsupported backup version ${payload.version}"))
----            }
----            if (payload.items.isEmpty()) {
----                return Result.failure(IllegalArgumentException("Backup contains no media items"))
----            }
----            db.withTransaction {
----                db.mediaDao().clearAll()
----                db.categoryDao().clearAll()
----
----                payload.categories.forEach { export ->
----                    db.categoryDao().insertOrUpdate(export.toEntity())
----                }
----                payload.items.forEach { export ->
----                    db.mediaDao().insertOrUpdate(export.toEntity())
----                }
----            }
----            Result.success(payload.items.size)
----        } catch (e: Exception) {
----            Result.failure(e)
----        }
----    }
----}
----
----private fun MediaItemEntity.toExport() = MediaItemExport(
----    id = id,
----    title = title,
----    categoryId = categoryId,
----    status = status.name,
----    currentProgress = currentProgress,
----    totalCount = totalCount,
----    currentVolume = currentVolume,
----    rating = rating,
----    coverImageUri = coverImageUri,
----    genres = genres,
----    lastUpdated = lastUpdated
----)
----
----private fun MediaItemExport.toEntity(): MediaItemEntity {
----    val statusEnum = try {
----        Status.valueOf(status)
----    } catch (_: IllegalArgumentException) {
----        Status.PLAN_TO_WATCH
----    }
----    val catId = categoryId ?: mediaType ?: "TV_SERIES"
----    return MediaItemEntity(
----        id = id,
----        title = title,
----        categoryId = catId,
----        status = statusEnum,
----        currentProgress = currentProgress,
----        totalCount = totalCount,
----        currentVolume = currentVolume,
----        rating = rating,
----        coverImageUri = coverImageUri,
----        genres = genres,
----        lastUpdated = lastUpdated
----    )
----}
----
----private fun CategoryEntity.toExport() = CategoryExport(
----    id = id,
----    name = name,
----    colorHex = colorHex,
----    createdAt = createdAt
----)
----
----private fun CategoryExport.toEntity() = CategoryEntity(
----    id = id,
----    name = name,
----    colorHex = colorHex,
----    createdAt = createdAt
----)
---diff --git a/app/src/main/java/com/app/Shouze/data/local/MediaDao.kt b/app/src/main/java/com/app/Shouze/data/local/MediaDao.kt
---deleted file mode 100644
---index 71903a9..0000000
------ a/app/src/main/java/com/app/Shouze/data/local/MediaDao.kt
---+++ /dev/null
---@@ -1,26 +0,0 @@
----package com.app.shouze.data.local
----
----import androidx.room.*
----import kotlinx.coroutines.flow.Flow
----
----@Dao
----interface MediaDao {
----
----    @Query("SELECT * FROM media_items ORDER BY lastUpdated DESC")
----    fun getAllItems(): Flow<List<MediaItemEntity>>
----
----    @Query("SELECT * FROM media_items WHERE categoryId = :categoryId ORDER BY lastUpdated DESC")
----    fun getItemsByCategory(categoryId: String): Flow<List<MediaItemEntity>>
----
----    @Query("SELECT * FROM media_items")
----    suspend fun getAllItemsSnapshot(): List<MediaItemEntity>
----
----    @Insert(onConflict = OnConflictStrategy.REPLACE)
----    suspend fun insertOrUpdate(item: MediaItemEntity)
----
----    @Query("DELETE FROM media_items WHERE id = :itemId")
----    suspend fun deleteById(itemId: String): Int
----
----    @Query("DELETE FROM media_items")
----    suspend fun clearAll()
----}
---diff --git a/app/src/main/java/com/app/Shouze/data/local/MediaItemEntity.kt b/app/src/main/java/com/app/Shouze/data/local/MediaItemEntity.kt
---deleted file mode 100644
---index dd153fe..0000000
------ a/app/src/main/java/com/app/Shouze/data/local/MediaItemEntity.kt
---+++ /dev/null
---@@ -1,21 +0,0 @@
----package com.app.shouze.data.local
----
----import androidx.room.*
----import java.util.UUID
----
----enum class Status { WATCHING, READING, COMPLETED, DROPPED, PLAN_TO_WATCH }
----
----@Entity(tableName = "media_items")
----data class MediaItemEntity(
----    @PrimaryKey val id: String = UUID.randomUUID().toString(),
----    val title: String,
----    val categoryId: String,
----    val status: Status,
----    val currentProgress: Int,
----    val totalCount: Int,
----    val currentVolume: Int? = null,
----    val rating: Double = 0.0,
----    val coverImageUri: String? = null,
----    val genres: List<String> = emptyList(),
+--+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+--         .addCallback(object : RoomDatabase.Callback() {
+--             override fun onCreate(db: SupportSQLiteDatabase) {
+--                 super.onCreate(db)
+--diff --git a/app/src/main/java/com/app/shouze/data/local/MediaItemEntity.kt b/app/src/main/java/com/app/shouze/data/local/MediaItemEntity.kt
+--index dd153fe..eee542e 100644
+----- a/app/src/main/java/com/app/shouze/data/local/MediaItemEntity.kt
+--+++ b/app/src/main/java/com/app/shouze/data/local/MediaItemEntity.kt
+--@@ -17,5 +17,11 @@ data class MediaItemEntity(
+--     val rating: Double = 0.0,
+--     val coverImageUri: String? = null,
+--     val genres: List<String> = emptyList(),
 ---    val lastUpdated: Long = System.currentTimeMillis()
----)
---diff --git a/app/src/main/java/com/app/Shouze/ui/MediaViewModel.kt b/app/src/main/java/com/app/Shouze/ui/MediaViewModel.kt
---deleted file mode 100644
---index 5a951c3..0000000
------ a/app/src/main/java/com/app/Shouze/ui/MediaViewModel.kt
---+++ /dev/null
---@@ -1,217 +0,0 @@
----package com.app.shouze.ui
----
----import android.app.Application
----import android.net.Uri
----import androidx.lifecycle.AndroidViewModel
----import androidx.lifecycle.viewModelScope
----import com.app.shouze.data.SettingsRepository
----import com.app.shouze.data.ThemeMode
----import com.app.shouze.data.local.*
----import kotlinx.coroutines.flow.*
----import kotlinx.coroutines.launch
----import kotlinx.serialization.json.Json
----import java.util.zip.ZipEntry
----import java.util.zip.ZipInputStream
----import java.util.zip.ZipOutputStream
----
----data class HomeUiState(
----    val allItems: List<MediaItemEntity> = emptyList(),
----    val items: List<MediaItemEntity> = emptyList(),
----    val categories: List<CategoryEntity> = emptyList(),
----    val selectedCategoryId: String? = null,
----    val searchQuery: String = "",
----    val isLoading: Boolean = false,
----    val syncMessage: String? = null,
----    val error: String? = null
----)
----
+--+    val lastUpdated: Long = System.currentTimeMillis(),
+--+    val isFavorite: Boolean = false,
+--+    val notes: String = "",
+--+    val rewatchCount: Int = 0,
+--+    val startDate: Long? = null,
+--+    val endDate: Long? = null
+-- )
+--+
+--diff --git a/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt b/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt
+--index 90db392..d1f1821 100644
+----- a/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt
+--+++ b/app/src/main/java/com/app/shouze/ui/MediaViewModel.kt
+--@@ -2,23 +2,26 @@ package com.app.shouze.ui
+-- 
+-- import android.app.Application
+-- import android.net.Uri
+---import android.util.Log
+-- import androidx.lifecycle.AndroidViewModel
+-- import androidx.lifecycle.viewModelScope
+-- import com.app.shouze.data.SettingsRepository
+-- import com.app.shouze.data.ThemeMode
+-- import com.app.shouze.data.local.*
+---import com.app.shouze.ui.StatsUiState
+---import com.app.shouze.ui.GenreStat
+---import com.app.shouze.ui.CategoryStat
+---import kotlinx.coroutines.flow.SharingStarted
+---import kotlinx.coroutines.flow.stateIn
+-- import kotlinx.coroutines.flow.*
+-- import kotlinx.coroutines.launch
+-- import kotlinx.serialization.json.Json
+-- import java.util.zip.ZipEntry
+-- import java.util.zip.ZipInputStream
+-- import java.util.zip.ZipOutputStream
+--+import com.app.shouze.ui.StatsUiState
+--+import com.app.shouze.ui.GenreStat
+--+import com.app.shouze.ui.CategoryStat
+--+import kotlinx.coroutines.flow.SharingStarted
+--+import kotlinx.coroutines.flow.stateIn
+--+
+--+enum class SortMode {
+--+    LAST_UPDATED, TITLE, RATING_HIGH, PROGRESS
+--+}
+-- 
+-- data class HomeUiState(
+--     val allItems: List<MediaItemEntity> = emptyList(),
+--@@ -26,28 +29,96 @@ data class HomeUiState(
+--     val categories: List<CategoryEntity> = emptyList(),
+--     val selectedCategoryId: String? = null,
+--     val searchQuery: String = "",
+--+    val sortMode: SortMode = SortMode.LAST_UPDATED,
+--+    val showFavoritesOnly: Boolean = false,
+--     val isLoading: Boolean = false,
+--     val syncMessage: String? = null,
+--     val error: String? = null
+-- )
+-- 
 ---class MediaViewModel(application: Application) : AndroidViewModel(application) {
+--+// class MediaViewModel(application: Application) : AndroidViewModel(application) {
+--+//
+--+//     private val db = AppDatabase.getInstance(application)
+--+//     private val dao = db.mediaDao()
+--+//     private val categoryDao = db.categoryDao()
+--+//     private val syncController = DataSyncController(db)
+--+//     private val settingsRepo = SettingsRepository(application)
+--+//     private val json = Json { ignoreUnknownKeys = true }
+--+//
+--+//     val settings = settingsRepo.settings
+--+//
+--+//     private val _selectedCategoryId = MutableStateFlow<String?>(null)
+--+//     private val _searchQuery = MutableStateFlow("")
+--+//     private val _sortMode = MutableStateFlow(SortMode.LAST_UPDATED)
+--+//     private val _showFavoritesOnly = MutableStateFlow(false)
+--+//     private val _isLoading = MutableStateFlow(false)
+--+//     private val _syncMessage = MutableStateFlow<String?>(null)
+--+//     private val _error = MutableStateFlow<String?>(null)
+--+//
+--+//     private val _uiState = MutableStateFlow(HomeUiState())
+--+//     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+--+//     val statsUiState: StateFlow<StatsUiState> = combine(
+--+//         dao.getAllItems(),
+--+//         categoryDao.getAll()
+--+//     ) { items, categories ->
+--+//         computeStats(items, categories)
+--+//     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsUiState())
+--+//
+--+//
+--+//     init {
+--+//         viewModelScope.launch {
+--+//             startLibraryCollection()
+--+//         }
+--+//     }
+--+//
+--+//     private suspend fun startLibraryCollection() {
+--+//         try {
+--+//              combine(
+--+//                  dao.getAllItems(),
+--+//                  categoryDao.getAll(),
+--+//                  _selectedCategoryId,
+--+//                  _searchQuery,
+--+//                  _sortMode,
+--+//                  _showFavoritesOnly
+--+//              ) { allItems, allCategories, catId, query, sort, favOnly ->
+--+//                  val filtered = filterItems(allItems, catId, query, sort, favOnly)
+--+//                  _uiState.update { current ->
+--+//                      current.copy(
+--+//                          allItems = allItems,
+--+//                          items = filtered,
+--+//                          categories = allCategories,
+--+//                          selectedCategoryId = catId,
+--+//                          searchQuery = query,
+--+//                          sortMode = sort,
+--+//                          showFavoritesOnly = favOnly
+--+//                      )
+--+//                  }
+--+//              }.collect()
+--+//         } catch (e: Exception) {
+--+//             showMessage("Failed to load library: ${e.message}", isError = true)
+--+//         }
+--+//     }
+--+    class MediaViewModel(application: Application) : AndroidViewModel(application) {
+-- 
+--     private val db = AppDatabase.getInstance(application)
+--+    private val dao = db.mediaDao()
+--+    private val categoryDao = db.categoryDao()
+--     private val syncController = DataSyncController(db)
+--     private val settingsRepo = SettingsRepository(application)
+--     private val json = Json { ignoreUnknownKeys = true }
+-- 
+--     val settings = settingsRepo.settings
+-- 
+---    private val app: Application = getApplication()
 ---
----    private val db = AppDatabase.getInstance(application)
----    private val dao = db.mediaDao()
----    private val categoryDao = db.categoryDao()
----    private val syncController = DataSyncController(db)
----    private val settingsRepo = SettingsRepository(application)
----    private val json = Json { ignoreUnknownKeys = true }
+---    private var recoveryTried = false
 ---
----    val settings = settingsRepo.settings
+---    private fun currentDb(): AppDatabase = AppDatabase.getInstance(app)
 ---
----    private val _selectedCategoryId = MutableStateFlow<String?>(null)
----    private val _searchQuery = MutableStateFlow("")
----    private val _isLoading = MutableStateFlow(false)
----    private val _syncMessage = MutableStateFlow<String?>(null)
----    private val _error = MutableStateFlow<String?>(null)
----
----    private val _uiState = MutableStateFlow(HomeUiState())
----    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
----
----    init {
----        viewModelScope.launch {
----            combine(
----                dao.getAllItems(),
----                categoryDao.getAll(),
----                _selectedCategoryId,
----                _searchQuery
----            ) { allItems, allCategories, catId, query ->
----                val filtered = filterItems(allItems, catId, query)
----                _uiState.update { current ->
----                    current.copy(
----                        allItems = allItems,
----                        items = filtered,
----                        categories = allCategories,
----                        selectedCategoryId = catId,
----                        searchQuery = query
----                    )
----                }
----            }.collect()
+--     private val _selectedCategoryId = MutableStateFlow<String?>(null)
+--     private val _searchQuery = MutableStateFlow("")
+--+    private val _sortMode = MutableStateFlow(SortMode.LAST_UPDATED)
+--+    private val _showFavoritesOnly = MutableStateFlow(false)
+--+
+--+    // Merge sort + favorites into one flow so the main combine stays at 5 flows
+--+    private val _filterConfig = combine(_sortMode, _showFavoritesOnly) { sort, favOnly ->
+--+        sort to favOnly
+--+    }
+--+
+--     private val _isLoading = MutableStateFlow(false)
+--     private val _syncMessage = MutableStateFlow<String?>(null)
+--     private val _error = MutableStateFlow<String?>(null)
+--@@ -56,72 +127,76 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
+--     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+-- 
+--     val statsUiState: StateFlow<StatsUiState> = combine(
+---        currentDb().mediaDao().getAllItems(),
+---        currentDb().categoryDao().getAll()
+--+        dao.getAllItems(),
+--+        categoryDao.getAll()
+--     ) { items, categories ->
+---        try {
+---            computeStats(items, categories)
+---        } catch (e: Exception) {
+---            Log.e("Shouze", "Failed to compute statistics", e)
+---            StatsUiState()
 ---        }
----    }
+---    }.catch { e ->
+---        Log.e("Shouze", "Statistics data flow failed", e)
+---        emit(StatsUiState())
+--+        computeStats(items, categories)
+--     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsUiState())
+-- 
 ---
----    fun addOrUpdate(item: MediaItemEntity) {
+--     init {
+---        startLibraryCollection()
+--+        viewModelScope.launch {
+--+            startLibraryCollection()
+--+        }
+--     }
+-- 
+---    private fun startLibraryCollection() {
 ---        viewModelScope.launch {
----            dao.insertOrUpdate(item.copy(lastUpdated = System.currentTimeMillis()))
----        }
----    }
----
----    fun deleteItem(itemId: String) {
----        viewModelScope.launch {
----            dao.deleteById(itemId)
----        }
----    }
----
----    fun setCategoryFilter(categoryId: String?) {
----        _selectedCategoryId.value = categoryId
----    }
----
----    fun setSearchQuery(query: String) {
----        _searchQuery.value = query
----    }
----
----    fun addCategory(name: String) {
----        viewModelScope.launch {
----            categoryDao.insert(CategoryEntity(name = name.trim()))
----        }
----    }
----
----    fun deleteCategory(categoryId: String) {
----        viewModelScope.launch {
----            categoryDao.delete(categoryId)
----        }
----    }
----
----    private fun filterItems(
----        all: List<MediaItemEntity>,
----        categoryId: String?,
----        query: String
----    ): List<MediaItemEntity> {
----        return all
----            .filter { categoryId == null || it.categoryId == categoryId }
----            .filter { query.isBlank() || it.title.contains(query, ignoreCase = true) }
----    }
----
----    fun setThemeMode(mode: ThemeMode) = settingsRepo.setThemeMode(mode)
----    fun setDynamicColor(enabled: Boolean) = settingsRepo.setDynamicColor(enabled)
----    fun setAmoledBlack(enabled: Boolean) = settingsRepo.setAmoledBlack(enabled)
----    fun setHasSeenOnboarding(seen: Boolean) = settingsRepo.setHasSeenOnboarding(seen)
----
----    fun backupToLocalZip(uri: Uri) {
----        viewModelScope.launch {
----            _isLoading.value = true
----            _syncMessage.value = null
----            _error.value = null
----            _uiState.update { it.copy(isLoading = true, syncMessage = null, error = null) }
 ---            try {
----                val result = syncController.exportToJson()
----                result.fold(
----                    onSuccess = { jsonString ->
----                        val itemCount = try {
----                            json.decodeFromString<BackupPayload>(jsonString).itemCount
----                        } catch (_: Exception) { 0 }
----                        val output = getApplication<Application>().contentResolver.openOutputStream(uri)
----                        if (output == null) {
----                            showMessage("Failed to open file for writing", isError = true)
----                            return@launch
----                        }
----                        output.use { os ->
----                            ZipOutputStream(os).use { zos ->
----                                val entry = ZipEntry("backup.json")
----                                zos.putNextEntry(entry)
----                                zos.write(jsonString.toByteArray(Charsets.UTF_8))
----                                zos.closeEntry()
----                            }
----                        }
----                        showMessage("Backup saved successfully ($itemCount items)")
----                    },
----                    onFailure = { e ->
----                        showMessage("Export failed: ${e.message}", isError = true)
+---                val db = currentDb()
+---                combine(
+---                    db.mediaDao().getAllItems(),
+---                    db.categoryDao().getAll(),
+---                    _selectedCategoryId,
+---                    _searchQuery
+---                ) { allItems, allCategories, catId, query ->
+---                    val filtered = filterItems(allItems, catId, query)
+---                    _uiState.update { current ->
+---                        current.copy(
+---                            allItems = allItems,
+---                            items = filtered,
+---                            categories = allCategories,
+---                            selectedCategoryId = catId,
+---                            searchQuery = query
+---                        )
 ---                    }
----                )
+---                }.collect()
 ---            } catch (e: Exception) {
----                showMessage("Unexpected error: ${e.message}", isError = true)
----            }
----        }
----    }
----
----    fun restoreFromLocalZip(uri: Uri) {
----        viewModelScope.launch {
----            _isLoading.value = true
----            _syncMessage.value = null
----            _error.value = null
----            _uiState.update { it.copy(isLoading = true, syncMessage = null, error = null) }
----            try {
----                val input = getApplication<Application>().contentResolver.openInputStream(uri)
----                if (input == null) {
----                    showMessage("Failed to open backup file", isError = true)
----                    return@launch
----                }
----                val backupJson = input.use { stream ->
----                    var content = ""
----                    ZipInputStream(stream).use { zis ->
----                        var entry = zis.nextEntry
----                        while (entry != null) {
----                            if (entry.name == "backup.json") {
----                                content = zis.bufferedReader().readText()
----                                break
----                            }
----                            entry = zis.nextEntry
----                        }
----                    }
----                    content
----                }
----                if (backupJson.isBlank()) {
----                    showMessage("Invalid backup file: backup.json not found", isError = true)
----                    return@launch
----                }
----                val importResult = syncController.importFromJson(backupJson)
----                importResult.fold(
----                    onSuccess = { count ->
----                        showMessage("Restore successful (imported $count items)")
----                    },
----                    onFailure = { e ->
----                        showMessage("Import failed: ${e.message}", isError = true)
----                    }
----                )
----            } catch (e: Exception) {
----                showMessage("Unexpected error: ${e.message}", isError = true)
----            }
----        }
----    }
----
----    fun clearSyncMessage() {
----        _syncMessage.value = null
----        _error.value = null
----        _uiState.update { it.copy(syncMessage = null, error = null) }
----    }
----
----    private fun showMessage(message: String, isError: Boolean = false) {
----        _isLoading.value = false
----        if (isError) {
----            _error.value = message
----            _syncMessage.value = null
----        } else {
----            _syncMessage.value = message
----            _error.value = null
----        }
----        _uiState.update { it.copy(isLoading = false, syncMessage = if (isError) null else message, error = if (isError) message else null) }
----    }
----}
---diff --git a/app/src/main/java/com/app/Shouze/ui/components/DetailEditDialog.kt b/app/src/main/java/com/app/Shouze/ui/components/DetailEditDialog.kt
---deleted file mode 100644
---index 6a2839e..0000000
------ a/app/src/main/java/com/app/Shouze/ui/components/DetailEditDialog.kt
---+++ /dev/null
---@@ -1,355 +0,0 @@
----package com.app.shouze.ui.components
----
----import androidx.compose.foundation.clickable
----import androidx.compose.foundation.layout.*
----import androidx.compose.foundation.rememberScrollState
----import androidx.compose.foundation.text.KeyboardOptions
----import androidx.compose.foundation.verticalScroll
----import androidx.compose.material.icons.Icons
----import androidx.compose.material.icons.filled.Add
----import androidx.compose.material.icons.filled.ArrowDropDown
----import androidx.compose.material.icons.filled.Close
----import androidx.compose.material3.*
----import androidx.compose.runtime.*
----import androidx.compose.ui.Alignment
----import androidx.compose.ui.Modifier
----import androidx.compose.ui.text.input.KeyboardType
----import androidx.compose.ui.unit.dp
----import androidx.compose.ui.window.Dialog
----import androidx.compose.ui.window.DialogProperties
----import com.app.shouze.data.local.CategoryEntity
----import com.app.shouze.data.local.MediaItemEntity
----import com.app.shouze.data.local.Status
----import java.util.UUID
----
----@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
----@Composable
----fun DetailEditDialog(
----    item: MediaItemEntity?,
----    categories: List<CategoryEntity>,
----    onDismiss: () -> Unit,
----    onSave: (MediaItemEntity) -> Unit,
----    onDelete: (String) -> Unit
----) {
----    var title by remember { mutableStateOf(item?.title ?: "") }
----    var categoryId by remember {
----        mutableStateOf(item?.categoryId ?: categories.firstOrNull()?.id ?: "")
----    }
----    var status by remember { mutableStateOf(item?.status ?: Status.PLAN_TO_WATCH) }
----    var currentProgress by remember { mutableStateOf(item?.currentProgress?.toString() ?: "0") }
----    var totalCount by remember { mutableStateOf(item?.totalCount?.toString() ?: "1") }
----    var currentVolume by remember { mutableStateOf(item?.currentVolume?.toString() ?: "") }
----    var rating by remember { mutableStateOf(item?.rating?.toString() ?: "0.0") }
----    var coverImageUri by remember { mutableStateOf(item?.coverImageUri ?: "") }
----    var genres by remember { mutableStateOf(item?.genres ?: emptyList()) }
----    var newGenre by remember { mutableStateOf("") }
----
----    var showCategoryPicker by remember { mutableStateOf(false) }
----    var showStatusPicker by remember { mutableStateOf(false) }
----
----    val isTitleValid = title.isNotBlank()
----    val progressInt = currentProgress.toIntOrNull()?.coerceAtLeast(0) ?: 0
----    val totalInt = totalCount.toIntOrNull()?.coerceAtLeast(0) ?: 0
----    val clampedProgress = if (totalInt > 0) progressInt.coerceIn(0, totalInt) else progressInt
----
----    val selectedCategory = categories.find { it.id == categoryId }
----    val isLiterature = selectedCategory?.name?.contains("novel", ignoreCase = true) == true
----            || selectedCategory?.name?.contains("book", ignoreCase = true) == true
----            || selectedCategory?.name?.contains("manga", ignoreCase = true) == true
----    val unitLabel = if (isLiterature) "Chapter" else "Episode"
----
----    Dialog(
----        onDismissRequest = onDismiss,
----        properties = DialogProperties(
----            usePlatformDefaultWidth = false,
----            decorFitsSystemWindows = false
----        )
----    ) {
----        Card(
----            modifier = Modifier
----                .fillMaxWidth()
----                .padding(horizontal = 12.dp, vertical = 24.dp)
----                .wrapContentHeight(),
----            shape = MaterialTheme.shapes.extraLarge
----        ) {
----            Column(
----                modifier = Modifier
----                    .padding(20.dp)
----                    .verticalScroll(rememberScrollState())
----            ) {
----                Text(
----                    text = if (item == null) "Add New Item" else "Edit Item",
----                    style = MaterialTheme.typography.headlineSmall
----                )
----                Spacer(modifier = Modifier.height(16.dp))
----
----                OutlinedTextField(
----                    value = title,
----                    onValueChange = { title = it },
----                    label = { Text("Title") },
----                    isError = !isTitleValid,
----                    supportingText = if (isTitleValid) null else { { Text("Title is required") } },
----                    singleLine = true,
----                    modifier = Modifier.fillMaxWidth()
----                )
----                Spacer(modifier = Modifier.height(8.dp))
----
----                Box(modifier = Modifier.fillMaxWidth()) {
----                    OutlinedTextField(
----                        value = categories.find { it.id == categoryId }?.name ?: "",
----                        onValueChange = {},
----                        readOnly = true,
----                        label = { Text("Category") },
----                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
----                        modifier = Modifier.fillMaxWidth()
----                    )
----                    Box(
----                        modifier = Modifier
----                            .matchParentSize()
----                            .clickable { showCategoryPicker = true }
----                    )
----                }
----                Spacer(modifier = Modifier.height(8.dp))
----
----                Box(modifier = Modifier.fillMaxWidth()) {
----                    OutlinedTextField(
----                        value = status.name.replace("_", " "),
----                        onValueChange = {},
----                        readOnly = true,
----                        label = { Text("Status") },
----                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
----                        modifier = Modifier.fillMaxWidth()
----                    )
----                    Box(
----                        modifier = Modifier
----                            .matchParentSize()
----                            .clickable { showStatusPicker = true }
----                    )
----                }
----                Spacer(modifier = Modifier.height(8.dp))
----
----                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
----                    OutlinedTextField(
----                        value = currentProgress,
----                        onValueChange = { currentProgress = it },
----                        label = { Text("Progress") },
----                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
----                        modifier = Modifier.weight(1f)
----                    )
----                    OutlinedTextField(
----                        value = totalCount,
----                        onValueChange = { totalCount = it },
----                        label = { Text("Total (0 = ongoing)") },
----                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
----                        modifier = Modifier.weight(1f)
----                    )
----                }
----                Spacer(modifier = Modifier.height(8.dp))
----
----                if (isLiterature) {
----                    OutlinedTextField(
----                        value = currentVolume,
----                        onValueChange = { currentVolume = it },
----                        label = { Text("Current Volume (optional)") },
----                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
----                        modifier = Modifier.fillMaxWidth()
----                    )
----                    Spacer(modifier = Modifier.height(8.dp))
----                }
----
----                OutlinedTextField(
----                    value = rating,
----                    onValueChange = { rating = it },
----                    label = { Text("Rating (0-10)") },
----                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
----                    modifier = Modifier.fillMaxWidth()
----                )
----                Spacer(modifier = Modifier.height(8.dp))
----
----                OutlinedTextField(
----                    value = coverImageUri,
----                    onValueChange = { coverImageUri = it },
----                    label = { Text("Cover Image URI") },
----                    modifier = Modifier.fillMaxWidth()
----                )
----                Spacer(modifier = Modifier.height(16.dp))
----
----                Text(
----                    text = "Genres",
----                    style = MaterialTheme.typography.titleSmall,
----                    color = MaterialTheme.colorScheme.primary
----                )
----                Spacer(modifier = Modifier.height(4.dp))
----
----                if (genres.isNotEmpty()) {
----                    FlowRow(
----                        horizontalArrangement = Arrangement.spacedBy(8.dp),
----                        verticalArrangement = Arrangement.spacedBy(4.dp)
----                    ) {
----                        genres.forEach { genre ->
----                            InputChip(
----                                selected = false,
----                                onClick = { },
----                                label = { Text(genre) },
----                                trailingIcon = {
----                                    IconButton(
----                                        onClick = { genres = genres - genre },
----                                        modifier = Modifier.size(16.dp)
----                                    ) {
----                                        Icon(
----                                            imageVector = Icons.Default.Close,
----                                            contentDescription = "Remove $genre",
----                                            modifier = Modifier.size(14.dp)
----                                        )
----                                    }
----                                }
----                            )
----                        }
----                    }
----                    Spacer(modifier = Modifier.height(8.dp))
----                }
----
----                Row(
----                    verticalAlignment = Alignment.CenterVertically,
----                    horizontalArrangement = Arrangement.spacedBy(8.dp)
----                ) {
----                    OutlinedTextField(
----                        value = newGenre,
----                        onValueChange = { newGenre = it },
----                        label = { Text("Add genre") },
----                        singleLine = true,
----                        modifier = Modifier.weight(1f)
----                    )
----                    IconButton(
----                        onClick = {
----                            val trimmed = newGenre.trim()
----                            if (trimmed.isNotBlank() && !genres.any { it.equals(trimmed, ignoreCase = true) }) {
----                                genres = genres + trimmed
----                                newGenre = ""
----                            }
----                        }
----                    ) {
----                        Icon(Icons.Default.Add, contentDescription = "Add genre")
----                    }
----                }
----                Spacer(modifier = Modifier.height(24.dp))
----
----                if (item != null) {
----                    OutlinedButton(
----                        onClick = {
----                            val next = progressInt + 1
----                            currentProgress = next.toString()
----                            if (totalInt > 0 && next >= totalInt && status != Status.DROPPED) {
----                                status = Status.COMPLETED
----                            }
----                        },
----                        enabled = totalInt == 0 || progressInt < totalInt,
----                        modifier = Modifier.fillMaxWidth()
----                    ) {
----                        Text("+1 $unitLabel")
----                    }
----                    Spacer(modifier = Modifier.height(8.dp))
----                }
----
----                Row(
----                    modifier = Modifier.fillMaxWidth(),
----                    horizontalArrangement = Arrangement.End
----                ) {
----                    if (item != null) {
----                        TextButton(onClick = {
----                            onDelete(item.id)
----                            onDismiss()
----                        }) {
----                            Text("Delete", color = MaterialTheme.colorScheme.error)
----                        }
----                        Spacer(modifier = Modifier.weight(1f))
----                    }
----                    TextButton(onClick = onDismiss) { Text("Cancel") }
----                    Spacer(modifier = Modifier.width(8.dp))
----                    Button(
----                        onClick = {
----                            val newItem = MediaItemEntity(
----                                id = item?.id ?: UUID.randomUUID().toString(),
----                                title = title.trim(),
----                                categoryId = categoryId,
----                                status = status,
----                                currentProgress = clampedProgress,
----                                totalCount = totalInt,
----                                currentVolume = currentVolume.toIntOrNull(),
----                                rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
----                                coverImageUri = coverImageUri.ifBlank { null },
----                                genres = genres,
----                                lastUpdated = System.currentTimeMillis()
----                            )
----                            onSave(newItem)
----                            onDismiss()
----                        },
----                        enabled = isTitleValid && categoryId.isNotBlank()
----                    ) {
----                        Text("Save")
----                    }
----                }
----            }
----        }
----    }
----
----    if (showCategoryPicker) {
----        AlertDialog(
----            onDismissRequest = { showCategoryPicker = false },
----            title = { Text("Select Category") },
----            text = {
----                Column {
----                    if (categories.isEmpty()) {
----                        Text(
----                            text = "No categories available. Create one in Settings.",
----                            style = MaterialTheme.typography.bodyMedium,
----                            color = MaterialTheme.colorScheme.onSurfaceVariant
----                        )
----                    } else {
----                        categories.forEach { cat ->
----                            TextButton(
----                                onClick = {
----                                    categoryId = cat.id
----                                    showCategoryPicker = false
----                                },
----                                modifier = Modifier.fillMaxWidth()
----                            ) {
----                                Text(cat.name)
----                            }
----                        }
----                    }
----                }
----            },
----            confirmButton = {},
----            dismissButton = {
----                TextButton(onClick = { showCategoryPicker = false }) { Text("Cancel") }
----            }
----        )
----    }
----
----    if (showStatusPicker) {
----        AlertDialog(
----            onDismissRequest = { showStatusPicker = false },
----            title = { Text("Select Status") },
----            text = {
----                Column {
----                    Status.entries.forEach { s ->
----                        TextButton(
----                            onClick = {
----                                status = s
----                                showStatusPicker = false
----                            },
----                            modifier = Modifier.fillMaxWidth()
----                        ) {
----                            Text(s.name.replace("_", " "))
----                        }
----                    }
----                }
----            },
----            confirmButton = {},
----            dismissButton = {
----                TextButton(onClick = { showStatusPicker = false }) { Text("Cancel") }
----            }
----        )
----    }
----}
---diff --git a/app/src/main/java/com/app/Shouze/ui/components/MediaCardItem.kt b/app/src/main/java/com/app/Shouze/ui/components/MediaCardItem.kt
---deleted file mode 100644
---index e800a2f..0000000
------ a/app/src/main/java/com/app/Shouze/ui/components/MediaCardItem.kt
---+++ /dev/null
---@@ -1,185 +0,0 @@
----package com.app.shouze.ui.components
----
----import androidx.compose.foundation.background
----import androidx.compose.foundation.layout.*
----import androidx.compose.foundation.shape.CircleShape
----import androidx.compose.material.icons.Icons
----import androidx.compose.material.icons.automirrored.filled.StarHalf
----import androidx.compose.material.icons.filled.Star
----import androidx.compose.material.icons.filled.StarBorder
----import androidx.compose.material3.*
----import androidx.compose.runtime.Composable
----import androidx.compose.ui.Alignment
----import androidx.compose.ui.Modifier
----import androidx.compose.ui.draw.clip
----import androidx.compose.ui.graphics.Color
----import androidx.compose.ui.graphics.vector.ImageVector
----import androidx.compose.ui.text.style.TextOverflow
----import androidx.compose.ui.unit.dp
----import com.app.shouze.data.local.MediaItemEntity
----import com.app.shouze.data.local.Status
----
----@Composable
----fun MediaCardItem(
----    item: MediaItemEntity,
----    categoryName: String,
----    onClick: () -> Unit,
----    modifier: Modifier = Modifier
----) {
----    ElevatedCard(
----        onClick = onClick,
----        modifier = modifier
----            .fillMaxWidth()
----            .padding(horizontal = 16.dp, vertical = 6.dp),
----        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
----    ) {
----        Row(
----            modifier = Modifier.padding(12.dp),
----            verticalAlignment = Alignment.CenterVertically
----        ) {
----            AvatarCircle(item = item)
----            Spacer(modifier = Modifier.width(14.dp))
----            Column(modifier = Modifier.weight(1f)) {
----                Text(
----                    text = item.title,
----                    style = MaterialTheme.typography.titleMedium,
----                    maxLines = 1,
----                    overflow = TextOverflow.Ellipsis,
----                    color = MaterialTheme.colorScheme.onSurface
----                )
----                Spacer(modifier = Modifier.height(3.dp))
----                Text(
----                    text = buildSubtitle(item, categoryName),
----                    style = MaterialTheme.typography.bodySmall,
----                    color = MaterialTheme.colorScheme.onSurfaceVariant
----                )
----                if (item.totalCount > 0) {
----                    Spacer(modifier = Modifier.height(8.dp))
----                    LinearProgressIndicator(
----                        progress = { (item.currentProgress.toFloat() / item.totalCount).coerceIn(0f, 1f) },
----                        modifier = Modifier.fillMaxWidth(),
----                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
----                        color = MaterialTheme.colorScheme.primary
----                    )
----                }
----                if (item.rating > 0.0) {
----                    Spacer(modifier = Modifier.height(6.dp))
----                    RatingBar(rating = item.rating)
----                }
----            }
----            Spacer(modifier = Modifier.width(10.dp))
----            StatusBadge(status = item.status)
----        }
----    }
----}
----
----@Composable
----private fun AvatarCircle(item: MediaItemEntity, modifier: Modifier = Modifier) {
----    val hue = (item.title.hashCode() and 0x7fffffff) % 360
----    val color = Color(
----        android.graphics.Color.HSVToColor(
----            floatArrayOf(hue.toFloat(), 0.52f, 0.88f)
----        )
----    )
----    Box(
----        modifier = modifier
----            .size(52.dp)
----            .clip(CircleShape)
----            .background(color),
----        contentAlignment = Alignment.Center
----    ) {
----        Text(
----            text = item.title.firstOrNull()?.uppercase() ?: "?",
----            style = MaterialTheme.typography.titleMedium,
----            color = Color.White
----        )
----    }
----}
----
----@Composable
----private fun StatusBadge(status: Status, modifier: Modifier = Modifier) {
----    val container: Color
----    val content: Color
----    val label: String
----    when (status) {
----        Status.COMPLETED -> {
----            container = MaterialTheme.colorScheme.tertiaryContainer
----            content = MaterialTheme.colorScheme.onTertiaryContainer
----            label = "Completed"
----        }
----        Status.DROPPED -> {
----            container = MaterialTheme.colorScheme.errorContainer
----            content = MaterialTheme.colorScheme.onErrorContainer
----            label = "Dropped"
----        }
----        Status.PLAN_TO_WATCH -> {
----            container = MaterialTheme.colorScheme.surfaceVariant
----            content = MaterialTheme.colorScheme.onSurfaceVariant
----            label = "Plan to Watch"
----        }
----        Status.WATCHING -> {
----            container = MaterialTheme.colorScheme.primaryContainer
----            content = MaterialTheme.colorScheme.onPrimaryContainer
----            label = "Watching"
----        }
----        Status.READING -> {
----            container = MaterialTheme.colorScheme.primaryContainer
----            content = MaterialTheme.colorScheme.onPrimaryContainer
----            label = "Reading"
----        }
----    }
----    Surface(
----        modifier = modifier,
----        shape = MaterialTheme.shapes.small,
----        color = container,
----        contentColor = content
----    ) {
----        Text(
----            text = label,
----            style = MaterialTheme.typography.labelSmall,
----            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
----        )
----    }
----}
----
----@Composable
----private fun RatingBar(rating: Double, modifier: Modifier = Modifier) {
----    val scale = (rating / 2.0).coerceIn(0.0, 5.0)
----    val fullStars = scale.toInt()
----    val hasHalf = scale - fullStars >= 0.5
----    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
----        repeat(5) { index ->
----            val icon: ImageVector = when {
----                index < fullStars -> Icons.Filled.Star
----                index == fullStars && hasHalf -> Icons.AutoMirrored.Filled.StarHalf
----                else -> Icons.Filled.StarBorder
----            }
----            Icon(
----                imageVector = icon,
----                contentDescription = null,
----                tint = MaterialTheme.colorScheme.tertiary,
----                modifier = Modifier.size(14.dp)
----            )
----        }
----        Spacer(modifier = Modifier.width(6.dp))
----        Text(
----            text = "%.1f".format(rating),
----            style = MaterialTheme.typography.labelSmall,
----            color = MaterialTheme.colorScheme.onSurfaceVariant
----        )
----    }
----}
----
----private fun buildSubtitle(item: MediaItemEntity, categoryName: String): String {
----    val progressLabel = if (item.totalCount > 0) {
----        "${item.currentProgress}/${item.totalCount}"
----    } else {
----        "${item.currentProgress}/ongoing"
----    }
----    val volumeLabel = if (item.currentVolume != null) {
----        " · Vol.${item.currentVolume}"
----    } else {
----        ""
----    }
----    return "$categoryName · $progressLabel$volumeLabel"
----}
---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/AboutScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/AboutScreen.kt
---deleted file mode 100644
---index dac33af..0000000
------ a/app/src/main/java/com/app/Shouze/ui/screens/AboutScreen.kt
---+++ /dev/null
---@@ -1,92 +0,0 @@
----package com.app.shouze.ui.screens
----
----import androidx.compose.foundation.layout.*
----import androidx.compose.material.icons.Icons
----import androidx.compose.material.icons.automirrored.filled.ArrowBack
----import androidx.compose.material3.*
----import androidx.compose.runtime.Composable
----import androidx.compose.ui.Alignment
----import androidx.compose.ui.Modifier
----import androidx.compose.ui.unit.dp
----
----@OptIn(ExperimentalMaterial3Api::class)
----@Composable
----fun AboutScreen(
----    onBack: () -> Unit
----) {
----    Scaffold(
----        topBar = {
----            TopAppBar(
----                title = { Text("About") },
----                navigationIcon = {
----                    IconButton(onClick = onBack) {
----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
----                    }
----                }
----            )
----        }
----    ) { padding ->
----        Column(
----            modifier = Modifier
----                .padding(padding)
----                .fillMaxSize()
----                .padding(horizontal = 16.dp, vertical = 32.dp),
----            horizontalAlignment = Alignment.CenterHorizontally
----        ) {
----            // App icon placeholder
----            Surface(
----                modifier = Modifier.size(96.dp),
----                shape = MaterialTheme.shapes.large,
----                color = MaterialTheme.colorScheme.primaryContainer
----            ) {
----                Box(contentAlignment = Alignment.Center) {
----                    Text(
----                        text = "守",
----                        style = MaterialTheme.typography.displayLarge,
----                        color = MaterialTheme.colorScheme.onPrimaryContainer
----                    )
----                }
----            }
----
----            Spacer(modifier = Modifier.height(24.dp))
----
----            Text(
----                text = "Shouze",
----                style = MaterialTheme.typography.headlineMedium,
----                color = MaterialTheme.colorScheme.onSurface
----            )
----
----            Spacer(modifier = Modifier.height(4.dp))
----
----            Text(
----                text = "Version 1.2",
----                style = MaterialTheme.typography.bodyLarge,
----                color = MaterialTheme.colorScheme.onSurfaceVariant
----            )
----
----            Spacer(modifier = Modifier.height(24.dp))
----
----            Card(modifier = Modifier.fillMaxWidth()) {
----                Column(modifier = Modifier.padding(16.dp)) {
----                    Text(
----                        text = "Your personal keeper for anime, manga, and everything you watch. Track your progress, organize by categories, and never lose track of what you're watching or reading.",
----                        style = MaterialTheme.typography.bodyMedium,
----                        color = MaterialTheme.colorScheme.onSurfaceVariant
----                    )
----                }
----            }
----
----            Spacer(modifier = Modifier.height(16.dp))
----
----            Card(modifier = Modifier.fillMaxWidth()) {
----                Column(modifier = Modifier.padding(16.dp)) {
----                    Text(
----                        text = "Made with Compose",
----                        style = MaterialTheme.typography.bodyMedium,
----                        color = MaterialTheme.colorScheme.onSurfaceVariant
----                    )
----                }
----            }
----        }
----    }
----}
---\ No newline at end of file
---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/AppearanceScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/AppearanceScreen.kt
---deleted file mode 100644
---index 083ff25..0000000
------ a/app/src/main/java/com/app/Shouze/ui/screens/AppearanceScreen.kt
---+++ /dev/null
---@@ -1,109 +0,0 @@
----package com.app.shouze.ui.screens
----
----import androidx.compose.foundation.layout.*
----import androidx.compose.foundation.rememberScrollState
----import androidx.compose.foundation.selection.selectable
----import androidx.compose.foundation.selection.selectableGroup
----import androidx.compose.foundation.verticalScroll
----import androidx.compose.material.icons.Icons
----import androidx.compose.material.icons.automirrored.filled.ArrowBack
----import androidx.compose.material3.*
----import androidx.compose.runtime.Composable
----import androidx.compose.ui.Alignment
----import androidx.compose.ui.Modifier
----import androidx.compose.ui.semantics.Role
----import androidx.compose.ui.unit.dp
----import com.app.shouze.data.AppSettings
----import com.app.shouze.data.ThemeMode
----
----@OptIn(ExperimentalMaterial3Api::class)
----@Composable
----fun AppearanceScreen(
----    settings: AppSettings,
----    onBack: () -> Unit,
----    onThemeModeChange: (ThemeMode) -> Unit,
----    onDynamicColorChange: (Boolean) -> Unit,
----    onAmoledBlackChange: (Boolean) -> Unit
----) {
----    Scaffold(
----        topBar = {
----            TopAppBar(
----                title = { Text("Appearance") },
----                navigationIcon = {
----                    IconButton(onClick = onBack) {
----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
----                    }
----                }
----            )
----        }
----    ) { padding ->
----        Column(
----            modifier = Modifier
----                .padding(padding)
----                .fillMaxSize()
----                .padding(horizontal = 16.dp, vertical = 8.dp)
----                .verticalScroll(rememberScrollState())
----        ) {
----            Card(modifier = Modifier.fillMaxWidth()) {
----                Column(modifier = Modifier.padding(16.dp)) {
----                    Text("Theme", style = MaterialTheme.typography.titleSmall)
----                    Spacer(modifier = Modifier.height(8.dp))
----                    Column(modifier = Modifier.selectableGroup()) {
----                        ThemeMode.entries.forEach { mode ->
----                            Row(
----                                modifier = Modifier
----                                    .fillMaxWidth()
----                                    .height(48.dp)
----                                    .selectable(
----                                        selected = settings.themeMode == mode,
----                                        onClick = { onThemeModeChange(mode) },
----                                        role = Role.RadioButton
----                                    ),
----                                verticalAlignment = Alignment.CenterVertically
----                            ) {
----                                RadioButton(
----                                    selected = settings.themeMode == mode,
----                                    onClick = null
----                                )
----                                Spacer(modifier = Modifier.width(16.dp))
----                                Text(text = mode.name.replace("_", " "))
----                            }
----                        }
----                    }
----
----                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
----
----                    Row(
----                        modifier = Modifier.fillMaxWidth(),
----                        horizontalArrangement = Arrangement.SpaceBetween,
----                        verticalAlignment = Alignment.CenterVertically
----                    ) {
----                        Text("Dynamic Colors")
----                        Switch(
----                            checked = settings.useDynamicColor,
----                            onCheckedChange = onDynamicColorChange
----                        )
----                    }
----
----                    val isDark = settings.themeMode == ThemeMode.DARK ||
----                            (settings.themeMode == ThemeMode.SYSTEM && androidx.compose.foundation.isSystemInDarkTheme())
----
----                    if (isDark) {
----                        Spacer(modifier = Modifier.height(8.dp))
----                        Row(
----                            modifier = Modifier.fillMaxWidth(),
----                            horizontalArrangement = Arrangement.SpaceBetween,
----                            verticalAlignment = Alignment.CenterVertically
----                        ) {
----                            Text("AMOLED Black")
----                            Switch(
----                                checked = settings.amoledBlack,
----                                onCheckedChange = onAmoledBlackChange
----                            )
----                        }
----                    }
----                }
----            }
----        }
----    }
----}
---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/BackupScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/BackupScreen.kt
---deleted file mode 100644
---index 29ba9ed..0000000
------ a/app/src/main/java/com/app/Shouze/ui/screens/BackupScreen.kt
---+++ /dev/null
---@@ -1,144 +0,0 @@
----package com.app.shouze.ui.screens
----
----import android.net.Uri
----import androidx.activity.compose.rememberLauncherForActivityResult
----import androidx.activity.result.contract.ActivityResultContracts
----import androidx.compose.foundation.layout.*
----import androidx.compose.material.icons.Icons
----import androidx.compose.material.icons.automirrored.filled.ArrowBack
----import androidx.compose.material.icons.filled.CloudDownload
----import androidx.compose.material.icons.filled.CloudUpload
----import androidx.compose.material3.*
----import androidx.compose.runtime.*
----import androidx.compose.ui.Alignment
----import androidx.compose.ui.Modifier
----import androidx.compose.ui.unit.dp
----import java.text.SimpleDateFormat
----import java.util.Date
----import java.util.Locale
----
----@OptIn(ExperimentalMaterial3Api::class)
----@Composable
----fun BackupScreen(
----    onBack: () -> Unit,
----    onBackup: (Uri) -> Unit,
----    onRestore: (Uri) -> Unit
----) {
----    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
----
----    val backupLauncher = rememberLauncherForActivityResult(
----        contract = ActivityResultContracts.CreateDocument("application/zip")
----    ) { uri -> uri?.let(onBackup) }
----
----    val restoreLauncher = rememberLauncherForActivityResult(
----        contract = ActivityResultContracts.OpenDocument()
----    ) { uri -> pendingRestoreUri = uri }
----
----    fun launchBackup() {
----        val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
----        backupLauncher.launch("shouze-backup-$stamp.zip")
----    }
----
----    Scaffold(
----        topBar = {
----            TopAppBar(
----                title = { Text("Backup & Restore") },
----                navigationIcon = {
----                    IconButton(onClick = onBack) {
----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
----                    }
----                }
----            )
----        }
----    ) { padding ->
----        Column(
----            modifier = Modifier
----                .padding(padding)
----                .fillMaxSize()
----                .padding(horizontal = 16.dp, vertical = 24.dp),
----            verticalArrangement = Arrangement.spacedBy(16.dp)
----        ) {
----            Card(
----                modifier = Modifier.fillMaxWidth(),
----                onClick = ::launchBackup
----            ) {
----                Row(
----                    modifier = Modifier
----                        .fillMaxWidth()
----                        .padding(20.dp),
----                    verticalAlignment = Alignment.CenterVertically
----                ) {
----                    Icon(
----                        imageVector = Icons.Default.CloudUpload,
----                        contentDescription = null,
----                        tint = MaterialTheme.colorScheme.primary,
----                        modifier = Modifier.size(32.dp)
----                    )
----                    Spacer(modifier = Modifier.width(16.dp))
----                    Column {
----                        Text(
----                            text = "Create Backup",
----                            style = MaterialTheme.typography.titleMedium
----                        )
----                        Text(
----                            text = "Export your library to a zip file",
----                            style = MaterialTheme.typography.bodyMedium,
----                            color = MaterialTheme.colorScheme.onSurfaceVariant
----                        )
----                    }
----                }
----            }
----
----            Card(
----                modifier = Modifier.fillMaxWidth(),
----                onClick = {
----                    restoreLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
----                }
----            ) {
----                Row(
----                    modifier = Modifier
----                        .fillMaxWidth()
----                        .padding(20.dp),
----                    verticalAlignment = Alignment.CenterVertically
----                ) {
----                    Icon(
----                        imageVector = Icons.Default.CloudDownload,
----                        contentDescription = null,
----                        tint = MaterialTheme.colorScheme.primary,
----                        modifier = Modifier.size(32.dp)
----                    )
----                    Spacer(modifier = Modifier.width(16.dp))
----                    Column {
----                        Text(
----                            text = "Restore Backup",
----                            style = MaterialTheme.typography.titleMedium
----                        )
----                        Text(
----                            text = "Import data from a previous backup",
----                            style = MaterialTheme.typography.bodyMedium,
----                            color = MaterialTheme.colorScheme.onSurfaceVariant
----                        )
----                    }
----                }
----            }
----        }
----    }
----
----    if (pendingRestoreUri != null) {
----        AlertDialog(
----            onDismissRequest = { pendingRestoreUri = null },
----            icon = { Icon(Icons.Filled.CloudDownload, contentDescription = null) },
----            title = { Text("Restore backup?") },
----            text = { Text("This will replace all current data with the backup's contents. This cannot be undone.") },
----            confirmButton = {
----                TextButton(onClick = {
----                    pendingRestoreUri?.let(onRestore)
----                    pendingRestoreUri = null
----                }) { Text("Restore") }
----            },
----            dismissButton = {
----                TextButton(onClick = { pendingRestoreUri = null }) { Text("Cancel") }
----            }
----        )
----    }
----}
---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/CategoriesScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/CategoriesScreen.kt
---deleted file mode 100644
---index 968a352..0000000
------ a/app/src/main/java/com/app/Shouze/ui/screens/CategoriesScreen.kt
---+++ /dev/null
---@@ -1,110 +0,0 @@
----package com.app.shouze.ui.screens
----
----import androidx.compose.foundation.layout.*
----import androidx.compose.foundation.rememberScrollState
----import androidx.compose.foundation.verticalScroll
----import androidx.compose.material.icons.Icons
----import androidx.compose.material.icons.automirrored.filled.ArrowBack
----import androidx.compose.material.icons.filled.Add
----import androidx.compose.material.icons.filled.Delete
----import androidx.compose.material3.*
----import androidx.compose.runtime.*
----import androidx.compose.ui.Alignment
----import androidx.compose.ui.Modifier
----import androidx.compose.ui.unit.dp
----import com.app.shouze.data.local.CategoryEntity
----
----@OptIn(ExperimentalMaterial3Api::class)
----@Composable
----fun CategoriesScreen(
----    categories: List<CategoryEntity>,
----    onBack: () -> Unit,
----    onAddCategory: (String) -> Unit,
----    onDeleteCategory: (String) -> Unit
----) {
----    var newCategoryName by remember { mutableStateOf("") }
----
----    Scaffold(
----        topBar = {
----            TopAppBar(
----                title = { Text("Categories") },
----                navigationIcon = {
----                    IconButton(onClick = onBack) {
----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
----                    }
----                }
----            )
----        }
----    ) { padding ->
----        Column(
----            modifier = Modifier
----                .padding(padding)
----                .fillMaxSize()
----                .padding(horizontal = 16.dp, vertical = 8.dp)
----                .verticalScroll(rememberScrollState())
----        ) {
----            Card(modifier = Modifier.fillMaxWidth()) {
----                Column(modifier = Modifier.padding(16.dp)) {
----                    categories.forEach { cat ->
----                        Row(
----                            modifier = Modifier
----                                .fillMaxWidth()
----                                .padding(vertical = 4.dp),
----                            horizontalArrangement = Arrangement.SpaceBetween,
----                            verticalAlignment = Alignment.CenterVertically
----                        ) {
----                            Text(
----                                text = cat.name,
----                                style = MaterialTheme.typography.bodyLarge,
----                                modifier = Modifier.weight(1f)
----                            )
----                            IconButton(onClick = { onDeleteCategory(cat.id) }) {
----                                Icon(
----                                    imageVector = Icons.Default.Delete,
----                                    contentDescription = "Delete ${cat.name}",
----                                    tint = MaterialTheme.colorScheme.error
----                                )
----                            }
----                        }
----                    }
----
----                    if (categories.isEmpty()) {
----                        Text(
----                            text = "No categories yet.",
----                            style = MaterialTheme.typography.bodyMedium,
----                            color = MaterialTheme.colorScheme.onSurfaceVariant
----                        )
----                    }
----
----                    Spacer(modifier = Modifier.height(8.dp))
----                    HorizontalDivider()
----                    Spacer(modifier = Modifier.height(8.dp))
----
----                    Row(
----                        verticalAlignment = Alignment.CenterVertically,
----                        horizontalArrangement = Arrangement.spacedBy(8.dp)
----                    ) {
----                        OutlinedTextField(
----                            value = newCategoryName,
----                            onValueChange = { newCategoryName = it },
----                            label = { Text("New category") },
----                            singleLine = true,
----                            modifier = Modifier.weight(1f)
----                        )
----                        IconButton(
----                            onClick = {
----                                val trimmed = newCategoryName.trim()
----                                if (trimmed.isNotBlank()) {
----                                    onAddCategory(trimmed)
----                                    newCategoryName = ""
----                                }
----                            }
----                        ) {
----                            Icon(Icons.Default.Add, contentDescription = "Add category")
----                        }
----                    }
----                }
----            }
----        }
----    }
----}
---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/DetailScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/DetailScreen.kt
---deleted file mode 100644
---index 4792ff0..0000000
------ a/app/src/main/java/com/app/Shouze/ui/screens/DetailScreen.kt
---+++ /dev/null
---@@ -1,287 +0,0 @@
----package com.app.shouze.ui.screens
----
----import androidx.compose.foundation.background
----import androidx.compose.foundation.layout.*
----import androidx.compose.foundation.rememberScrollState
----import androidx.compose.foundation.shape.CircleShape
----import androidx.compose.foundation.verticalScroll
----import androidx.compose.material.icons.Icons
----import androidx.compose.material.icons.automirrored.filled.ArrowBack
----import androidx.compose.material.icons.automirrored.filled.StarHalf
----import androidx.compose.material.icons.filled.Delete
----import androidx.compose.material.icons.filled.Edit
----import androidx.compose.material.icons.filled.Star
----import androidx.compose.material.icons.filled.StarBorder
----import androidx.compose.material3.*
----import androidx.compose.runtime.*
----import androidx.compose.ui.Alignment
----import androidx.compose.ui.Modifier
----import androidx.compose.ui.draw.clip
----import androidx.compose.ui.graphics.Color
----import androidx.compose.ui.graphics.vector.ImageVector
----import androidx.compose.ui.text.style.TextOverflow
----import androidx.compose.ui.unit.dp
----import com.app.shouze.data.local.CategoryEntity
----import com.app.shouze.data.local.MediaItemEntity
----import com.app.shouze.data.local.Status
----import java.text.SimpleDateFormat
----import java.util.Date
----import java.util.Locale
----
----@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
----@Composable
----fun DetailScreen(
----    item: MediaItemEntity,
----    category: CategoryEntity?,
----    onBack: () -> Unit,
----    onEdit: () -> Unit,
----    onDelete: () -> Unit
----) {
----    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault()) }
----    var showDeleteConfirm by remember { mutableStateOf(false) }
----
----    Scaffold(
----        topBar = {
----            TopAppBar(
----                title = { Text("Details", maxLines = 1, overflow = TextOverflow.Ellipsis) },
----                navigationIcon = {
----                    IconButton(onClick = onBack) {
----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
----                    }
----                },
----                actions = {
----                    IconButton(onClick = onEdit) {
----                        Icon(Icons.Filled.Edit, contentDescription = "Edit")
----                    }
----                    IconButton(onClick = { showDeleteConfirm = true }) {
----                        Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
----                    }
----                }
----            )
----        }
----    ) { padding ->
----        Column(
----            modifier = Modifier
----                .padding(padding)
----                .fillMaxSize()
----                .verticalScroll(rememberScrollState())
----                .padding(horizontal = 20.dp, vertical = 16.dp),
----            horizontalAlignment = Alignment.CenterHorizontally
----        ) {
----            val hue = (item.title.hashCode() and 0x7fffffff) % 360
----            val avatarColor = Color(
----                android.graphics.Color.HSVToColor(floatArrayOf(hue.toFloat(), 0.52f, 0.88f))
----            )
----            Box(
----                modifier = Modifier
----                    .size(120.dp)
----                    .clip(CircleShape)
----                    .background(avatarColor),
----                contentAlignment = Alignment.Center
----            ) {
----                Text(
----                    text = item.title.firstOrNull()?.uppercase() ?: "?",
----                    style = MaterialTheme.typography.displayMedium,
----                    color = Color.White
----                )
----            }
----
----            Spacer(modifier = Modifier.height(20.dp))
----
----            Text(
----                text = item.title,
----                style = MaterialTheme.typography.headlineMedium,
----                color = MaterialTheme.colorScheme.onSurface
----            )
----
----            Spacer(modifier = Modifier.height(8.dp))
----
----            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
----                AssistChip(onClick = { }, label = { Text(category?.name ?: "Unknown") })
----                AssistChip(
----                    onClick = { },
----                    label = { Text(statusLabel(item.status)) },
----                    colors = AssistChipDefaults.assistChipColors(
----                        containerColor = statusContainerColor(item.status),
----                        labelColor = statusContentColor(item.status)
----                    )
----                )
----            }
----
----            Spacer(modifier = Modifier.height(24.dp))
----
----            if (item.genres.isNotEmpty()) {
----                DetailInfoCard(title = "Genres") {
----                    FlowRow(
----                        horizontalArrangement = Arrangement.spacedBy(8.dp),
----                        verticalArrangement = Arrangement.spacedBy(4.dp)
----                    ) {
----                        item.genres.forEach { genre ->
----                            SuggestionChip(
----                                onClick = { },
----                                label = { Text(genre) }
----                            )
----                        }
----                    }
----                }
----                Spacer(modifier = Modifier.height(12.dp))
----            }
----
----            DetailInfoCard(title = "Progress") {
----                val progressText = if (item.totalCount > 0) {
----                    "${item.currentProgress} / ${item.totalCount}"
+---                Log.e("Shouze", "Failed to load library data", e)
+---                if (!recoveryTried && AppDatabase.isCorruptionError(e)) {
+---                    recoveryTried = true
+---                    Log.w("Shouze", "Database corruption detected, deleting database and retrying")
+---                    AppDatabase.recoverFromCorruption(app)
+---                    startLibraryCollection()
 ---                } else {
----                    "${item.currentProgress} / ongoing"
----                }
----                Text(text = progressText, style = MaterialTheme.typography.headlineSmall)
----                Spacer(modifier = Modifier.height(8.dp))
----                if (item.totalCount > 0) {
----                    LinearProgressIndicator(
----                        progress = { (item.currentProgress.toFloat() / item.totalCount).coerceIn(0f, 1f) },
----                        modifier = Modifier.fillMaxWidth(),
----                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
----                        color = MaterialTheme.colorScheme.primary
----                    )
----                }
----                if (item.currentVolume != null) {
----                    Spacer(modifier = Modifier.height(8.dp))
----                    Text(
----                        text = "Current Volume: ${item.currentVolume}",
----                        style = MaterialTheme.typography.bodyLarge,
----                        color = MaterialTheme.colorScheme.onSurfaceVariant
----                    )
----                }
+---                    _error.value = "Failed to load data: ${e.message}"
+---                    _uiState.update {
+---                        it.copy(error = "Failed to load data: ${e.message}", isLoading = false)
+---                    }
+--+    private suspend fun startLibraryCollection() {
+--+        try {
+--+            combine(
+--+                dao.getAllItems(),
+--+                categoryDao.getAll(),
+--+                _selectedCategoryId,
+--+                _searchQuery,
+--+                _filterConfig
+--+            ) { allItems, allCategories, catId, query, filterConfig ->
+--+                val (sort, favOnly) = filterConfig
+--+                val filtered = filterItems(allItems, catId, query, sort, favOnly)
+--+                _uiState.update { current ->
+--+                    current.copy(
+--+                        allItems = allItems,
+--+                        items = filtered,
+--+                        categories = allCategories,
+--+                        selectedCategoryId = catId,
+--+                        searchQuery = query,
+--+                        sortMode = sort,
+--+                        showFavoritesOnly = favOnly
+--+                    )
+--                 }
 ---            }
+--+            }.collect()
+--+        } catch (e: Exception) {
+--+            showMessage("Failed to load library: ${e.message}", isError = true)
+--         }
+--     }
+-- 
+--     fun addOrUpdate(item: MediaItemEntity) {
+--         viewModelScope.launch {
+---            currentDb().mediaDao().insertOrUpdate(item.copy(lastUpdated = System.currentTimeMillis()))
+--+            val now = System.currentTimeMillis()
+--+            var updated = item.copy(lastUpdated = now)
+--+
+--+            // Auto-set start date when beginning to watch/read
+--+            if ((item.status == Status.WATCHING || item.status == Status.READING) && item.startDate == null) {
+--+                updated = updated.copy(startDate = now)
+--+            }
+--+
+--+            // Auto-set end date when completed
+--+            if (item.status == Status.COMPLETED && item.endDate == null) {
+--+                updated = updated.copy(endDate = now)
+--+            }
+--+
+--+            dao.insertOrUpdate(updated)
+--+        }
+--+    }
+--+
+--+   fun toggleFavorite(itemId: String) {
+--+        viewModelScope.launch {
+--+            val item = uiState.value.allItems.find { it.id == itemId } ?: return@launch
+--+            dao.insertOrUpdate(item.copy(isFavorite = !item.isFavorite))
+--         }
+--     }
+-- 
+--+
+--     fun deleteItem(itemId: String) {
+--         viewModelScope.launch {
+---            currentDb().mediaDao().deleteById(itemId)
+--+            dao.deleteById(itemId)
+--         }
+--     }
+-- 
+--@@ -133,26 +208,47 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
+--         _searchQuery.value = query
+--     }
+-- 
+--+    fun setSortMode(mode: SortMode) {
+--+        _sortMode.value = mode
+--+    }
+--+
+--+    fun toggleShowFavorites() {
+--+        _showFavoritesOnly.value = !_showFavoritesOnly.value
+--+    }
+--+
+--+
+--     fun addCategory(name: String) {
+--         viewModelScope.launch {
+---            currentDb().categoryDao().insert(CategoryEntity(name = name.trim()))
+--+            categoryDao.insert(CategoryEntity(name = name.trim()))
+--         }
+--     }
+-- 
+--     fun deleteCategory(categoryId: String) {
+--         viewModelScope.launch {
+---            currentDb().categoryDao().delete(categoryId)
+--+            categoryDao.delete(categoryId)
+--         }
+--     }
+-- 
+--     private fun filterItems(
+--         all: List<MediaItemEntity>,
+--         categoryId: String?,
+---        query: String
+--+        query: String,
+--+        sort: SortMode,
+--+        favoritesOnly: Boolean
+--     ): List<MediaItemEntity> {
+---        return all
+--+        val filtered = all
+--             .filter { categoryId == null || it.categoryId == categoryId }
+--             .filter { query.isBlank() || it.title.contains(query, ignoreCase = true) }
+--+            .filter { !favoritesOnly || it.isFavorite }
+--+
+--+        return when (sort) {
+--+            SortMode.TITLE -> filtered.sortedBy { it.title.lowercase() }
+--+            SortMode.RATING_HIGH -> filtered.sortedByDescending { it.rating }
+--+            SortMode.PROGRESS -> filtered.sortedByDescending {
+--+                if (it.totalCount > 0) it.currentProgress.toFloat() / it.totalCount else 0f
+--+            }
+--+            SortMode.LAST_UPDATED -> filtered.sortedByDescending { it.lastUpdated }
+--+        }
+--     }
+-- 
+--     fun setThemeMode(mode: ThemeMode) = settingsRepo.setThemeMode(mode)
+--@@ -265,22 +361,18 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
+--         categories: List<CategoryEntity>
+--     ): StatsUiState {
+--         if (items.isEmpty()) return StatsUiState()
+---       
+--+
+--         val total = items.size
+--         val completed = items.count { it.status == Status.COMPLETED }
+--         val watching = items.count { it.status == Status.WATCHING }
+--         val reading = items.count { it.status == Status.READING }
+--         val dropped = items.count { it.status == Status.DROPPED }
+--         val planToWatch = items.count { it.status == Status.PLAN_TO_WATCH }
+---       
+--+
+--         val ratedItems = items.filter { it.rating > 0.0 }
+---        val avgRating = if (ratedItems.isNotEmpty()) {
+---            ratedItems.map { it.rating }.average()
+---        } else 0.0
+---       
+--+        val avgRating = if (ratedItems.isNotEmpty()) ratedItems.map { it.rating }.average() else 0.0
+--         val totalProgress = items.sumOf { it.currentProgress }
+---       
+---        // Genre distribution
+--+
+--         val genreCounts = mutableMapOf<String, Int>()
+--         items.forEach { item ->
+--             item.genres.forEach { genre ->
+--@@ -291,8 +383,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
+--             .map { (genre, count) -> GenreStat(genre, count, count.toFloat() / total) }
+--             .sortedByDescending { it.count }
+--             .take(8)
+---       
+---        // Category distribution
+--+
+--         val categoryCounts = items.groupingBy { it.categoryId }.eachCount()
+--         val categoryDistribution = categoryCounts.map { (catId, count) ->
+--             val cat = categories.find { it.id == catId }
+--@@ -303,17 +394,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
+--                 percentage = count.toFloat() / total
+--             )
+--         }.sortedByDescending { it.count }
+---       
+---        // Top rated (at least 5 items with rating > 0, sorted desc)
+---        val topRated = ratedItems
+---            .sortedByDescending { it.rating }
+---            .take(10)
+---       
+---        // Recently updated (last 10)
+---        val recentlyUpdated = items
+---            .sortedByDescending { it.lastUpdated }
+---            .take(10)
+---       
+--+
+--+        val topRated = ratedItems.sortedByDescending { it.rating }.take(10)
+--+        val recentlyUpdated = items.sortedByDescending { it.lastUpdated }.take(10)
+--+
+--         return StatsUiState(
+--             totalEntries = total,
+--             totalCompleted = completed,
+--@@ -330,5 +414,4 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
+--             recentlyUpdatedItems = recentlyUpdated
+--         )
+--     }
 ---
----            Spacer(modifier = Modifier.height(12.dp))
----
----            if (item.rating > 0.0) {
----                DetailInfoCard(title = "Rating") {
----                    LargeRatingBar(rating = item.rating)
----                }
----                Spacer(modifier = Modifier.height(12.dp))
----            }
----
----            DetailInfoCard(title = "Info") {
----                InfoRow(label = "Last Updated", value = dateFormat.format(Date(item.lastUpdated)))
----                if (!item.coverImageUri.isNullOrBlank()) {
----                    Spacer(modifier = Modifier.height(4.dp))
----                    InfoRow(label = "Cover URI", value = item.coverImageUri)
----                }
----            }
----        }
----    }
----
----    if (showDeleteConfirm) {
----        AlertDialog(
+-- }
+--diff --git a/app/src/main/java/com/app/shouze/ui/components/MediaCardItem.kt b/app/src/main/java/com/app/shouze/ui/components/MediaCardItem.kt
+--index 812ec08..81527df 100644
+----- a/app/src/main/java/com/app/shouze/ui/components/MediaCardItem.kt
+--+++ b/app/src/main/java/com/app/shouze/ui/components/MediaCardItem.kt
+--@@ -94,6 +94,15 @@ fun MediaCardItem(
+--             }
+--             Spacer(modifier = Modifier.width(12.dp))
+--             StatusBadge(status = item.status)
+--+            if (item.isFavorite) {
+--+                Spacer(modifier = Modifier.width(8.dp))
+--+                Icon(
+--+                    imageVector = Icons.Filled.Star,
+--+                    contentDescription = "Favorite",
+--+                    tint = MaterialTheme.colorScheme.tertiary,
+--+                    modifier = Modifier.size(16.dp)
+--+                )
+--+            }
+--         }
+--     }
+-- }
+--diff --git a/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt b/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt
+--index 4d809ee..6456721 100644
+----- a/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt
+--+++ b/app/src/main/java/com/app/shouze/ui/screens/DetailScreen.kt
+--@@ -40,7 +40,8 @@ fun DetailScreen(
+--     category: CategoryEntity?,
+--     onBack: () -> Unit,
+--     onEdit: () -> Unit,
+---    onDelete: () -> Unit
+--+    onDelete: () -> Unit,
+--+    onToggleFavorite: () -> Unit = {}
+-- ) {
+--     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault()) }
+--     var showDeleteConfirm by remember { mutableStateOf(false) }
+--@@ -55,6 +56,13 @@ fun DetailScreen(
+--                     }
+--                 },
+--                 actions = {
+--+                    IconButton(onClick = onToggleFavorite) {
+--+                        Icon(
+--+                            imageVector = if (item.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+--+                            contentDescription = if (item.isFavorite) "Unfavorite" else "Favorite",
+--+                            tint = if (item.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+--+                        )
+--+                    }
+--                     IconButton(onClick = onEdit) {
+--                         Icon(Icons.Filled.Edit, contentDescription = "Edit")
+--                     }
+--diff --git a/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt b/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt
+--index ee6107c..a2ffdab 100644
+----- a/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt
+--+++ b/app/src/main/java/com/app/shouze/ui/screens/HomeScreen.kt
+--@@ -15,11 +15,15 @@ import androidx.compose.material.icons.filled.BarChart
+-- import androidx.compose.material.icons.filled.Check
+-- import androidx.compose.material.icons.filled.CheckCircle
+-- import androidx.compose.material.icons.filled.Delete
+---import androidx.compose.material.icons.filled.Edit
+-- import androidx.compose.material.icons.filled.ErrorOutline
+-- import androidx.compose.material.icons.filled.MovieFilter
+-- import androidx.compose.material.icons.filled.Search
+-- import androidx.compose.material.icons.filled.Settings
+--+import androidx.compose.material.icons.automirrored.filled.Sort
+--+import androidx.compose.material.icons.filled.Close
+--+import androidx.compose.material.icons.filled.Edit
+--+import androidx.compose.material.icons.filled.Star
+--+import androidx.compose.material.icons.filled.StarBorder
+-- import androidx.compose.material3.*
+-- import androidx.compose.runtime.*
+-- import androidx.compose.ui.Alignment
+--@@ -27,6 +31,7 @@ import androidx.compose.ui.Modifier
+-- import androidx.compose.ui.unit.dp
+-- import com.app.shouze.data.local.MediaItemEntity
+-- import com.app.shouze.ui.HomeUiState
+--+import com.app.shouze.ui.SortMode
+-- import com.app.shouze.ui.components.MediaCardItem
+-- 
+-- @OptIn(ExperimentalMaterial3Api::class)
+--@@ -41,90 +46,125 @@ fun HomeScreen(
+--     onSearchQueryChange: (String) -> Unit,
+--     onClearMessage: () -> Unit,
+--     onSettingsClick: () -> Unit,
+---    onStatisticsClick: () -> Unit
+--+    onStatisticsClick: () -> Unit,
+--+    onSortModeChange: (SortMode) -> Unit,
+--+    onToggleFavorites: () -> Unit,
+--+    showFavoritesOnly: Boolean = false
+-- ) {
+--     val isError = uiState.error != null
+--     val message = uiState.error ?: uiState.syncMessage
+-- 
+--     var selectedItem by remember { mutableStateOf<MediaItemEntity?>(null) }
+---    var showDeleteConfirm by remember { mutableStateOf(false) }
+-- 
+---    if (showDeleteConfirm && selectedItem != null) {
+---        val target = selectedItem!!
+--+    val selection = selectedItem
+--+    if (selection != null) {
+--         AlertDialog(
 ---            onDismissRequest = { showDeleteConfirm = false },
----            title = { Text("Delete item?") },
----            text = { Text("This will permanently remove \"${item.title}\" from your library.") },
----            confirmButton = {
----                TextButton(onClick = {
----                    onDelete()
----                    showDeleteConfirm = false
----                }) {
----                    Text("Delete", color = MaterialTheme.colorScheme.error)
----                }
+---            title = { Text("Delete \"${target.title}\"?") },
+---            text = { Text("This entry will be permanently removed.") },
+--+            onDismissRequest = { selectedItem = null },
+--+            title = { Text(selection.title) },
+--+            text = { Text("What would you like to do with this entry?") },
+--             confirmButton = {
+---                Button(
+--+                TextButton(onClick = {
+--+                    onEditItem(selection)
+--+                    selectedItem = null
+--+                }) {
+--+                    Text("Edit")
+--+                }
+--+            },
+--+            dismissButton = {
+--+                TextButton(
+--                     onClick = {
+---                        onDeleteItem(target)
+--+                        onDeleteItem(selection)
+--                         selectedItem = null
+---                        showDeleteConfirm = false
+--                     },
+---                    colors = ButtonDefaults.buttonColors(
+---                        containerColor = MaterialTheme.colorScheme.error,
+---                        contentColor = MaterialTheme.colorScheme.onError
+---                    )
+--+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+--                 ) {
+--                     Text("Delete")
+--                 }
 ---            },
 ---            dismissButton = {
 ---                TextButton(onClick = { showDeleteConfirm = false }) {
 ---                    Text("Cancel")
 ---                }
----            }
----        )
----    }
----}
----
----@Composable
----private fun DetailInfoCard(
----    title: String,
----    modifier: Modifier = Modifier,
----    content: @Composable ColumnScope.() -> Unit
----) {
----    Card(
----        modifier = modifier.fillMaxWidth(),
----        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
----    ) {
----        Column(modifier = Modifier.padding(16.dp)) {
----            Text(
----                text = title,
----                style = MaterialTheme.typography.titleSmall,
----                color = MaterialTheme.colorScheme.primary
----            )
----            Spacer(modifier = Modifier.height(8.dp))
----            content()
----        }
----    }
----}
----
----@Composable
----private fun InfoRow(label: String, value: String) {
----    Row(modifier = Modifier.fillMaxWidth()) {
----        Text(
----            text = "$label: ",
----            style = MaterialTheme.typography.bodyMedium,
----            color = MaterialTheme.colorScheme.onSurfaceVariant
----        )
----        Text(
----            text = value,
----            style = MaterialTheme.typography.bodyMedium,
----            color = MaterialTheme.colorScheme.onSurface
----        )
----    }
----}
----
----@Composable
----private fun LargeRatingBar(rating: Double, modifier: Modifier = Modifier) {
----    val scale = (rating / 2.0).coerceIn(0.0, 5.0)
----    val fullStars = scale.toInt()
----    val hasHalf = scale - fullStars >= 0.5
----    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
----        repeat(5) { index ->
----            val icon: ImageVector = when {
----                index < fullStars -> Icons.Filled.Star
----                index == fullStars && hasHalf -> Icons.AutoMirrored.Filled.StarHalf
----                else -> Icons.Filled.StarBorder
----            }
----            Icon(
----                imageVector = icon,
----                contentDescription = null,
----                tint = MaterialTheme.colorScheme.tertiary,
----                modifier = Modifier.size(32.dp)
----            )
----        }
----        Spacer(modifier = Modifier.width(12.dp))
----        Text(
----            text = "%.1f".format(rating),
----            style = MaterialTheme.typography.headlineSmall,
----            color = MaterialTheme.colorScheme.onSurface
----        )
----    }
----}
----
----private fun statusLabel(status: Status): String = when (status) {
----    Status.COMPLETED -> "Completed"
----    Status.DROPPED -> "Dropped"
----    Status.PLAN_TO_WATCH -> "Plan to Watch"
----    Status.WATCHING -> "Watching"
----    Status.READING -> "Reading"
----}
----
----@Composable
----private fun statusContainerColor(status: Status): Color = when (status) {
----    Status.COMPLETED -> MaterialTheme.colorScheme.tertiaryContainer
----    Status.DROPPED -> MaterialTheme.colorScheme.errorContainer
----    Status.PLAN_TO_WATCH -> MaterialTheme.colorScheme.surfaceVariant
----    Status.WATCHING -> MaterialTheme.colorScheme.primaryContainer
----    Status.READING -> MaterialTheme.colorScheme.primaryContainer
----}
----
----@Composable
----private fun statusContentColor(status: Status): Color = when (status) {
----    Status.COMPLETED -> MaterialTheme.colorScheme.onTertiaryContainer
----    Status.DROPPED -> MaterialTheme.colorScheme.onErrorContainer
----    Status.PLAN_TO_WATCH -> MaterialTheme.colorScheme.onSurfaceVariant
----    Status.WATCHING -> MaterialTheme.colorScheme.onPrimaryContainer
----    Status.READING -> MaterialTheme.colorScheme.onPrimaryContainer
----}
---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/HomeScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/HomeScreen.kt
---deleted file mode 100644
---index 48af3f9..0000000
------ a/app/src/main/java/com/app/Shouze/ui/screens/HomeScreen.kt
---+++ /dev/null
---@@ -1,201 +0,0 @@
----package com.app.shouze.ui.screens
----
----import androidx.compose.animation.AnimatedVisibility
----import androidx.compose.animation.expandVertically
----import androidx.compose.animation.fadeIn
----import androidx.compose.animation.fadeOut
----import androidx.compose.animation.shrinkVertically
----import androidx.compose.foundation.layout.*
----import androidx.compose.foundation.lazy.LazyColumn
----import androidx.compose.foundation.lazy.items
----import androidx.compose.material.icons.Icons
----import androidx.compose.material.icons.filled.Add
----import androidx.compose.material.icons.filled.CheckCircle
----import androidx.compose.material.icons.filled.ErrorOutline
----import androidx.compose.material.icons.filled.MovieFilter
----import androidx.compose.material.icons.filled.Search
----import androidx.compose.material.icons.filled.Settings
----import androidx.compose.material3.*
----import androidx.compose.runtime.*
----import androidx.compose.ui.Alignment
----import androidx.compose.ui.Modifier
----import androidx.compose.ui.platform.LocalConfiguration
----import androidx.compose.ui.unit.dp
----import com.app.shouze.data.local.MediaItemEntity
----import com.app.shouze.ui.HomeUiState
----import com.app.shouze.ui.components.MediaCardItem
----
----@OptIn(ExperimentalMaterial3Api::class)
----@Composable
----fun HomeScreen(
----    uiState: HomeUiState,
----    onAddClick: () -> Unit,
----    onItemClick: (MediaItemEntity) -> Unit,
----    onCategorySelected: (String?) -> Unit,
----    onSearchQueryChange: (String) -> Unit,
----    onClearMessage: () -> Unit,
----    onSettingsClick: () -> Unit
----) {
----    val isError = uiState.error != null
----    val message = uiState.error ?: uiState.syncMessage
----    val configuration = LocalConfiguration.current
----    val isCompactWidth = configuration.screenWidthDp < 600
----
----    val selectedIndex = uiState.categories.indexOfFirst { it.id == uiState.selectedCategoryId }
----        .let { if (it == -1) 0 else it + 1 }
----
----    Scaffold(
----        topBar = {
----            TopAppBar(
----                title = { Text("Shouze") },
----                actions = {
----                    IconButton(onClick = onSettingsClick) {
----                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
----                    }
----                }
----            )
----        },
----        floatingActionButton = {
----            ExtendedFloatingActionButton(
----                onClick = onAddClick,
----                icon = { Icon(Icons.Filled.Add, contentDescription = "Add item") },
----                text = { Text("Add Media") },
----                modifier = if (isCompactWidth) Modifier.fillMaxWidth(0.9f) else Modifier.widthIn(min = 160.dp),
----                expanded = true
----            )
----        },
----        containerColor = MaterialTheme.colorScheme.background
----    ) { innerPadding ->
----        Column(modifier = Modifier.padding(innerPadding)) {
----            OutlinedTextField(
----                value = uiState.searchQuery,
----                onValueChange = onSearchQueryChange,
----                modifier = Modifier
----                    .fillMaxWidth()
----                    .padding(horizontal = 16.dp, vertical = 8.dp),
----                placeholder = { Text("Search...") },
----                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
----                singleLine = true
----            )
----
----            ScrollableTabRow(
----                selectedTabIndex = selectedIndex,
----                edgePadding = 16.dp
----            ) {
----                Tab(
----                    selected = uiState.selectedCategoryId == null,
----                    onClick = { onCategorySelected(null) },
----                    text = { Text("All", style = MaterialTheme.typography.labelMedium) }
----                )
----                uiState.categories.forEach { category ->
----                    Tab(
----                        selected = uiState.selectedCategoryId == category.id,
----                        onClick = { onCategorySelected(category.id) },
----                        text = { Text(category.name, style = MaterialTheme.typography.labelMedium) }
----                    )
----                }
----            }
----
----            if (uiState.isLoading) {
----                LinearProgressIndicator(
----                    modifier = Modifier.fillMaxWidth(),
----                    color = MaterialTheme.colorScheme.primary
----                )
----            }
----
----            AnimatedVisibility(
----                visible = message != null,
----                enter = fadeIn() + expandVertically(),
----                exit = fadeOut() + shrinkVertically()
----            ) {
----                val snackbarColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.inverseSurface
----                val snackbarContent = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.inverseOnSurface
----                Snackbar(
----                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
----                    containerColor = snackbarColor,
----                    contentColor = snackbarContent,
----                    action = {
----                        TextButton(onClick = onClearMessage) {
----                            Text("Dismiss", color = snackbarContent)
----                        }
----                    }
+--             }
+--         )
+--     }
+-- 
+--     Scaffold(
+--         bottomBar = {
+---            val selection = selectedItem
+---            if (selection != null) {
+---                Surface(
+---                    color = MaterialTheme.colorScheme.surfaceContainer,
+---                    shadowElevation = 8.dp
 ---                ) {
----                    Row(verticalAlignment = Alignment.CenterVertically) {
----                        Icon(
----                            imageVector = if (isError) Icons.Filled.ErrorOutline else Icons.Filled.CheckCircle,
----                            contentDescription = null,
----                            modifier = Modifier.size(18.dp)
----                        )
----                        Spacer(modifier = Modifier.width(8.dp))
----                        Text(message ?: "")
----                    }
+---                    Row(
+---                        modifier = Modifier
+---                            .fillMaxWidth()
+---                            .navigationBarsPadding()
+---                            .padding(horizontal = 24.dp, vertical = 8.dp),
+---                        horizontalArrangement = Arrangement.SpaceEvenly,
+---                        verticalAlignment = Alignment.CenterVertically
+---                    ) {
+---                        TextButton(onClick = {
+---                            val item = selection
+---                            selectedItem = null
+---                            onEditItem(item)
+---                        }) {
+---                            Icon(Icons.Filled.Edit, contentDescription = null)
+---                            Spacer(Modifier.width(6.dp))
+---                            Text("Edit")
+--+            val sel = selectedItem
+--+            if (sel != null) {
+--+                BottomAppBar(
+--+                    actions = {
+--+                        IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
+--+                            Icon(Icons.Filled.Edit, contentDescription = "Edit")
+--                         }
+---                        Button(
+---                            onClick = { showDeleteConfirm = true },
+---                            colors = ButtonDefaults.buttonColors(
+---                                containerColor = MaterialTheme.colorScheme.error,
+---                                contentColor = MaterialTheme.colorScheme.onError
+---                            )
+--+                        IconButton(
+--+                            onClick = { onDeleteItem(sel); selectedItem = null }
+--                         ) {
+---                            Icon(Icons.Filled.Delete, contentDescription = null)
+---                            Spacer(Modifier.width(6.dp))
+---                            Text("Delete")
+--+                            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+--                         }
+---                        TextButton(onClick = { selectedItem = null }) {
+---                            Text("Cancel")
+--+                    },
+--+                    floatingActionButton = {
+--+                        FloatingActionButton(onClick = { selectedItem = null }) {
+--+                            Icon(Icons.Filled.Close, contentDescription = "Close")
+--                         }
+--                     }
 ---                }
----            }
----
----            if (uiState.items.isEmpty() && !uiState.isLoading) {
----                EmptyState(
----                    hasSearchOrFilter = uiState.searchQuery.isNotBlank() || uiState.selectedCategoryId != null,
----                    modifier = Modifier.fillMaxSize()
----                )
----            } else {
----                LazyColumn(
----                    modifier = Modifier.fillMaxSize(),
----                    contentPadding = PaddingValues(vertical = 8.dp)
----                ) {
----                    items(
----                        items = uiState.items,
----                        key = { it.id }
----                    ) { item ->
----                        val categoryName = uiState.categories.find { it.id == item.categoryId }?.name ?: "Unknown"
----                        MediaCardItem(
----                            item = item,
----                            categoryName = categoryName,
----                            onClick = { onItemClick(item) },
----                            modifier = Modifier.animateItem()
----                        )
----                    }
----                }
----            }
----        }
----    }
----}
----
----@Composable
----private fun EmptyState(
----    hasSearchOrFilter: Boolean,
----    modifier: Modifier = Modifier
----) {
----    Column(
----        modifier = modifier,
----        horizontalAlignment = Alignment.CenterHorizontally,
----        verticalArrangement = Arrangement.Center
----    ) {
----        Icon(
----            imageVector = Icons.Filled.MovieFilter,
----            contentDescription = null,
----            tint = MaterialTheme.colorScheme.surfaceVariant,
----            modifier = Modifier.size(64.dp)
----        )
----        Spacer(modifier = Modifier.height(16.dp))
----        Text(
----            text = if (hasSearchOrFilter) "No results found" else "Your library is empty",
----            style = MaterialTheme.typography.titleMedium,
----            color = MaterialTheme.colorScheme.onSurface
----        )
----        if (hasSearchOrFilter) {
----            Spacer(modifier = Modifier.height(4.dp))
----            Text(
----                text = "Try changing your search or filter.",
----                style = MaterialTheme.typography.bodyMedium,
----                color = MaterialTheme.colorScheme.onSurfaceVariant
----            )
----        } else {
----            Spacer(modifier = Modifier.height(8.dp))
----            Text(
----                text = "Press the + icon below to add your first media entry",
----                style = MaterialTheme.typography.bodyMedium,
----                color = MaterialTheme.colorScheme.onSurfaceVariant
----            )
----        }
----    }
----}
---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/OnboardingScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/OnboardingScreen.kt
---deleted file mode 100644
---index 2705f8b..0000000
------ a/app/src/main/java/com/app/Shouze/ui/screens/OnboardingScreen.kt
---+++ /dev/null
---@@ -1,148 +0,0 @@
----package com.app.shouze.ui.screens
----
----import android.app.Activity
----import androidx.compose.animation.core.*
----import androidx.compose.foundation.Canvas
----import androidx.compose.foundation.ExperimentalFoundationApi
----import androidx.compose.foundation.background
----import androidx.compose.foundation.layout.*
----import androidx.compose.foundation.pager.HorizontalPager
----import androidx.compose.foundation.pager.rememberPagerState
----import androidx.compose.foundation.shape.CircleShape
----import androidx.compose.material3.*
----import androidx.compose.runtime.*
----import androidx.compose.ui.Alignment
----import androidx.compose.ui.Modifier
----import androidx.compose.ui.draw.clip
----import androidx.compose.ui.graphics.Brush
----import androidx.compose.ui.graphics.Color
----import androidx.compose.ui.graphics.Path
----import androidx.compose.ui.platform.LocalContext
----import androidx.compose.ui.text.font.FontWeight
----import androidx.compose.ui.text.style.TextAlign
----import androidx.compose.ui.unit.dp
----import kotlin.math.PI
----import kotlin.math.sin
----
----@OptIn(ExperimentalFoundationApi::class)
----@Composable
----fun OnboardingScreen(
----    onGetStarted: () -> Unit,
----    onNotNow: () -> Unit
----) {
----    // Use a solid background color – change to your preferred color
----    val backgroundColor = MaterialTheme.colorScheme.primary
----
----    Box(
----        modifier = Modifier
----            .fillMaxSize()
----            .background(backgroundColor)
----    ) {
----        Column(
----            modifier = Modifier
----                .fillMaxSize()
----                .padding(horizontal = 24.dp)
----                .padding(bottom = 48.dp),
----            horizontalAlignment = Alignment.CenterHorizontally
----        ) {
----            // Top spacer pushes content down a bit
----            Spacer(modifier = Modifier.weight(1f))
----
----            Text(
----                text = "Welcome to Shouze",
----                style = MaterialTheme.typography.headlineLarge,
----                fontWeight = FontWeight.Bold,
----                color = MaterialTheme.colorScheme.onPrimary,
----                textAlign = TextAlign.Center
----            )
----            Spacer(modifier = Modifier.height(8.dp))
----            Text(
----                text = "Your personal keeper for anime, manga, and everything you watch.",
----                style = MaterialTheme.typography.bodyLarge,
----                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
----                textAlign = TextAlign.Center
----            )
----
----            Spacer(modifier = Modifier.weight(1f))
----
----            Button(
----                onClick = onGetStarted,
----                modifier = Modifier
----                    .fillMaxWidth()
----                    .height(56.dp),
----                shape = MaterialTheme.shapes.extraLarge,
----                colors = ButtonDefaults.buttonColors(
----                    containerColor = MaterialTheme.colorScheme.surface,
----                    contentColor = MaterialTheme.colorScheme.primary
----                )
----            ) {
----                Text("Get Started", style = MaterialTheme.typography.titleMedium)
----            }
----            Spacer(modifier = Modifier.height(16.dp))
----            TextButton(onClick = onNotNow) {
----                Text(
----                    "Not Now",
----                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
----                )
----            }
----        }
----    }
----}
----
----@Composable
----private fun AnimePlaceholderPage(page: Int, modifier: Modifier = Modifier) {
----    val gradients = listOf(
----        Brush.verticalGradient(listOf(Color(0xFF1B5E20), Color(0xFF2E7D32))),
----        Brush.verticalGradient(listOf(Color(0xFF0D47A1), Color(0xFF1976D2))),
----        Brush.verticalGradient(listOf(Color(0xFFB71C1C), Color(0xFFC62828)))
----    )
----
----    Box(
----        modifier = modifier.background(gradients[page % gradients.size]),
----        contentAlignment = Alignment.Center
----    ) {
----        Text(
----            text = "Anime Image ${page + 1}",
----            style = MaterialTheme.typography.headlineMedium,
----            color = Color.White.copy(alpha = 0.4f)
----        )
----    }
----}
----
----@Composable
----private fun AnimatedWave(modifier: Modifier = Modifier, color: Color) {
----    val infiniteTransition = rememberInfiniteTransition(label = "wave")
----    val phase by infiniteTransition.animateFloat(
----        initialValue = 0f,
----        targetValue = (2.0 * PI).toFloat(),
----        animationSpec = infiniteRepeatable(
----            animation = tween(5000, easing = LinearEasing),
----            repeatMode = RepeatMode.Restart
----        ),
----        label = "phase"
----    )
----
----    Canvas(modifier = modifier) {
----        val path = Path()
----        val w = size.width
----        val h = size.height
----        val amplitude = h * 0.5f  // gentler bumps
----        val frequency = (1.5f * 2f * PI.toFloat()) / w  // 1.5 cycles across width
----
----        // Start at top-left
----        path.moveTo(0f, 0f)
----
----        // Draw wavy top edge — sine dips down from y=0, never goes above
----        for (x in 0..w.toInt()) {
----            val y = amplitude * (1f - sin(frequency * x + phase)) * 0.5f
----            path.lineTo(x.toFloat(), y)
----        }
----
----        // Close down to bottom-right, bottom-left
----        path.lineTo(w, h)
----        path.lineTo(0f, h)
----        path.close()
----
----        drawPath(path, color = color)
----    }
----}
---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/SettingsScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/SettingsScreen.kt
---deleted file mode 100644
---index 48ebab0..0000000
------ a/app/src/main/java/com/app/Shouze/ui/screens/SettingsScreen.kt
---+++ /dev/null
---@@ -1,139 +0,0 @@
----package com.app.shouze.ui.screens
----
----import androidx.compose.foundation.clickable
----import androidx.compose.foundation.layout.*
----import androidx.compose.foundation.rememberScrollState
----import androidx.compose.foundation.verticalScroll
----import androidx.compose.material.icons.Icons
----import androidx.compose.material.icons.automirrored.filled.ArrowBack
----import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
----import androidx.compose.material.icons.filled.CloudUpload
----import androidx.compose.material.icons.filled.Folder
----import androidx.compose.material.icons.filled.Info
----import androidx.compose.material.icons.filled.Palette
----import androidx.compose.material3.*
----import androidx.compose.runtime.Composable
----import androidx.compose.ui.Alignment
----import androidx.compose.ui.Modifier
----import androidx.compose.ui.unit.dp
----
----@OptIn(ExperimentalMaterial3Api::class)
----@Composable
----fun SettingsScreen(
----    onBack: () -> Unit,
----    onNavigateToAppearance: () -> Unit,
----    onNavigateToCategories: () -> Unit,
----    onNavigateToBackup: () -> Unit,
----    onNavigateToAbout: () -> Unit
----) {
----    Scaffold(
----        topBar = {
----            TopAppBar(
----                title = { Text("Settings") },
----                navigationIcon = {
----                    IconButton(onClick = onBack) {
----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
----                    }
----                }
----            )
----        }
----    ) { padding ->
----        Column(
----            modifier = Modifier
----                .padding(padding)
----                .fillMaxSize()
----                .verticalScroll(rememberScrollState())
----                .padding(horizontal = 16.dp, vertical = 8.dp)
----        ) {
----            SettingsSection(title = "General") {
----                SettingsItem(
----                    title = "Appearance",
----                    subtitle = "Theme, colors, display",
----                    icon = Icons.Default.Palette,
----                    onClick = onNavigateToAppearance
----                )
----                SettingsItem(
----                    title = "Categories",
----                    subtitle = "Manage your library categories",
----                    icon = Icons.Default.Folder,
----                    onClick = onNavigateToCategories
----                )
----                SettingsItem(
----                    title = "Backup & Restore",
----                    subtitle = "Export or import your data",
----                    icon = Icons.Default.CloudUpload,
----                    onClick = onNavigateToBackup
----                )
----            }
----
----            Spacer(modifier = Modifier.height(16.dp))
----
----            SettingsSection(title = "Info") {
----                SettingsItem(
----                    title = "About",
----                    subtitle = "App version and information",
----                    icon = Icons.Default.Info,
----                    onClick = onNavigateToAbout
----                )
----            }
----        }
----    }
----}
----
----@Composable
----private fun SettingsSection(
----    title: String,
----    content: @Composable ColumnScope.() -> Unit
----) {
----    Text(
----        text = title,
----        style = MaterialTheme.typography.titleMedium,
----        color = MaterialTheme.colorScheme.primary,
----        modifier = Modifier.padding(vertical = 8.dp)
----    )
----    Card(modifier = Modifier.fillMaxWidth()) {
----        Column(modifier = Modifier.padding(vertical = 8.dp)) {
----            content()
----        }
----    }
----}
----
----@Composable
----private fun SettingsItem(
----    title: String,
----    subtitle: String,
----    icon: androidx.compose.ui.graphics.vector.ImageVector,
----    onClick: () -> Unit
----) {
----    Row(
----        modifier = Modifier
----            .fillMaxWidth()
----            .clickable(onClick = onClick)
----            .padding(horizontal = 16.dp, vertical = 14.dp),
----        verticalAlignment = Alignment.CenterVertically
----    ) {
----        Icon(
----            imageVector = icon,
----            contentDescription = null,
----            tint = MaterialTheme.colorScheme.primary,
----            modifier = Modifier.size(24.dp)
----        )
----        Spacer(modifier = Modifier.width(16.dp))
----        Column(modifier = Modifier.weight(1f)) {
----            Text(
----                text = title,
----                style = MaterialTheme.typography.bodyLarge
----            )
----            Text(
----                text = subtitle,
----                style = MaterialTheme.typography.bodyMedium,
----                color = MaterialTheme.colorScheme.onSurfaceVariant
----            )
----        }
----        Icon(
----            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
----            contentDescription = null,
----            tint = MaterialTheme.colorScheme.onSurfaceVariant
----        )
----    }
----}
---diff --git a/app/src/main/java/com/app/Shouze/ui/theme/MediaTrackerTheme.kt b/app/src/main/java/com/app/Shouze/ui/theme/MediaTrackerTheme.kt
---deleted file mode 100644
---index 9e6bc87..0000000
------ a/app/src/main/java/com/app/Shouze/ui/theme/MediaTrackerTheme.kt
---+++ /dev/null
---@@ -1,40 +0,0 @@
----package com.app.shouze.ui.theme
----
----import android.os.Build
----import androidx.compose.foundation.isSystemInDarkTheme
----import androidx.compose.material3.*
----import androidx.compose.runtime.Composable
----import androidx.compose.ui.graphics.Color
----import androidx.compose.ui.platform.LocalContext
----import com.app.shouze.data.AppSettings
----import com.app.shouze.data.ThemeMode
----
----@Composable
----fun MediaTrackerTheme(
----    settings: AppSettings = AppSettings(),
----    content: @Composable () -> Unit
----) {
----    val darkTheme = when (settings.themeMode) {
----        ThemeMode.LIGHT -> false
----        ThemeMode.DARK -> true
----        ThemeMode.SYSTEM -> isSystemInDarkTheme()
----    }
----
----    val dynamicColor = settings.useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
----
----    val colorScheme = when {
----        dynamicColor && darkTheme -> dynamicDarkColorScheme(LocalContext.current)
----        dynamicColor && !darkTheme -> dynamicLightColorScheme(LocalContext.current)
----        darkTheme -> if (settings.amoledBlack) darkColorScheme(
----            background = Color.Black,
----            surface = Color.Black
----        ) else darkColorScheme()
----        else -> lightColorScheme()
----    }
----
----    MaterialTheme(
----        colorScheme = colorScheme,
----        typography = Typography(),
----        content = content
----    )
----}
+--+                )
+--             }
+--         },
+--         topBar = {
+--             TopAppBar(
+--                 title = { Text("Shouze") },
+--                 actions = {
+--+                    var expanded by remember { mutableStateOf(false) }
+--+                    Box {
+--+                        IconButton(onClick = onToggleFavorites) {
+--+                            Icon(
+--+                                imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
+--+                                contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
+--+                                tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+--+                            )
+--+                        }
+--+                        IconButton(onClick = { expanded = true }) {
+--+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+--+                        }
+--+                        DropdownMenu(
+--+                            expanded = expanded,
+--+                            onDismissRequest = { expanded = false }
+--+                        ) {
+--+                            DropdownMenuItem(
+--+                                text = { Text("Last Updated") },
+--+                                onClick = { onSortModeChange(SortMode.LAST_UPDATED); expanded = false },
+--+                                trailingIcon = {
+--+                                    if (uiState.sortMode == SortMode.LAST_UPDATED) {
+--+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+--+                                    }
+--+                                }
+--+                            )
+--+                            DropdownMenuItem(
+--+                                text = { Text("Title (A-Z)") },
+--+                                onClick = { onSortModeChange(SortMode.TITLE); expanded = false },
+--+                                trailingIcon = {
+--+                                    if (uiState.sortMode == SortMode.TITLE) {
+--+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+--+                                    }
+--+                                }
+--+                            )
+--+                            DropdownMenuItem(
+--+                                text = { Text("Rating (High-Low)") },
+--+                                onClick = { onSortModeChange(SortMode.RATING_HIGH); expanded = false },
+--+                                trailingIcon = {
+--+                                    if (uiState.sortMode == SortMode.RATING_HIGH) {
+--+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+--+                                    }
+--+                                }
+--+                            )
+--+                            DropdownMenuItem(
+--+                                text = { Text("Progress (Most Complete)") },
+--+                                onClick = { onSortModeChange(SortMode.PROGRESS); expanded = false },
+--+                                trailingIcon = {
+--+                                    if (uiState.sortMode == SortMode.PROGRESS) {
+--+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+--+                                    }
+--+                                }
+--+                            )
+--+                        }
+--+                    }
+--                     IconButton(onClick = onStatisticsClick) {
+--                         Icon(Icons.Filled.BarChart, contentDescription = "Statistics")
+--                     }
+--@@ -250,15 +290,8 @@ fun HomeScreen(
+--                         MediaCardItem(
+--                             item = item,
+--                             categoryName = categoryName,
+---                            onClick = {
+---                                if (selectedItem != null) {
+---                                    selectedItem = if (selectedItem?.id == item.id) null else item
+---                                } else {
+---                                    onItemClick(item)
+---                                }
+---                            },
+--+                            onClick = { onItemClick(item) },
+--                             onLongClick = { selectedItem = item },
+---                            selected = selectedItem?.id == item.id,
+--                             modifier = Modifier.animateItem()
+--                         )
+--                     }
+--diff --git a/diff.md b/diff.md
+--index 8e28f73..5d46ef5 100644
+----- a/diff.md
+--+++ b/diff.md
+--@@ -1,2696 +0,0 @@
+---diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+---index 7825847..a0a0263 100644
+------ a/app/build.gradle.kts
+---+++ b/app/build.gradle.kts
+---@@ -93,4 +93,4 @@ dependencies {
+---     testImplementation(libs.junit)
+---     androidTestImplementation(libs.androidx.test.ext.junit)
+---     debugImplementation(libs.androidx.compose.ui.tooling)
+----}
+---\ No newline at end of file
+---+}
+---diff --git a/app/src/main/java/com/app/Shouze/MainActivity.kt b/app/src/main/java/com/app/Shouze/MainActivity.kt
+---deleted file mode 100644
+---index 9cb7da9..0000000
+------ a/app/src/main/java/com/app/Shouze/MainActivity.kt
+---+++ /dev/null
+---@@ -1,150 +0,0 @@
+----package com.app.shouze
+----
+----import android.os.Bundle
+----import androidx.activity.ComponentActivity
+----import androidx.activity.compose.setContent
+----import androidx.activity.enableEdgeToEdge
+----import androidx.compose.foundation.layout.fillMaxSize
+----import androidx.compose.material3.Surface
+----import androidx.compose.runtime.*
+----import androidx.compose.ui.Modifier
+----import androidx.lifecycle.viewmodel.compose.viewModel
+----import androidx.navigation.compose.NavHost
+----import androidx.navigation.compose.composable
+----import androidx.navigation.compose.rememberNavController
+----import com.app.shouze.ui.MediaViewModel
+----import com.app.shouze.ui.components.DetailEditDialog
+----import com.app.shouze.ui.screens.*
+----
+----class MainActivity : ComponentActivity() {
+----    override fun onCreate(savedInstanceState: Bundle?) {
+----        super.onCreate(savedInstanceState)
+----        enableEdgeToEdge()
+----
+----        setContent {
+----            val viewModel: MediaViewModel = viewModel()
+----            val uiState by viewModel.uiState.collectAsState()
+----            val settings by viewModel.settings.collectAsState()
+----            val navController = rememberNavController()
+----
+----            com.app.shouze.ui.theme.MediaTrackerTheme(settings = settings) {
+----                Surface(modifier = Modifier.fillMaxSize()) {
+----                    NavHost(
+----                        navController = navController,
+----                        startDestination = if (settings.hasSeenOnboarding) "home" else "onboarding"
+----                    ) {
+----                        composable("onboarding") {
+----                            OnboardingScreen(
+----                                onGetStarted = {
+----                                    viewModel.setHasSeenOnboarding(true)
+----                                    navController.navigate("home") {
+----                                        popUpTo("onboarding") { inclusive = true }
+----                                    }
+----                                },
+----                                onNotNow = {
+----                                    finish()
+----                                }
+----                            )
+----                        }
+----
+----                        composable("home") {
+----                            HomeScreen(
+----                                uiState = uiState,
+----                                onAddClick = { navController.navigate("edit?itemId=null") },
+----                                onItemClick = { item ->
+----                                    navController.navigate("detail/${item.id}")
+----                                },
+----                                onCategorySelected = viewModel::setCategoryFilter,
+----                                onSearchQueryChange = viewModel::setSearchQuery,
+----                                onClearMessage = viewModel::clearSyncMessage,
+----                                onSettingsClick = { navController.navigate("settings") }
+----                            )
+----                        }
+----
+----                        composable("detail/{itemId}") { backStackEntry ->
+----                            val itemId = backStackEntry.arguments?.getString("itemId")
+----                            val item = uiState.allItems.find { it.id == itemId }
+----
+----                            if (item != null) {
+----                                val category = uiState.categories.find { it.id == item.categoryId }
+----                                DetailScreen(
+----                                    item = item,
+----                                    category = category,
+----                                    onBack = { navController.popBackStack() },
+----                                    onEdit = { navController.navigate("edit?itemId=${item.id}") },
+----                                    onDelete = {
+----                                        viewModel.deleteItem(item.id)
+----                                        navController.popBackStack()
+----                                    }
+----                                )
+----                            }
+----                        }
+----
+----                        composable("edit?itemId={itemId}") { backStackEntry ->
+----                            val itemId = backStackEntry.arguments?.getString("itemId")
+----                            val item = if (itemId == null || itemId == "null") {
+----                                null
+----                            } else {
+----                                uiState.allItems.find { it.id == itemId }
+----                            }
+----
+----                            DetailEditDialog(
+----                                item = item,
+----                                categories = uiState.categories,
+----                                onDismiss = { navController.popBackStack() },
+----                                onSave = viewModel::addOrUpdate,
+----                                onDelete = {
+----                                    viewModel.deleteItem(it)
+----                                    navController.popBackStack()
+----                                }
+----                            )
+----                        }
+----
+----                        composable("settings") {
+----                            SettingsScreen(
+----                                onBack = { navController.popBackStack() },
+----                                onNavigateToAppearance = { navController.navigate("appearance") },
+----                                onNavigateToCategories = { navController.navigate("categories") },
+----                                onNavigateToBackup = { navController.navigate("backup") },
+----                                onNavigateToAbout = { navController.navigate("about") }
+----                            )
+----                        }
+----
+----                        composable("appearance") {
+----                            AppearanceScreen(
+----                                settings = settings,
+----                                onBack = { navController.popBackStack() },
+----                                onThemeModeChange = viewModel::setThemeMode,
+----                                onDynamicColorChange = viewModel::setDynamicColor,
+----                                onAmoledBlackChange = viewModel::setAmoledBlack
+----                            )
+----                        }
+----
+----                        composable("categories") {
+----                            CategoriesScreen(
+----                                categories = uiState.categories,
+----                                onBack = { navController.popBackStack() },
+----                                onAddCategory = viewModel::addCategory,
+----                                onDeleteCategory = viewModel::deleteCategory
+----                            )
+----                        }
+----
+----                        composable("backup") {
+----                            BackupScreen(
+----                                onBack = { navController.popBackStack() },
+----                                onBackup = viewModel::backupToLocalZip,
+----                                onRestore = viewModel::restoreFromLocalZip
+----                            )
+----                        }
+----
+----                        composable("about") {
+----                            AboutScreen(
+----                                onBack = { navController.popBackStack() }
+----                            )
+----                        }
+----                    }
+----                }
+----            }
+----        }
+----    }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/data/SettingsRepository.kt b/app/src/main/java/com/app/Shouze/data/SettingsRepository.kt
+---deleted file mode 100644
+---index 29d6fb2..0000000
+------ a/app/src/main/java/com/app/Shouze/data/SettingsRepository.kt
+---+++ /dev/null
+---@@ -1,59 +0,0 @@
+----package com.app.shouze.data
+----
+----import android.content.Context
+----import android.content.SharedPreferences
+----import kotlinx.coroutines.flow.MutableStateFlow
+----import kotlinx.coroutines.flow.StateFlow
+----import kotlinx.coroutines.flow.asStateFlow
+----
+----enum class ThemeMode { SYSTEM, LIGHT, DARK }
+----
+----data class AppSettings(
+----    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+----    val useDynamicColor: Boolean = true,
+----    val amoledBlack: Boolean = false,
+----    val hasSeenOnboarding: Boolean = false
+----)
+----
+----class SettingsRepository(context: Context) {
+----    private val prefs: SharedPreferences =
+----        context.getSharedPreferences("media_tracker_settings", Context.MODE_PRIVATE)
+----
+----    private val _settings = MutableStateFlow(loadSettings())
+----    val settings: StateFlow<AppSettings> = _settings.asStateFlow()
+----
+----    fun setThemeMode(mode: ThemeMode) {
+----        prefs.edit().putString("theme_mode", mode.name).apply()
+----        _settings.value = loadSettings()
+----    }
+----
+----    fun setDynamicColor(enabled: Boolean) {
+----        prefs.edit().putBoolean("dynamic_color", enabled).apply()
+----        _settings.value = loadSettings()
+----    }
+----
+----    fun setAmoledBlack(enabled: Boolean) {
+----        prefs.edit().putBoolean("amoled_black", enabled).apply()
+----        _settings.value = loadSettings()
+----    }
+----
+----    fun setHasSeenOnboarding(seen: Boolean) {
+----        prefs.edit().putBoolean("has_seen_onboarding", seen).apply()
+----        _settings.value = loadSettings()
+----    }
+----
+----    private fun loadSettings(): AppSettings {
+----        val themeName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name)
+----            ?: ThemeMode.SYSTEM.name
+----        return AppSettings(
+----            themeMode = try {
+----                ThemeMode.valueOf(themeName)
+----            } catch (_: Exception) {
+----                ThemeMode.SYSTEM
+----            },
+----            useDynamicColor = prefs.getBoolean("dynamic_color", true),
+----            amoledBlack = prefs.getBoolean("amoled_black", false),
+----            hasSeenOnboarding = prefs.getBoolean("has_seen_onboarding", false)
+----        )
+----    }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/data/local/AppDatabase.kt b/app/src/main/java/com/app/Shouze/data/local/AppDatabase.kt
+---deleted file mode 100644
+---index 19f425d..0000000
+------ a/app/src/main/java/com/app/Shouze/data/local/AppDatabase.kt
+---+++ /dev/null
+---@@ -1,82 +0,0 @@
+----package com.app.shouze.data.local
+----
+----import android.content.Context
+----import androidx.room.Database
+----import androidx.room.Room
+----import androidx.room.RoomDatabase
+----import androidx.room.TypeConverters
+----import androidx.room.migration.Migration
+----import androidx.sqlite.db.SupportSQLiteDatabase
+----
+----@Database(
+----    entities = [MediaItemEntity::class, CategoryEntity::class],
+----    version = 3,
+----    exportSchema = false
+----)
+----@TypeConverters(Converters::class)
+----abstract class AppDatabase : RoomDatabase() {
+----    abstract fun mediaDao(): MediaDao
+----    abstract fun categoryDao(): CategoryDao
+----
+----    companion object {
+----        @Volatile
+----        private var INSTANCE: AppDatabase? = null
+----
+----        val MIGRATION_1_2 = object : Migration(1, 2) {
+----            override fun migrate(db: SupportSQLiteDatabase) {
+----                db.execSQL("""
+----                    CREATE TABLE IF NOT EXISTS categories (
+----                        id TEXT PRIMARY KEY NOT NULL,
+----                        name TEXT NOT NULL,
+----                        colorHex TEXT,
+----                        createdAt INTEGER NOT NULL
+----                    )
+----                """.trimIndent())
+----
+----                db.execSQL("ALTER TABLE media_items ADD COLUMN categoryId TEXT NOT NULL DEFAULT 'TV_SERIES'")
+----
+----                db.execSQL("""
+----                    UPDATE media_items SET categoryId = CASE
+----                        WHEN mediaType = '0' OR mediaType = 'TV_SERIES' THEN 'TV_SERIES'
+----                        WHEN mediaType = '1' OR mediaType = 'ANIME' THEN 'ANIME'
+----                        WHEN mediaType = '2' OR mediaType = 'NOVEL' THEN 'NOVEL'
+----                        ELSE 'TV_SERIES'
+----                    END
+----                """.trimIndent())
+----
+----                db.execSQL("INSERT OR IGNORE INTO categories (id, name, colorHex, createdAt) VALUES ('TV_SERIES', 'TV Series', NULL, 0)")
+----                db.execSQL("INSERT OR IGNORE INTO categories (id, name, colorHex, createdAt) VALUES ('ANIME', 'Anime', NULL, 0)")
+----                db.execSQL("INSERT OR IGNORE INTO categories (id, name, colorHex, createdAt) VALUES ('NOVEL', 'Novel', NULL, 0)")
+----            }
+----        }
+----
+----        val MIGRATION_2_3 = object : Migration(2, 3) {
+----            override fun migrate(db: SupportSQLiteDatabase) {
+----                db.execSQL("ALTER TABLE media_items ADD COLUMN genres TEXT NOT NULL DEFAULT ''")
+----            }
+----        }
+----
+----        fun getInstance(context: Context): AppDatabase {
+----    return INSTANCE ?: synchronized(this) {
+----        val instance = Room.databaseBuilder(
+----            context.applicationContext,
+----            AppDatabase::class.java,
+----            "media_tracker.db"
+----        )
+----        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+----        .addCallback(object : RoomDatabase.Callback() {
+----            override fun onCreate(db: SupportSQLiteDatabase) {
+----                super.onCreate(db)
+----                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('TV_SERIES', 'TV Series', NULL, 0)")
+----                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('ANIME', 'Anime', NULL, 0)")
+----                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('NOVEL', 'Novel', NULL, 0)")
+----            }
+----        })
+----        .build()
+----        INSTANCE = instance
+----        instance
+----    }
+----}
+----
+----    }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/data/local/CategoryDao.kt b/app/src/main/java/com/app/Shouze/data/local/CategoryDao.kt
+---deleted file mode 100644
+---index eb05cb7..0000000
+------ a/app/src/main/java/com/app/Shouze/data/local/CategoryDao.kt
+---+++ /dev/null
+---@@ -1,26 +0,0 @@
+----package com.app.shouze.data.local
+----
+----import androidx.room.*
+----import kotlinx.coroutines.flow.Flow
+----
+----@Dao
+----interface CategoryDao {
+----
+----    @Query("SELECT * FROM categories ORDER BY createdAt ASC")
+----    fun getAll(): Flow<List<CategoryEntity>>
+----
+----    @Query("SELECT * FROM categories")
+----    suspend fun getAllSnapshot(): List<CategoryEntity>
+----
+----    @Insert(onConflict = OnConflictStrategy.REPLACE)
+----    suspend fun insert(category: CategoryEntity)
+----
+----    @Insert(onConflict = OnConflictStrategy.REPLACE)
+----    suspend fun insertOrUpdate(category: CategoryEntity)
+----
+----    @Query("DELETE FROM categories WHERE id = :categoryId")
+----    suspend fun delete(categoryId: String)
+----
+----    @Query("DELETE FROM categories")
+----    suspend fun clearAll()
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/data/local/CategoryEntity.kt b/app/src/main/java/com/app/Shouze/data/local/CategoryEntity.kt
+---deleted file mode 100644
+---index 1ef53e8..0000000
+------ a/app/src/main/java/com/app/Shouze/data/local/CategoryEntity.kt
+---+++ /dev/null
+---@@ -1,13 +0,0 @@
+----package com.app.shouze.data.local
+----
+----import androidx.room.Entity
+----import androidx.room.PrimaryKey
+----import java.util.UUID
+----
+----@Entity(tableName = "categories")
+----data class CategoryEntity(
+----    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+----    val name: String,
+----    val colorHex: String? = null,
+----    val createdAt: Long = System.currentTimeMillis()
+----)
+---diff --git a/app/src/main/java/com/app/Shouze/data/local/Converters.kt b/app/src/main/java/com/app/Shouze/data/local/Converters.kt
+---deleted file mode 100644
+---index 14f6bfa..0000000
+------ a/app/src/main/java/com/app/Shouze/data/local/Converters.kt
+---+++ /dev/null
+---@@ -1,13 +0,0 @@
+----package com.app.shouze.data.local
+----
+----import androidx.room.TypeConverter
+----
+----class Converters {
+----    @TypeConverter
+----    fun fromGenresList(genres: List<String>): String = genres.joinToString("|")
+----
+----    @TypeConverter
+----    fun toGenresList(genresString: String): List<String> =
+----        if (genresString.isBlank()) emptyList()
+----        else genresString.split("|").filter { it.isNotBlank() }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/data/local/DataSyncController.kt b/app/src/main/java/com/app/Shouze/data/local/DataSyncController.kt
+---deleted file mode 100644
+---index db01cdd..0000000
+------ a/app/src/main/java/com/app/Shouze/data/local/DataSyncController.kt
+---+++ /dev/null
+---@@ -1,141 +0,0 @@
+----package com.app.shouze.data.local
+----
+----import androidx.room.withTransaction
+----import kotlinx.serialization.Serializable
+----import kotlinx.serialization.json.Json
+----import kotlinx.serialization.encodeToString
+----import kotlinx.serialization.decodeFromString
+----
+----@Serializable
+----data class MediaItemExport(
+----    val id: String,
+----    val title: String,
+----    val categoryId: String? = null,
+----    val mediaType: String? = null,
+----    val status: String,
+----    val currentProgress: Int,
+----    val totalCount: Int,
+----    val currentVolume: Int?,
+----    val rating: Double,
+----    val coverImageUri: String?,
+----    val genres: List<String> = emptyList(),
+----    val lastUpdated: Long
+----)
+----
+----@Serializable
+----data class CategoryExport(
+----    val id: String,
+----    val name: String,
+----    val colorHex: String? = null,
+----    val createdAt: Long
+----)
+----
+----@Serializable
+----data class BackupPayload(
+----    val version: Int = 2,
+----    val exportedAt: Long = System.currentTimeMillis(),
+----    val itemCount: Int = 0,
+----    val items: List<MediaItemExport> = emptyList(),
+----    val categories: List<CategoryExport> = emptyList()
+----)
+----
+----class DataSyncController(private val db: AppDatabase) {
+----
+----    private val json = Json {
+----        ignoreUnknownKeys = true
+----        prettyPrint = false
+----    }
+----
+----    suspend fun exportToJson(): Result<String> {
+----        return try {
+----            val snapshot = db.mediaDao().getAllItemsSnapshot()
+----            val categorySnapshot = db.categoryDao().getAllSnapshot()
+----            val exports = snapshot.map { it.toExport() }
+----            val catExports = categorySnapshot.map { it.toExport() }
+----            val payload = BackupPayload(
+----                itemCount = exports.size,
+----                items = exports,
+----                categories = catExports
+----            )
+----            Result.success(json.encodeToString(payload))
+----        } catch (e: Exception) {
+----            Result.failure(e)
+----        }
+----    }
+----
+----    suspend fun importFromJson(jsonString: String): Result<Int> {
+----        return try {
+----            val payload = json.decodeFromString<BackupPayload>(jsonString)
+----            if (payload.version != 1 && payload.version != 2) {
+----                return Result.failure(IllegalArgumentException("Unsupported backup version ${payload.version}"))
+----            }
+----            if (payload.items.isEmpty()) {
+----                return Result.failure(IllegalArgumentException("Backup contains no media items"))
+----            }
+----            db.withTransaction {
+----                db.mediaDao().clearAll()
+----                db.categoryDao().clearAll()
+----
+----                payload.categories.forEach { export ->
+----                    db.categoryDao().insertOrUpdate(export.toEntity())
+----                }
+----                payload.items.forEach { export ->
+----                    db.mediaDao().insertOrUpdate(export.toEntity())
+----                }
+----            }
+----            Result.success(payload.items.size)
+----        } catch (e: Exception) {
+----            Result.failure(e)
+----        }
+----    }
+----}
+----
+----private fun MediaItemEntity.toExport() = MediaItemExport(
+----    id = id,
+----    title = title,
+----    categoryId = categoryId,
+----    status = status.name,
+----    currentProgress = currentProgress,
+----    totalCount = totalCount,
+----    currentVolume = currentVolume,
+----    rating = rating,
+----    coverImageUri = coverImageUri,
+----    genres = genres,
+----    lastUpdated = lastUpdated
+----)
+----
+----private fun MediaItemExport.toEntity(): MediaItemEntity {
+----    val statusEnum = try {
+----        Status.valueOf(status)
+----    } catch (_: IllegalArgumentException) {
+----        Status.PLAN_TO_WATCH
+----    }
+----    val catId = categoryId ?: mediaType ?: "TV_SERIES"
+----    return MediaItemEntity(
+----        id = id,
+----        title = title,
+----        categoryId = catId,
+----        status = statusEnum,
+----        currentProgress = currentProgress,
+----        totalCount = totalCount,
+----        currentVolume = currentVolume,
+----        rating = rating,
+----        coverImageUri = coverImageUri,
+----        genres = genres,
+----        lastUpdated = lastUpdated
+----    )
+----}
+----
+----private fun CategoryEntity.toExport() = CategoryExport(
+----    id = id,
+----    name = name,
+----    colorHex = colorHex,
+----    createdAt = createdAt
+----)
+----
+----private fun CategoryExport.toEntity() = CategoryEntity(
+----    id = id,
+----    name = name,
+----    colorHex = colorHex,
+----    createdAt = createdAt
+----)
+---diff --git a/app/src/main/java/com/app/Shouze/data/local/MediaDao.kt b/app/src/main/java/com/app/Shouze/data/local/MediaDao.kt
+---deleted file mode 100644
+---index 71903a9..0000000
+------ a/app/src/main/java/com/app/Shouze/data/local/MediaDao.kt
+---+++ /dev/null
+---@@ -1,26 +0,0 @@
+----package com.app.shouze.data.local
+----
+----import androidx.room.*
+----import kotlinx.coroutines.flow.Flow
+----
+----@Dao
+----interface MediaDao {
+----
+----    @Query("SELECT * FROM media_items ORDER BY lastUpdated DESC")
+----    fun getAllItems(): Flow<List<MediaItemEntity>>
+----
+----    @Query("SELECT * FROM media_items WHERE categoryId = :categoryId ORDER BY lastUpdated DESC")
+----    fun getItemsByCategory(categoryId: String): Flow<List<MediaItemEntity>>
+----
+----    @Query("SELECT * FROM media_items")
+----    suspend fun getAllItemsSnapshot(): List<MediaItemEntity>
+----
+----    @Insert(onConflict = OnConflictStrategy.REPLACE)
+----    suspend fun insertOrUpdate(item: MediaItemEntity)
+----
+----    @Query("DELETE FROM media_items WHERE id = :itemId")
+----    suspend fun deleteById(itemId: String): Int
+----
+----    @Query("DELETE FROM media_items")
+----    suspend fun clearAll()
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/data/local/MediaItemEntity.kt b/app/src/main/java/com/app/Shouze/data/local/MediaItemEntity.kt
+---deleted file mode 100644
+---index dd153fe..0000000
+------ a/app/src/main/java/com/app/Shouze/data/local/MediaItemEntity.kt
+---+++ /dev/null
+---@@ -1,21 +0,0 @@
+----package com.app.shouze.data.local
+----
+----import androidx.room.*
+----import java.util.UUID
+----
+----enum class Status { WATCHING, READING, COMPLETED, DROPPED, PLAN_TO_WATCH }
+----
+----@Entity(tableName = "media_items")
+----data class MediaItemEntity(
+----    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+----    val title: String,
+----    val categoryId: String,
+----    val status: Status,
+----    val currentProgress: Int,
+----    val totalCount: Int,
+----    val currentVolume: Int? = null,
+----    val rating: Double = 0.0,
+----    val coverImageUri: String? = null,
+----    val genres: List<String> = emptyList(),
+----    val lastUpdated: Long = System.currentTimeMillis()
+----)
+---diff --git a/app/src/main/java/com/app/Shouze/ui/MediaViewModel.kt b/app/src/main/java/com/app/Shouze/ui/MediaViewModel.kt
+---deleted file mode 100644
+---index 5a951c3..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/MediaViewModel.kt
+---+++ /dev/null
+---@@ -1,217 +0,0 @@
+----package com.app.shouze.ui
+----
+----import android.app.Application
+----import android.net.Uri
+----import androidx.lifecycle.AndroidViewModel
+----import androidx.lifecycle.viewModelScope
+----import com.app.shouze.data.SettingsRepository
+----import com.app.shouze.data.ThemeMode
+----import com.app.shouze.data.local.*
+----import kotlinx.coroutines.flow.*
+----import kotlinx.coroutines.launch
+----import kotlinx.serialization.json.Json
+----import java.util.zip.ZipEntry
+----import java.util.zip.ZipInputStream
+----import java.util.zip.ZipOutputStream
+----
+----data class HomeUiState(
+----    val allItems: List<MediaItemEntity> = emptyList(),
+----    val items: List<MediaItemEntity> = emptyList(),
+----    val categories: List<CategoryEntity> = emptyList(),
+----    val selectedCategoryId: String? = null,
+----    val searchQuery: String = "",
+----    val isLoading: Boolean = false,
+----    val syncMessage: String? = null,
+----    val error: String? = null
+----)
+----
+----class MediaViewModel(application: Application) : AndroidViewModel(application) {
+----
+----    private val db = AppDatabase.getInstance(application)
+----    private val dao = db.mediaDao()
+----    private val categoryDao = db.categoryDao()
+----    private val syncController = DataSyncController(db)
+----    private val settingsRepo = SettingsRepository(application)
+----    private val json = Json { ignoreUnknownKeys = true }
+----
+----    val settings = settingsRepo.settings
+----
+----    private val _selectedCategoryId = MutableStateFlow<String?>(null)
+----    private val _searchQuery = MutableStateFlow("")
+----    private val _isLoading = MutableStateFlow(false)
+----    private val _syncMessage = MutableStateFlow<String?>(null)
+----    private val _error = MutableStateFlow<String?>(null)
+----
+----    private val _uiState = MutableStateFlow(HomeUiState())
+----    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+----
+----    init {
+----        viewModelScope.launch {
+----            combine(
+----                dao.getAllItems(),
+----                categoryDao.getAll(),
+----                _selectedCategoryId,
+----                _searchQuery
+----            ) { allItems, allCategories, catId, query ->
+----                val filtered = filterItems(allItems, catId, query)
+----                _uiState.update { current ->
+----                    current.copy(
+----                        allItems = allItems,
+----                        items = filtered,
+----                        categories = allCategories,
+----                        selectedCategoryId = catId,
+----                        searchQuery = query
+----                    )
+----                }
+----            }.collect()
+----        }
+----    }
+----
+----    fun addOrUpdate(item: MediaItemEntity) {
+----        viewModelScope.launch {
+----            dao.insertOrUpdate(item.copy(lastUpdated = System.currentTimeMillis()))
+----        }
+----    }
+----
+----    fun deleteItem(itemId: String) {
+----        viewModelScope.launch {
+----            dao.deleteById(itemId)
+----        }
+----    }
+----
+----    fun setCategoryFilter(categoryId: String?) {
+----        _selectedCategoryId.value = categoryId
+----    }
+----
+----    fun setSearchQuery(query: String) {
+----        _searchQuery.value = query
+----    }
+----
+----    fun addCategory(name: String) {
+----        viewModelScope.launch {
+----            categoryDao.insert(CategoryEntity(name = name.trim()))
+----        }
+----    }
+----
+----    fun deleteCategory(categoryId: String) {
+----        viewModelScope.launch {
+----            categoryDao.delete(categoryId)
+----        }
+----    }
+----
+----    private fun filterItems(
+----        all: List<MediaItemEntity>,
+----        categoryId: String?,
+----        query: String
+----    ): List<MediaItemEntity> {
+----        return all
+----            .filter { categoryId == null || it.categoryId == categoryId }
+----            .filter { query.isBlank() || it.title.contains(query, ignoreCase = true) }
+----    }
+----
+----    fun setThemeMode(mode: ThemeMode) = settingsRepo.setThemeMode(mode)
+----    fun setDynamicColor(enabled: Boolean) = settingsRepo.setDynamicColor(enabled)
+----    fun setAmoledBlack(enabled: Boolean) = settingsRepo.setAmoledBlack(enabled)
+----    fun setHasSeenOnboarding(seen: Boolean) = settingsRepo.setHasSeenOnboarding(seen)
+----
+----    fun backupToLocalZip(uri: Uri) {
+----        viewModelScope.launch {
+----            _isLoading.value = true
+----            _syncMessage.value = null
+----            _error.value = null
+----            _uiState.update { it.copy(isLoading = true, syncMessage = null, error = null) }
+----            try {
+----                val result = syncController.exportToJson()
+----                result.fold(
+----                    onSuccess = { jsonString ->
+----                        val itemCount = try {
+----                            json.decodeFromString<BackupPayload>(jsonString).itemCount
+----                        } catch (_: Exception) { 0 }
+----                        val output = getApplication<Application>().contentResolver.openOutputStream(uri)
+----                        if (output == null) {
+----                            showMessage("Failed to open file for writing", isError = true)
+----                            return@launch
+----                        }
+----                        output.use { os ->
+----                            ZipOutputStream(os).use { zos ->
+----                                val entry = ZipEntry("backup.json")
+----                                zos.putNextEntry(entry)
+----                                zos.write(jsonString.toByteArray(Charsets.UTF_8))
+----                                zos.closeEntry()
+----                            }
+----                        }
+----                        showMessage("Backup saved successfully ($itemCount items)")
+----                    },
+----                    onFailure = { e ->
+----                        showMessage("Export failed: ${e.message}", isError = true)
+----                    }
+----                )
+----            } catch (e: Exception) {
+----                showMessage("Unexpected error: ${e.message}", isError = true)
+----            }
+----        }
+----    }
+----
+----    fun restoreFromLocalZip(uri: Uri) {
+----        viewModelScope.launch {
+----            _isLoading.value = true
+----            _syncMessage.value = null
+----            _error.value = null
+----            _uiState.update { it.copy(isLoading = true, syncMessage = null, error = null) }
+----            try {
+----                val input = getApplication<Application>().contentResolver.openInputStream(uri)
+----                if (input == null) {
+----                    showMessage("Failed to open backup file", isError = true)
+----                    return@launch
+----                }
+----                val backupJson = input.use { stream ->
+----                    var content = ""
+----                    ZipInputStream(stream).use { zis ->
+----                        var entry = zis.nextEntry
+----                        while (entry != null) {
+----                            if (entry.name == "backup.json") {
+----                                content = zis.bufferedReader().readText()
+----                                break
+----                            }
+----                            entry = zis.nextEntry
+----                        }
+----                    }
+----                    content
+----                }
+----                if (backupJson.isBlank()) {
+----                    showMessage("Invalid backup file: backup.json not found", isError = true)
+----                    return@launch
+----                }
+----                val importResult = syncController.importFromJson(backupJson)
+----                importResult.fold(
+----                    onSuccess = { count ->
+----                        showMessage("Restore successful (imported $count items)")
+----                    },
+----                    onFailure = { e ->
+----                        showMessage("Import failed: ${e.message}", isError = true)
+----                    }
+----                )
+----            } catch (e: Exception) {
+----                showMessage("Unexpected error: ${e.message}", isError = true)
+----            }
+----        }
+----    }
+----
+----    fun clearSyncMessage() {
+----        _syncMessage.value = null
+----        _error.value = null
+----        _uiState.update { it.copy(syncMessage = null, error = null) }
+----    }
+----
+----    private fun showMessage(message: String, isError: Boolean = false) {
+----        _isLoading.value = false
+----        if (isError) {
+----            _error.value = message
+----            _syncMessage.value = null
+----        } else {
+----            _syncMessage.value = message
+----            _error.value = null
+----        }
+----        _uiState.update { it.copy(isLoading = false, syncMessage = if (isError) null else message, error = if (isError) message else null) }
+----    }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/ui/components/DetailEditDialog.kt b/app/src/main/java/com/app/Shouze/ui/components/DetailEditDialog.kt
+---deleted file mode 100644
+---index 6a2839e..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/components/DetailEditDialog.kt
+---+++ /dev/null
+---@@ -1,355 +0,0 @@
+----package com.app.shouze.ui.components
+----
+----import androidx.compose.foundation.clickable
+----import androidx.compose.foundation.layout.*
+----import androidx.compose.foundation.rememberScrollState
+----import androidx.compose.foundation.text.KeyboardOptions
+----import androidx.compose.foundation.verticalScroll
+----import androidx.compose.material.icons.Icons
+----import androidx.compose.material.icons.filled.Add
+----import androidx.compose.material.icons.filled.ArrowDropDown
+----import androidx.compose.material.icons.filled.Close
+----import androidx.compose.material3.*
+----import androidx.compose.runtime.*
+----import androidx.compose.ui.Alignment
+----import androidx.compose.ui.Modifier
+----import androidx.compose.ui.text.input.KeyboardType
+----import androidx.compose.ui.unit.dp
+----import androidx.compose.ui.window.Dialog
+----import androidx.compose.ui.window.DialogProperties
+----import com.app.shouze.data.local.CategoryEntity
+----import com.app.shouze.data.local.MediaItemEntity
+----import com.app.shouze.data.local.Status
+----import java.util.UUID
+----
+----@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+----@Composable
+----fun DetailEditDialog(
+----    item: MediaItemEntity?,
+----    categories: List<CategoryEntity>,
+----    onDismiss: () -> Unit,
+----    onSave: (MediaItemEntity) -> Unit,
+----    onDelete: (String) -> Unit
+----) {
+----    var title by remember { mutableStateOf(item?.title ?: "") }
+----    var categoryId by remember {
+----        mutableStateOf(item?.categoryId ?: categories.firstOrNull()?.id ?: "")
+----    }
+----    var status by remember { mutableStateOf(item?.status ?: Status.PLAN_TO_WATCH) }
+----    var currentProgress by remember { mutableStateOf(item?.currentProgress?.toString() ?: "0") }
+----    var totalCount by remember { mutableStateOf(item?.totalCount?.toString() ?: "1") }
+----    var currentVolume by remember { mutableStateOf(item?.currentVolume?.toString() ?: "") }
+----    var rating by remember { mutableStateOf(item?.rating?.toString() ?: "0.0") }
+----    var coverImageUri by remember { mutableStateOf(item?.coverImageUri ?: "") }
+----    var genres by remember { mutableStateOf(item?.genres ?: emptyList()) }
+----    var newGenre by remember { mutableStateOf("") }
+----
+----    var showCategoryPicker by remember { mutableStateOf(false) }
+----    var showStatusPicker by remember { mutableStateOf(false) }
+----
+----    val isTitleValid = title.isNotBlank()
+----    val progressInt = currentProgress.toIntOrNull()?.coerceAtLeast(0) ?: 0
+----    val totalInt = totalCount.toIntOrNull()?.coerceAtLeast(0) ?: 0
+----    val clampedProgress = if (totalInt > 0) progressInt.coerceIn(0, totalInt) else progressInt
+----
+----    val selectedCategory = categories.find { it.id == categoryId }
+----    val isLiterature = selectedCategory?.name?.contains("novel", ignoreCase = true) == true
+----            || selectedCategory?.name?.contains("book", ignoreCase = true) == true
+----            || selectedCategory?.name?.contains("manga", ignoreCase = true) == true
+----    val unitLabel = if (isLiterature) "Chapter" else "Episode"
+----
+----    Dialog(
+----        onDismissRequest = onDismiss,
+----        properties = DialogProperties(
+----            usePlatformDefaultWidth = false,
+----            decorFitsSystemWindows = false
+----        )
+----    ) {
+----        Card(
+----            modifier = Modifier
+----                .fillMaxWidth()
+----                .padding(horizontal = 12.dp, vertical = 24.dp)
+----                .wrapContentHeight(),
+----            shape = MaterialTheme.shapes.extraLarge
+----        ) {
+----            Column(
+----                modifier = Modifier
+----                    .padding(20.dp)
+----                    .verticalScroll(rememberScrollState())
+----            ) {
+----                Text(
+----                    text = if (item == null) "Add New Item" else "Edit Item",
+----                    style = MaterialTheme.typography.headlineSmall
+----                )
+----                Spacer(modifier = Modifier.height(16.dp))
+----
+----                OutlinedTextField(
+----                    value = title,
+----                    onValueChange = { title = it },
+----                    label = { Text("Title") },
+----                    isError = !isTitleValid,
+----                    supportingText = if (isTitleValid) null else { { Text("Title is required") } },
+----                    singleLine = true,
+----                    modifier = Modifier.fillMaxWidth()
+----                )
+----                Spacer(modifier = Modifier.height(8.dp))
+----
+----                Box(modifier = Modifier.fillMaxWidth()) {
+----                    OutlinedTextField(
+----                        value = categories.find { it.id == categoryId }?.name ?: "",
+----                        onValueChange = {},
+----                        readOnly = true,
+----                        label = { Text("Category") },
+----                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+----                        modifier = Modifier.fillMaxWidth()
+----                    )
+----                    Box(
+----                        modifier = Modifier
+----                            .matchParentSize()
+----                            .clickable { showCategoryPicker = true }
+----                    )
+----                }
+----                Spacer(modifier = Modifier.height(8.dp))
+----
+----                Box(modifier = Modifier.fillMaxWidth()) {
+----                    OutlinedTextField(
+----                        value = status.name.replace("_", " "),
+----                        onValueChange = {},
+----                        readOnly = true,
+----                        label = { Text("Status") },
+----                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+----                        modifier = Modifier.fillMaxWidth()
+----                    )
+----                    Box(
+----                        modifier = Modifier
+----                            .matchParentSize()
+----                            .clickable { showStatusPicker = true }
+----                    )
+----                }
+----                Spacer(modifier = Modifier.height(8.dp))
+----
+----                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+----                    OutlinedTextField(
+----                        value = currentProgress,
+----                        onValueChange = { currentProgress = it },
+----                        label = { Text("Progress") },
+----                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+----                        modifier = Modifier.weight(1f)
+----                    )
+----                    OutlinedTextField(
+----                        value = totalCount,
+----                        onValueChange = { totalCount = it },
+----                        label = { Text("Total (0 = ongoing)") },
+----                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+----                        modifier = Modifier.weight(1f)
+----                    )
+----                }
+----                Spacer(modifier = Modifier.height(8.dp))
+----
+----                if (isLiterature) {
+----                    OutlinedTextField(
+----                        value = currentVolume,
+----                        onValueChange = { currentVolume = it },
+----                        label = { Text("Current Volume (optional)") },
+----                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+----                        modifier = Modifier.fillMaxWidth()
+----                    )
+----                    Spacer(modifier = Modifier.height(8.dp))
+----                }
+----
+----                OutlinedTextField(
+----                    value = rating,
+----                    onValueChange = { rating = it },
+----                    label = { Text("Rating (0-10)") },
+----                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+----                    modifier = Modifier.fillMaxWidth()
+----                )
+----                Spacer(modifier = Modifier.height(8.dp))
+----
+----                OutlinedTextField(
+----                    value = coverImageUri,
+----                    onValueChange = { coverImageUri = it },
+----                    label = { Text("Cover Image URI") },
+----                    modifier = Modifier.fillMaxWidth()
+----                )
+----                Spacer(modifier = Modifier.height(16.dp))
+----
+----                Text(
+----                    text = "Genres",
+----                    style = MaterialTheme.typography.titleSmall,
+----                    color = MaterialTheme.colorScheme.primary
+----                )
+----                Spacer(modifier = Modifier.height(4.dp))
+----
+----                if (genres.isNotEmpty()) {
+----                    FlowRow(
+----                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+----                        verticalArrangement = Arrangement.spacedBy(4.dp)
+----                    ) {
+----                        genres.forEach { genre ->
+----                            InputChip(
+----                                selected = false,
+----                                onClick = { },
+----                                label = { Text(genre) },
+----                                trailingIcon = {
+----                                    IconButton(
+----                                        onClick = { genres = genres - genre },
+----                                        modifier = Modifier.size(16.dp)
+----                                    ) {
+----                                        Icon(
+----                                            imageVector = Icons.Default.Close,
+----                                            contentDescription = "Remove $genre",
+----                                            modifier = Modifier.size(14.dp)
+----                                        )
+----                                    }
+----                                }
+----                            )
+----                        }
+----                    }
+----                    Spacer(modifier = Modifier.height(8.dp))
+----                }
+----
+----                Row(
+----                    verticalAlignment = Alignment.CenterVertically,
+----                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+----                ) {
+----                    OutlinedTextField(
+----                        value = newGenre,
+----                        onValueChange = { newGenre = it },
+----                        label = { Text("Add genre") },
+----                        singleLine = true,
+----                        modifier = Modifier.weight(1f)
+----                    )
+----                    IconButton(
+----                        onClick = {
+----                            val trimmed = newGenre.trim()
+----                            if (trimmed.isNotBlank() && !genres.any { it.equals(trimmed, ignoreCase = true) }) {
+----                                genres = genres + trimmed
+----                                newGenre = ""
+----                            }
+----                        }
+----                    ) {
+----                        Icon(Icons.Default.Add, contentDescription = "Add genre")
+----                    }
+----                }
+----                Spacer(modifier = Modifier.height(24.dp))
+----
+----                if (item != null) {
+----                    OutlinedButton(
+----                        onClick = {
+----                            val next = progressInt + 1
+----                            currentProgress = next.toString()
+----                            if (totalInt > 0 && next >= totalInt && status != Status.DROPPED) {
+----                                status = Status.COMPLETED
+----                            }
+----                        },
+----                        enabled = totalInt == 0 || progressInt < totalInt,
+----                        modifier = Modifier.fillMaxWidth()
+----                    ) {
+----                        Text("+1 $unitLabel")
+----                    }
+----                    Spacer(modifier = Modifier.height(8.dp))
+----                }
+----
+----                Row(
+----                    modifier = Modifier.fillMaxWidth(),
+----                    horizontalArrangement = Arrangement.End
+----                ) {
+----                    if (item != null) {
+----                        TextButton(onClick = {
+----                            onDelete(item.id)
+----                            onDismiss()
+----                        }) {
+----                            Text("Delete", color = MaterialTheme.colorScheme.error)
+----                        }
+----                        Spacer(modifier = Modifier.weight(1f))
+----                    }
+----                    TextButton(onClick = onDismiss) { Text("Cancel") }
+----                    Spacer(modifier = Modifier.width(8.dp))
+----                    Button(
+----                        onClick = {
+----                            val newItem = MediaItemEntity(
+----                                id = item?.id ?: UUID.randomUUID().toString(),
+----                                title = title.trim(),
+----                                categoryId = categoryId,
+----                                status = status,
+----                                currentProgress = clampedProgress,
+----                                totalCount = totalInt,
+----                                currentVolume = currentVolume.toIntOrNull(),
+----                                rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
+----                                coverImageUri = coverImageUri.ifBlank { null },
+----                                genres = genres,
+----                                lastUpdated = System.currentTimeMillis()
+----                            )
+----                            onSave(newItem)
+----                            onDismiss()
+----                        },
+----                        enabled = isTitleValid && categoryId.isNotBlank()
+----                    ) {
+----                        Text("Save")
+----                    }
+----                }
+----            }
+----        }
+----    }
+----
+----    if (showCategoryPicker) {
+----        AlertDialog(
+----            onDismissRequest = { showCategoryPicker = false },
+----            title = { Text("Select Category") },
+----            text = {
+----                Column {
+----                    if (categories.isEmpty()) {
+----                        Text(
+----                            text = "No categories available. Create one in Settings.",
+----                            style = MaterialTheme.typography.bodyMedium,
+----                            color = MaterialTheme.colorScheme.onSurfaceVariant
+----                        )
+----                    } else {
+----                        categories.forEach { cat ->
+----                            TextButton(
+----                                onClick = {
+----                                    categoryId = cat.id
+----                                    showCategoryPicker = false
+----                                },
+----                                modifier = Modifier.fillMaxWidth()
+----                            ) {
+----                                Text(cat.name)
+----                            }
+----                        }
+----                    }
+----                }
+----            },
+----            confirmButton = {},
+----            dismissButton = {
+----                TextButton(onClick = { showCategoryPicker = false }) { Text("Cancel") }
+----            }
+----        )
+----    }
+----
+----    if (showStatusPicker) {
+----        AlertDialog(
+----            onDismissRequest = { showStatusPicker = false },
+----            title = { Text("Select Status") },
+----            text = {
+----                Column {
+----                    Status.entries.forEach { s ->
+----                        TextButton(
+----                            onClick = {
+----                                status = s
+----                                showStatusPicker = false
+----                            },
+----                            modifier = Modifier.fillMaxWidth()
+----                        ) {
+----                            Text(s.name.replace("_", " "))
+----                        }
+----                    }
+----                }
+----            },
+----            confirmButton = {},
+----            dismissButton = {
+----                TextButton(onClick = { showStatusPicker = false }) { Text("Cancel") }
+----            }
+----        )
+----    }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/ui/components/MediaCardItem.kt b/app/src/main/java/com/app/Shouze/ui/components/MediaCardItem.kt
+---deleted file mode 100644
+---index e800a2f..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/components/MediaCardItem.kt
+---+++ /dev/null
+---@@ -1,185 +0,0 @@
+----package com.app.shouze.ui.components
+----
+----import androidx.compose.foundation.background
+----import androidx.compose.foundation.layout.*
+----import androidx.compose.foundation.shape.CircleShape
+----import androidx.compose.material.icons.Icons
+----import androidx.compose.material.icons.automirrored.filled.StarHalf
+----import androidx.compose.material.icons.filled.Star
+----import androidx.compose.material.icons.filled.StarBorder
+----import androidx.compose.material3.*
+----import androidx.compose.runtime.Composable
+----import androidx.compose.ui.Alignment
+----import androidx.compose.ui.Modifier
+----import androidx.compose.ui.draw.clip
+----import androidx.compose.ui.graphics.Color
+----import androidx.compose.ui.graphics.vector.ImageVector
+----import androidx.compose.ui.text.style.TextOverflow
+----import androidx.compose.ui.unit.dp
+----import com.app.shouze.data.local.MediaItemEntity
+----import com.app.shouze.data.local.Status
+----
+----@Composable
+----fun MediaCardItem(
+----    item: MediaItemEntity,
+----    categoryName: String,
+----    onClick: () -> Unit,
+----    modifier: Modifier = Modifier
+----) {
+----    ElevatedCard(
+----        onClick = onClick,
+----        modifier = modifier
+----            .fillMaxWidth()
+----            .padding(horizontal = 16.dp, vertical = 6.dp),
+----        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+----    ) {
+----        Row(
+----            modifier = Modifier.padding(12.dp),
+----            verticalAlignment = Alignment.CenterVertically
+----        ) {
+----            AvatarCircle(item = item)
+----            Spacer(modifier = Modifier.width(14.dp))
+----            Column(modifier = Modifier.weight(1f)) {
+----                Text(
+----                    text = item.title,
+----                    style = MaterialTheme.typography.titleMedium,
+----                    maxLines = 1,
+----                    overflow = TextOverflow.Ellipsis,
+----                    color = MaterialTheme.colorScheme.onSurface
+----                )
+----                Spacer(modifier = Modifier.height(3.dp))
+----                Text(
+----                    text = buildSubtitle(item, categoryName),
+----                    style = MaterialTheme.typography.bodySmall,
+----                    color = MaterialTheme.colorScheme.onSurfaceVariant
+----                )
+----                if (item.totalCount > 0) {
+----                    Spacer(modifier = Modifier.height(8.dp))
+----                    LinearProgressIndicator(
+----                        progress = { (item.currentProgress.toFloat() / item.totalCount).coerceIn(0f, 1f) },
+----                        modifier = Modifier.fillMaxWidth(),
+----                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+----                        color = MaterialTheme.colorScheme.primary
+----                    )
+----                }
+----                if (item.rating > 0.0) {
+----                    Spacer(modifier = Modifier.height(6.dp))
+----                    RatingBar(rating = item.rating)
+----                }
+----            }
+----            Spacer(modifier = Modifier.width(10.dp))
+----            StatusBadge(status = item.status)
+----        }
+----    }
+----}
+----
+----@Composable
+----private fun AvatarCircle(item: MediaItemEntity, modifier: Modifier = Modifier) {
+----    val hue = (item.title.hashCode() and 0x7fffffff) % 360
+----    val color = Color(
+----        android.graphics.Color.HSVToColor(
+----            floatArrayOf(hue.toFloat(), 0.52f, 0.88f)
+----        )
+----    )
+----    Box(
+----        modifier = modifier
+----            .size(52.dp)
+----            .clip(CircleShape)
+----            .background(color),
+----        contentAlignment = Alignment.Center
+----    ) {
+----        Text(
+----            text = item.title.firstOrNull()?.uppercase() ?: "?",
+----            style = MaterialTheme.typography.titleMedium,
+----            color = Color.White
+----        )
+----    }
+----}
+----
+----@Composable
+----private fun StatusBadge(status: Status, modifier: Modifier = Modifier) {
+----    val container: Color
+----    val content: Color
+----    val label: String
+----    when (status) {
+----        Status.COMPLETED -> {
+----            container = MaterialTheme.colorScheme.tertiaryContainer
+----            content = MaterialTheme.colorScheme.onTertiaryContainer
+----            label = "Completed"
+----        }
+----        Status.DROPPED -> {
+----            container = MaterialTheme.colorScheme.errorContainer
+----            content = MaterialTheme.colorScheme.onErrorContainer
+----            label = "Dropped"
+----        }
+----        Status.PLAN_TO_WATCH -> {
+----            container = MaterialTheme.colorScheme.surfaceVariant
+----            content = MaterialTheme.colorScheme.onSurfaceVariant
+----            label = "Plan to Watch"
+----        }
+----        Status.WATCHING -> {
+----            container = MaterialTheme.colorScheme.primaryContainer
+----            content = MaterialTheme.colorScheme.onPrimaryContainer
+----            label = "Watching"
+----        }
+----        Status.READING -> {
+----            container = MaterialTheme.colorScheme.primaryContainer
+----            content = MaterialTheme.colorScheme.onPrimaryContainer
+----            label = "Reading"
+----        }
+----    }
+----    Surface(
+----        modifier = modifier,
+----        shape = MaterialTheme.shapes.small,
+----        color = container,
+----        contentColor = content
+----    ) {
+----        Text(
+----            text = label,
+----            style = MaterialTheme.typography.labelSmall,
+----            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+----        )
+----    }
+----}
+----
+----@Composable
+----private fun RatingBar(rating: Double, modifier: Modifier = Modifier) {
+----    val scale = (rating / 2.0).coerceIn(0.0, 5.0)
+----    val fullStars = scale.toInt()
+----    val hasHalf = scale - fullStars >= 0.5
+----    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+----        repeat(5) { index ->
+----            val icon: ImageVector = when {
+----                index < fullStars -> Icons.Filled.Star
+----                index == fullStars && hasHalf -> Icons.AutoMirrored.Filled.StarHalf
+----                else -> Icons.Filled.StarBorder
+----            }
+----            Icon(
+----                imageVector = icon,
+----                contentDescription = null,
+----                tint = MaterialTheme.colorScheme.tertiary,
+----                modifier = Modifier.size(14.dp)
+----            )
+----        }
+----        Spacer(modifier = Modifier.width(6.dp))
+----        Text(
+----            text = "%.1f".format(rating),
+----            style = MaterialTheme.typography.labelSmall,
+----            color = MaterialTheme.colorScheme.onSurfaceVariant
+----        )
+----    }
+----}
+----
+----private fun buildSubtitle(item: MediaItemEntity, categoryName: String): String {
+----    val progressLabel = if (item.totalCount > 0) {
+----        "${item.currentProgress}/${item.totalCount}"
+----    } else {
+----        "${item.currentProgress}/ongoing"
+----    }
+----    val volumeLabel = if (item.currentVolume != null) {
+----        " · Vol.${item.currentVolume}"
+----    } else {
+----        ""
+----    }
+----    return "$categoryName · $progressLabel$volumeLabel"
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/AboutScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/AboutScreen.kt
+---deleted file mode 100644
+---index dac33af..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/screens/AboutScreen.kt
+---+++ /dev/null
+---@@ -1,92 +0,0 @@
+----package com.app.shouze.ui.screens
+----
+----import androidx.compose.foundation.layout.*
+----import androidx.compose.material.icons.Icons
+----import androidx.compose.material.icons.automirrored.filled.ArrowBack
+----import androidx.compose.material3.*
+----import androidx.compose.runtime.Composable
+----import androidx.compose.ui.Alignment
+----import androidx.compose.ui.Modifier
+----import androidx.compose.ui.unit.dp
+----
+----@OptIn(ExperimentalMaterial3Api::class)
+----@Composable
+----fun AboutScreen(
+----    onBack: () -> Unit
+----) {
+----    Scaffold(
+----        topBar = {
+----            TopAppBar(
+----                title = { Text("About") },
+----                navigationIcon = {
+----                    IconButton(onClick = onBack) {
+----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+----                    }
+----                }
+----            )
+----        }
+----    ) { padding ->
+----        Column(
+----            modifier = Modifier
+----                .padding(padding)
+----                .fillMaxSize()
+----                .padding(horizontal = 16.dp, vertical = 32.dp),
+----            horizontalAlignment = Alignment.CenterHorizontally
+----        ) {
+----            // App icon placeholder
+----            Surface(
+----                modifier = Modifier.size(96.dp),
+----                shape = MaterialTheme.shapes.large,
+----                color = MaterialTheme.colorScheme.primaryContainer
+----            ) {
+----                Box(contentAlignment = Alignment.Center) {
+----                    Text(
+----                        text = "守",
+----                        style = MaterialTheme.typography.displayLarge,
+----                        color = MaterialTheme.colorScheme.onPrimaryContainer
+----                    )
+----                }
+----            }
+----
+----            Spacer(modifier = Modifier.height(24.dp))
+----
+----            Text(
+----                text = "Shouze",
+----                style = MaterialTheme.typography.headlineMedium,
+----                color = MaterialTheme.colorScheme.onSurface
+----            )
+----
+----            Spacer(modifier = Modifier.height(4.dp))
+----
+----            Text(
+----                text = "Version 1.2",
+----                style = MaterialTheme.typography.bodyLarge,
+----                color = MaterialTheme.colorScheme.onSurfaceVariant
+----            )
+----
+----            Spacer(modifier = Modifier.height(24.dp))
+----
+----            Card(modifier = Modifier.fillMaxWidth()) {
+----                Column(modifier = Modifier.padding(16.dp)) {
+----                    Text(
+----                        text = "Your personal keeper for anime, manga, and everything you watch. Track your progress, organize by categories, and never lose track of what you're watching or reading.",
+----                        style = MaterialTheme.typography.bodyMedium,
+----                        color = MaterialTheme.colorScheme.onSurfaceVariant
+----                    )
+----                }
+----            }
+----
+----            Spacer(modifier = Modifier.height(16.dp))
+----
+----            Card(modifier = Modifier.fillMaxWidth()) {
+----                Column(modifier = Modifier.padding(16.dp)) {
+----                    Text(
+----                        text = "Made with Compose",
+----                        style = MaterialTheme.typography.bodyMedium,
+----                        color = MaterialTheme.colorScheme.onSurfaceVariant
+----                    )
+----                }
+----            }
+----        }
+----    }
+----}
+---\ No newline at end of file
+---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/AppearanceScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/AppearanceScreen.kt
+---deleted file mode 100644
+---index 083ff25..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/screens/AppearanceScreen.kt
+---+++ /dev/null
+---@@ -1,109 +0,0 @@
+----package com.app.shouze.ui.screens
+----
+----import androidx.compose.foundation.layout.*
+----import androidx.compose.foundation.rememberScrollState
+----import androidx.compose.foundation.selection.selectable
+----import androidx.compose.foundation.selection.selectableGroup
+----import androidx.compose.foundation.verticalScroll
+----import androidx.compose.material.icons.Icons
+----import androidx.compose.material.icons.automirrored.filled.ArrowBack
+----import androidx.compose.material3.*
+----import androidx.compose.runtime.Composable
+----import androidx.compose.ui.Alignment
+----import androidx.compose.ui.Modifier
+----import androidx.compose.ui.semantics.Role
+----import androidx.compose.ui.unit.dp
+----import com.app.shouze.data.AppSettings
+----import com.app.shouze.data.ThemeMode
+----
+----@OptIn(ExperimentalMaterial3Api::class)
+----@Composable
+----fun AppearanceScreen(
+----    settings: AppSettings,
+----    onBack: () -> Unit,
+----    onThemeModeChange: (ThemeMode) -> Unit,
+----    onDynamicColorChange: (Boolean) -> Unit,
+----    onAmoledBlackChange: (Boolean) -> Unit
+----) {
+----    Scaffold(
+----        topBar = {
+----            TopAppBar(
+----                title = { Text("Appearance") },
+----                navigationIcon = {
+----                    IconButton(onClick = onBack) {
+----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+----                    }
+----                }
+----            )
+----        }
+----    ) { padding ->
+----        Column(
+----            modifier = Modifier
+----                .padding(padding)
+----                .fillMaxSize()
+----                .padding(horizontal = 16.dp, vertical = 8.dp)
+----                .verticalScroll(rememberScrollState())
+----        ) {
+----            Card(modifier = Modifier.fillMaxWidth()) {
+----                Column(modifier = Modifier.padding(16.dp)) {
+----                    Text("Theme", style = MaterialTheme.typography.titleSmall)
+----                    Spacer(modifier = Modifier.height(8.dp))
+----                    Column(modifier = Modifier.selectableGroup()) {
+----                        ThemeMode.entries.forEach { mode ->
+----                            Row(
+----                                modifier = Modifier
+----                                    .fillMaxWidth()
+----                                    .height(48.dp)
+----                                    .selectable(
+----                                        selected = settings.themeMode == mode,
+----                                        onClick = { onThemeModeChange(mode) },
+----                                        role = Role.RadioButton
+----                                    ),
+----                                verticalAlignment = Alignment.CenterVertically
+----                            ) {
+----                                RadioButton(
+----                                    selected = settings.themeMode == mode,
+----                                    onClick = null
+----                                )
+----                                Spacer(modifier = Modifier.width(16.dp))
+----                                Text(text = mode.name.replace("_", " "))
+----                            }
+----                        }
+----                    }
+----
+----                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+----
+----                    Row(
+----                        modifier = Modifier.fillMaxWidth(),
+----                        horizontalArrangement = Arrangement.SpaceBetween,
+----                        verticalAlignment = Alignment.CenterVertically
+----                    ) {
+----                        Text("Dynamic Colors")
+----                        Switch(
+----                            checked = settings.useDynamicColor,
+----                            onCheckedChange = onDynamicColorChange
+----                        )
+----                    }
+----
+----                    val isDark = settings.themeMode == ThemeMode.DARK ||
+----                            (settings.themeMode == ThemeMode.SYSTEM && androidx.compose.foundation.isSystemInDarkTheme())
+----
+----                    if (isDark) {
+----                        Spacer(modifier = Modifier.height(8.dp))
+----                        Row(
+----                            modifier = Modifier.fillMaxWidth(),
+----                            horizontalArrangement = Arrangement.SpaceBetween,
+----                            verticalAlignment = Alignment.CenterVertically
+----                        ) {
+----                            Text("AMOLED Black")
+----                            Switch(
+----                                checked = settings.amoledBlack,
+----                                onCheckedChange = onAmoledBlackChange
+----                            )
+----                        }
+----                    }
+----                }
+----            }
+----        }
+----    }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/BackupScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/BackupScreen.kt
+---deleted file mode 100644
+---index 29ba9ed..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/screens/BackupScreen.kt
+---+++ /dev/null
+---@@ -1,144 +0,0 @@
+----package com.app.shouze.ui.screens
+----
+----import android.net.Uri
+----import androidx.activity.compose.rememberLauncherForActivityResult
+----import androidx.activity.result.contract.ActivityResultContracts
+----import androidx.compose.foundation.layout.*
+----import androidx.compose.material.icons.Icons
+----import androidx.compose.material.icons.automirrored.filled.ArrowBack
+----import androidx.compose.material.icons.filled.CloudDownload
+----import androidx.compose.material.icons.filled.CloudUpload
+----import androidx.compose.material3.*
+----import androidx.compose.runtime.*
+----import androidx.compose.ui.Alignment
+----import androidx.compose.ui.Modifier
+----import androidx.compose.ui.unit.dp
+----import java.text.SimpleDateFormat
+----import java.util.Date
+----import java.util.Locale
+----
+----@OptIn(ExperimentalMaterial3Api::class)
+----@Composable
+----fun BackupScreen(
+----    onBack: () -> Unit,
+----    onBackup: (Uri) -> Unit,
+----    onRestore: (Uri) -> Unit
+----) {
+----    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+----
+----    val backupLauncher = rememberLauncherForActivityResult(
+----        contract = ActivityResultContracts.CreateDocument("application/zip")
+----    ) { uri -> uri?.let(onBackup) }
+----
+----    val restoreLauncher = rememberLauncherForActivityResult(
+----        contract = ActivityResultContracts.OpenDocument()
+----    ) { uri -> pendingRestoreUri = uri }
+----
+----    fun launchBackup() {
+----        val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
+----        backupLauncher.launch("shouze-backup-$stamp.zip")
+----    }
+----
+----    Scaffold(
+----        topBar = {
+----            TopAppBar(
+----                title = { Text("Backup & Restore") },
+----                navigationIcon = {
+----                    IconButton(onClick = onBack) {
+----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+----                    }
+----                }
+----            )
+----        }
+----    ) { padding ->
+----        Column(
+----            modifier = Modifier
+----                .padding(padding)
+----                .fillMaxSize()
+----                .padding(horizontal = 16.dp, vertical = 24.dp),
+----            verticalArrangement = Arrangement.spacedBy(16.dp)
+----        ) {
+----            Card(
+----                modifier = Modifier.fillMaxWidth(),
+----                onClick = ::launchBackup
+----            ) {
+----                Row(
+----                    modifier = Modifier
+----                        .fillMaxWidth()
+----                        .padding(20.dp),
+----                    verticalAlignment = Alignment.CenterVertically
+----                ) {
+----                    Icon(
+----                        imageVector = Icons.Default.CloudUpload,
+----                        contentDescription = null,
+----                        tint = MaterialTheme.colorScheme.primary,
+----                        modifier = Modifier.size(32.dp)
+----                    )
+----                    Spacer(modifier = Modifier.width(16.dp))
+----                    Column {
+----                        Text(
+----                            text = "Create Backup",
+----                            style = MaterialTheme.typography.titleMedium
+----                        )
+----                        Text(
+----                            text = "Export your library to a zip file",
+----                            style = MaterialTheme.typography.bodyMedium,
+----                            color = MaterialTheme.colorScheme.onSurfaceVariant
+----                        )
+----                    }
+----                }
+----            }
+----
+----            Card(
+----                modifier = Modifier.fillMaxWidth(),
+----                onClick = {
+----                    restoreLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
+----                }
+----            ) {
+----                Row(
+----                    modifier = Modifier
+----                        .fillMaxWidth()
+----                        .padding(20.dp),
+----                    verticalAlignment = Alignment.CenterVertically
+----                ) {
+----                    Icon(
+----                        imageVector = Icons.Default.CloudDownload,
+----                        contentDescription = null,
+----                        tint = MaterialTheme.colorScheme.primary,
+----                        modifier = Modifier.size(32.dp)
+----                    )
+----                    Spacer(modifier = Modifier.width(16.dp))
+----                    Column {
+----                        Text(
+----                            text = "Restore Backup",
+----                            style = MaterialTheme.typography.titleMedium
+----                        )
+----                        Text(
+----                            text = "Import data from a previous backup",
+----                            style = MaterialTheme.typography.bodyMedium,
+----                            color = MaterialTheme.colorScheme.onSurfaceVariant
+----                        )
+----                    }
+----                }
+----            }
+----        }
+----    }
+----
+----    if (pendingRestoreUri != null) {
+----        AlertDialog(
+----            onDismissRequest = { pendingRestoreUri = null },
+----            icon = { Icon(Icons.Filled.CloudDownload, contentDescription = null) },
+----            title = { Text("Restore backup?") },
+----            text = { Text("This will replace all current data with the backup's contents. This cannot be undone.") },
+----            confirmButton = {
+----                TextButton(onClick = {
+----                    pendingRestoreUri?.let(onRestore)
+----                    pendingRestoreUri = null
+----                }) { Text("Restore") }
+----            },
+----            dismissButton = {
+----                TextButton(onClick = { pendingRestoreUri = null }) { Text("Cancel") }
+----            }
+----        )
+----    }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/CategoriesScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/CategoriesScreen.kt
+---deleted file mode 100644
+---index 968a352..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/screens/CategoriesScreen.kt
+---+++ /dev/null
+---@@ -1,110 +0,0 @@
+----package com.app.shouze.ui.screens
+----
+----import androidx.compose.foundation.layout.*
+----import androidx.compose.foundation.rememberScrollState
+----import androidx.compose.foundation.verticalScroll
+----import androidx.compose.material.icons.Icons
+----import androidx.compose.material.icons.automirrored.filled.ArrowBack
+----import androidx.compose.material.icons.filled.Add
+----import androidx.compose.material.icons.filled.Delete
+----import androidx.compose.material3.*
+----import androidx.compose.runtime.*
+----import androidx.compose.ui.Alignment
+----import androidx.compose.ui.Modifier
+----import androidx.compose.ui.unit.dp
+----import com.app.shouze.data.local.CategoryEntity
+----
+----@OptIn(ExperimentalMaterial3Api::class)
+----@Composable
+----fun CategoriesScreen(
+----    categories: List<CategoryEntity>,
+----    onBack: () -> Unit,
+----    onAddCategory: (String) -> Unit,
+----    onDeleteCategory: (String) -> Unit
+----) {
+----    var newCategoryName by remember { mutableStateOf("") }
+----
+----    Scaffold(
+----        topBar = {
+----            TopAppBar(
+----                title = { Text("Categories") },
+----                navigationIcon = {
+----                    IconButton(onClick = onBack) {
+----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+----                    }
+----                }
+----            )
+----        }
+----    ) { padding ->
+----        Column(
+----            modifier = Modifier
+----                .padding(padding)
+----                .fillMaxSize()
+----                .padding(horizontal = 16.dp, vertical = 8.dp)
+----                .verticalScroll(rememberScrollState())
+----        ) {
+----            Card(modifier = Modifier.fillMaxWidth()) {
+----                Column(modifier = Modifier.padding(16.dp)) {
+----                    categories.forEach { cat ->
+----                        Row(
+----                            modifier = Modifier
+----                                .fillMaxWidth()
+----                                .padding(vertical = 4.dp),
+----                            horizontalArrangement = Arrangement.SpaceBetween,
+----                            verticalAlignment = Alignment.CenterVertically
+----                        ) {
+----                            Text(
+----                                text = cat.name,
+----                                style = MaterialTheme.typography.bodyLarge,
+----                                modifier = Modifier.weight(1f)
+----                            )
+----                            IconButton(onClick = { onDeleteCategory(cat.id) }) {
+----                                Icon(
+----                                    imageVector = Icons.Default.Delete,
+----                                    contentDescription = "Delete ${cat.name}",
+----                                    tint = MaterialTheme.colorScheme.error
+----                                )
+----                            }
+----                        }
+----                    }
+----
+----                    if (categories.isEmpty()) {
+----                        Text(
+----                            text = "No categories yet.",
+----                            style = MaterialTheme.typography.bodyMedium,
+----                            color = MaterialTheme.colorScheme.onSurfaceVariant
+----                        )
+----                    }
+----
+----                    Spacer(modifier = Modifier.height(8.dp))
+----                    HorizontalDivider()
+----                    Spacer(modifier = Modifier.height(8.dp))
+----
+----                    Row(
+----                        verticalAlignment = Alignment.CenterVertically,
+----                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+----                    ) {
+----                        OutlinedTextField(
+----                            value = newCategoryName,
+----                            onValueChange = { newCategoryName = it },
+----                            label = { Text("New category") },
+----                            singleLine = true,
+----                            modifier = Modifier.weight(1f)
+----                        )
+----                        IconButton(
+----                            onClick = {
+----                                val trimmed = newCategoryName.trim()
+----                                if (trimmed.isNotBlank()) {
+----                                    onAddCategory(trimmed)
+----                                    newCategoryName = ""
+----                                }
+----                            }
+----                        ) {
+----                            Icon(Icons.Default.Add, contentDescription = "Add category")
+----                        }
+----                    }
+----                }
+----            }
+----        }
+----    }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/DetailScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/DetailScreen.kt
+---deleted file mode 100644
+---index 4792ff0..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/screens/DetailScreen.kt
+---+++ /dev/null
+---@@ -1,287 +0,0 @@
+----package com.app.shouze.ui.screens
+----
+----import androidx.compose.foundation.background
+----import androidx.compose.foundation.layout.*
+----import androidx.compose.foundation.rememberScrollState
+----import androidx.compose.foundation.shape.CircleShape
+----import androidx.compose.foundation.verticalScroll
+----import androidx.compose.material.icons.Icons
+----import androidx.compose.material.icons.automirrored.filled.ArrowBack
+----import androidx.compose.material.icons.automirrored.filled.StarHalf
+----import androidx.compose.material.icons.filled.Delete
+----import androidx.compose.material.icons.filled.Edit
+----import androidx.compose.material.icons.filled.Star
+----import androidx.compose.material.icons.filled.StarBorder
+----import androidx.compose.material3.*
+----import androidx.compose.runtime.*
+----import androidx.compose.ui.Alignment
+----import androidx.compose.ui.Modifier
+----import androidx.compose.ui.draw.clip
+----import androidx.compose.ui.graphics.Color
+----import androidx.compose.ui.graphics.vector.ImageVector
+----import androidx.compose.ui.text.style.TextOverflow
+----import androidx.compose.ui.unit.dp
+----import com.app.shouze.data.local.CategoryEntity
+----import com.app.shouze.data.local.MediaItemEntity
+----import com.app.shouze.data.local.Status
+----import java.text.SimpleDateFormat
+----import java.util.Date
+----import java.util.Locale
+----
+----@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+----@Composable
+----fun DetailScreen(
+----    item: MediaItemEntity,
+----    category: CategoryEntity?,
+----    onBack: () -> Unit,
+----    onEdit: () -> Unit,
+----    onDelete: () -> Unit
+----) {
+----    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault()) }
+----    var showDeleteConfirm by remember { mutableStateOf(false) }
+----
+----    Scaffold(
+----        topBar = {
+----            TopAppBar(
+----                title = { Text("Details", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+----                navigationIcon = {
+----                    IconButton(onClick = onBack) {
+----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+----                    }
+----                },
+----                actions = {
+----                    IconButton(onClick = onEdit) {
+----                        Icon(Icons.Filled.Edit, contentDescription = "Edit")
+----                    }
+----                    IconButton(onClick = { showDeleteConfirm = true }) {
+----                        Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+----                    }
+----                }
+----            )
+----        }
+----    ) { padding ->
+----        Column(
+----            modifier = Modifier
+----                .padding(padding)
+----                .fillMaxSize()
+----                .verticalScroll(rememberScrollState())
+----                .padding(horizontal = 20.dp, vertical = 16.dp),
+----            horizontalAlignment = Alignment.CenterHorizontally
+----        ) {
+----            val hue = (item.title.hashCode() and 0x7fffffff) % 360
+----            val avatarColor = Color(
+----                android.graphics.Color.HSVToColor(floatArrayOf(hue.toFloat(), 0.52f, 0.88f))
+----            )
+----            Box(
+----                modifier = Modifier
+----                    .size(120.dp)
+----                    .clip(CircleShape)
+----                    .background(avatarColor),
+----                contentAlignment = Alignment.Center
+----            ) {
+----                Text(
+----                    text = item.title.firstOrNull()?.uppercase() ?: "?",
+----                    style = MaterialTheme.typography.displayMedium,
+----                    color = Color.White
+----                )
+----            }
+----
+----            Spacer(modifier = Modifier.height(20.dp))
+----
+----            Text(
+----                text = item.title,
+----                style = MaterialTheme.typography.headlineMedium,
+----                color = MaterialTheme.colorScheme.onSurface
+----            )
+----
+----            Spacer(modifier = Modifier.height(8.dp))
+----
+----            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+----                AssistChip(onClick = { }, label = { Text(category?.name ?: "Unknown") })
+----                AssistChip(
+----                    onClick = { },
+----                    label = { Text(statusLabel(item.status)) },
+----                    colors = AssistChipDefaults.assistChipColors(
+----                        containerColor = statusContainerColor(item.status),
+----                        labelColor = statusContentColor(item.status)
+----                    )
+----                )
+----            }
+----
+----            Spacer(modifier = Modifier.height(24.dp))
+----
+----            if (item.genres.isNotEmpty()) {
+----                DetailInfoCard(title = "Genres") {
+----                    FlowRow(
+----                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+----                        verticalArrangement = Arrangement.spacedBy(4.dp)
+----                    ) {
+----                        item.genres.forEach { genre ->
+----                            SuggestionChip(
+----                                onClick = { },
+----                                label = { Text(genre) }
+----                            )
+----                        }
+----                    }
+----                }
+----                Spacer(modifier = Modifier.height(12.dp))
+----            }
+----
+----            DetailInfoCard(title = "Progress") {
+----                val progressText = if (item.totalCount > 0) {
+----                    "${item.currentProgress} / ${item.totalCount}"
+----                } else {
+----                    "${item.currentProgress} / ongoing"
+----                }
+----                Text(text = progressText, style = MaterialTheme.typography.headlineSmall)
+----                Spacer(modifier = Modifier.height(8.dp))
+----                if (item.totalCount > 0) {
+----                    LinearProgressIndicator(
+----                        progress = { (item.currentProgress.toFloat() / item.totalCount).coerceIn(0f, 1f) },
+----                        modifier = Modifier.fillMaxWidth(),
+----                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+----                        color = MaterialTheme.colorScheme.primary
+----                    )
+----                }
+----                if (item.currentVolume != null) {
+----                    Spacer(modifier = Modifier.height(8.dp))
+----                    Text(
+----                        text = "Current Volume: ${item.currentVolume}",
+----                        style = MaterialTheme.typography.bodyLarge,
+----                        color = MaterialTheme.colorScheme.onSurfaceVariant
+----                    )
+----                }
+----            }
+----
+----            Spacer(modifier = Modifier.height(12.dp))
+----
+----            if (item.rating > 0.0) {
+----                DetailInfoCard(title = "Rating") {
+----                    LargeRatingBar(rating = item.rating)
+----                }
+----                Spacer(modifier = Modifier.height(12.dp))
+----            }
+----
+----            DetailInfoCard(title = "Info") {
+----                InfoRow(label = "Last Updated", value = dateFormat.format(Date(item.lastUpdated)))
+----                if (!item.coverImageUri.isNullOrBlank()) {
+----                    Spacer(modifier = Modifier.height(4.dp))
+----                    InfoRow(label = "Cover URI", value = item.coverImageUri)
+----                }
+----            }
+----        }
+----    }
+----
+----    if (showDeleteConfirm) {
+----        AlertDialog(
+----            onDismissRequest = { showDeleteConfirm = false },
+----            title = { Text("Delete item?") },
+----            text = { Text("This will permanently remove \"${item.title}\" from your library.") },
+----            confirmButton = {
+----                TextButton(onClick = {
+----                    onDelete()
+----                    showDeleteConfirm = false
+----                }) {
+----                    Text("Delete", color = MaterialTheme.colorScheme.error)
+----                }
+----            },
+----            dismissButton = {
+----                TextButton(onClick = { showDeleteConfirm = false }) {
+----                    Text("Cancel")
+----                }
+----            }
+----        )
+----    }
+----}
+----
+----@Composable
+----private fun DetailInfoCard(
+----    title: String,
+----    modifier: Modifier = Modifier,
+----    content: @Composable ColumnScope.() -> Unit
+----) {
+----    Card(
+----        modifier = modifier.fillMaxWidth(),
+----        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+----    ) {
+----        Column(modifier = Modifier.padding(16.dp)) {
+----            Text(
+----                text = title,
+----                style = MaterialTheme.typography.titleSmall,
+----                color = MaterialTheme.colorScheme.primary
+----            )
+----            Spacer(modifier = Modifier.height(8.dp))
+----            content()
+----        }
+----    }
+----}
+----
+----@Composable
+----private fun InfoRow(label: String, value: String) {
+----    Row(modifier = Modifier.fillMaxWidth()) {
+----        Text(
+----            text = "$label: ",
+----            style = MaterialTheme.typography.bodyMedium,
+----            color = MaterialTheme.colorScheme.onSurfaceVariant
+----        )
+----        Text(
+----            text = value,
+----            style = MaterialTheme.typography.bodyMedium,
+----            color = MaterialTheme.colorScheme.onSurface
+----        )
+----    }
+----}
+----
+----@Composable
+----private fun LargeRatingBar(rating: Double, modifier: Modifier = Modifier) {
+----    val scale = (rating / 2.0).coerceIn(0.0, 5.0)
+----    val fullStars = scale.toInt()
+----    val hasHalf = scale - fullStars >= 0.5
+----    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+----        repeat(5) { index ->
+----            val icon: ImageVector = when {
+----                index < fullStars -> Icons.Filled.Star
+----                index == fullStars && hasHalf -> Icons.AutoMirrored.Filled.StarHalf
+----                else -> Icons.Filled.StarBorder
+----            }
+----            Icon(
+----                imageVector = icon,
+----                contentDescription = null,
+----                tint = MaterialTheme.colorScheme.tertiary,
+----                modifier = Modifier.size(32.dp)
+----            )
+----        }
+----        Spacer(modifier = Modifier.width(12.dp))
+----        Text(
+----            text = "%.1f".format(rating),
+----            style = MaterialTheme.typography.headlineSmall,
+----            color = MaterialTheme.colorScheme.onSurface
+----        )
+----    }
+----}
+----
+----private fun statusLabel(status: Status): String = when (status) {
+----    Status.COMPLETED -> "Completed"
+----    Status.DROPPED -> "Dropped"
+----    Status.PLAN_TO_WATCH -> "Plan to Watch"
+----    Status.WATCHING -> "Watching"
+----    Status.READING -> "Reading"
+----}
+----
+----@Composable
+----private fun statusContainerColor(status: Status): Color = when (status) {
+----    Status.COMPLETED -> MaterialTheme.colorScheme.tertiaryContainer
+----    Status.DROPPED -> MaterialTheme.colorScheme.errorContainer
+----    Status.PLAN_TO_WATCH -> MaterialTheme.colorScheme.surfaceVariant
+----    Status.WATCHING -> MaterialTheme.colorScheme.primaryContainer
+----    Status.READING -> MaterialTheme.colorScheme.primaryContainer
+----}
+----
+----@Composable
+----private fun statusContentColor(status: Status): Color = when (status) {
+----    Status.COMPLETED -> MaterialTheme.colorScheme.onTertiaryContainer
+----    Status.DROPPED -> MaterialTheme.colorScheme.onErrorContainer
+----    Status.PLAN_TO_WATCH -> MaterialTheme.colorScheme.onSurfaceVariant
+----    Status.WATCHING -> MaterialTheme.colorScheme.onPrimaryContainer
+----    Status.READING -> MaterialTheme.colorScheme.onPrimaryContainer
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/HomeScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/HomeScreen.kt
+---deleted file mode 100644
+---index 48af3f9..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/screens/HomeScreen.kt
+---+++ /dev/null
+---@@ -1,201 +0,0 @@
+----package com.app.shouze.ui.screens
+----
+----import androidx.compose.animation.AnimatedVisibility
+----import androidx.compose.animation.expandVertically
+----import androidx.compose.animation.fadeIn
+----import androidx.compose.animation.fadeOut
+----import androidx.compose.animation.shrinkVertically
+----import androidx.compose.foundation.layout.*
+----import androidx.compose.foundation.lazy.LazyColumn
+----import androidx.compose.foundation.lazy.items
+----import androidx.compose.material.icons.Icons
+----import androidx.compose.material.icons.filled.Add
+----import androidx.compose.material.icons.filled.CheckCircle
+----import androidx.compose.material.icons.filled.ErrorOutline
+----import androidx.compose.material.icons.filled.MovieFilter
+----import androidx.compose.material.icons.filled.Search
+----import androidx.compose.material.icons.filled.Settings
+----import androidx.compose.material3.*
+----import androidx.compose.runtime.*
+----import androidx.compose.ui.Alignment
+----import androidx.compose.ui.Modifier
+----import androidx.compose.ui.platform.LocalConfiguration
+----import androidx.compose.ui.unit.dp
+----import com.app.shouze.data.local.MediaItemEntity
+----import com.app.shouze.ui.HomeUiState
+----import com.app.shouze.ui.components.MediaCardItem
+----
+----@OptIn(ExperimentalMaterial3Api::class)
+----@Composable
+----fun HomeScreen(
+----    uiState: HomeUiState,
+----    onAddClick: () -> Unit,
+----    onItemClick: (MediaItemEntity) -> Unit,
+----    onCategorySelected: (String?) -> Unit,
+----    onSearchQueryChange: (String) -> Unit,
+----    onClearMessage: () -> Unit,
+----    onSettingsClick: () -> Unit
+----) {
+----    val isError = uiState.error != null
+----    val message = uiState.error ?: uiState.syncMessage
+----    val configuration = LocalConfiguration.current
+----    val isCompactWidth = configuration.screenWidthDp < 600
+----
+----    val selectedIndex = uiState.categories.indexOfFirst { it.id == uiState.selectedCategoryId }
+----        .let { if (it == -1) 0 else it + 1 }
+----
+----    Scaffold(
+----        topBar = {
+----            TopAppBar(
+----                title = { Text("Shouze") },
+----                actions = {
+----                    IconButton(onClick = onSettingsClick) {
+----                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+----                    }
+----                }
+----            )
+----        },
+----        floatingActionButton = {
+----            ExtendedFloatingActionButton(
+----                onClick = onAddClick,
+----                icon = { Icon(Icons.Filled.Add, contentDescription = "Add item") },
+----                text = { Text("Add Media") },
+----                modifier = if (isCompactWidth) Modifier.fillMaxWidth(0.9f) else Modifier.widthIn(min = 160.dp),
+----                expanded = true
+----            )
+----        },
+----        containerColor = MaterialTheme.colorScheme.background
+----    ) { innerPadding ->
+----        Column(modifier = Modifier.padding(innerPadding)) {
+----            OutlinedTextField(
+----                value = uiState.searchQuery,
+----                onValueChange = onSearchQueryChange,
+----                modifier = Modifier
+----                    .fillMaxWidth()
+----                    .padding(horizontal = 16.dp, vertical = 8.dp),
+----                placeholder = { Text("Search...") },
+----                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+----                singleLine = true
+----            )
+----
+----            ScrollableTabRow(
+----                selectedTabIndex = selectedIndex,
+----                edgePadding = 16.dp
+----            ) {
+----                Tab(
+----                    selected = uiState.selectedCategoryId == null,
+----                    onClick = { onCategorySelected(null) },
+----                    text = { Text("All", style = MaterialTheme.typography.labelMedium) }
+----                )
+----                uiState.categories.forEach { category ->
+----                    Tab(
+----                        selected = uiState.selectedCategoryId == category.id,
+----                        onClick = { onCategorySelected(category.id) },
+----                        text = { Text(category.name, style = MaterialTheme.typography.labelMedium) }
+----                    )
+----                }
+----            }
+----
+----            if (uiState.isLoading) {
+----                LinearProgressIndicator(
+----                    modifier = Modifier.fillMaxWidth(),
+----                    color = MaterialTheme.colorScheme.primary
+----                )
+----            }
+----
+----            AnimatedVisibility(
+----                visible = message != null,
+----                enter = fadeIn() + expandVertically(),
+----                exit = fadeOut() + shrinkVertically()
+----            ) {
+----                val snackbarColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.inverseSurface
+----                val snackbarContent = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.inverseOnSurface
+----                Snackbar(
+----                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+----                    containerColor = snackbarColor,
+----                    contentColor = snackbarContent,
+----                    action = {
+----                        TextButton(onClick = onClearMessage) {
+----                            Text("Dismiss", color = snackbarContent)
+----                        }
+----                    }
+----                ) {
+----                    Row(verticalAlignment = Alignment.CenterVertically) {
+----                        Icon(
+----                            imageVector = if (isError) Icons.Filled.ErrorOutline else Icons.Filled.CheckCircle,
+----                            contentDescription = null,
+----                            modifier = Modifier.size(18.dp)
+----                        )
+----                        Spacer(modifier = Modifier.width(8.dp))
+----                        Text(message ?: "")
+----                    }
+----                }
+----            }
+----
+----            if (uiState.items.isEmpty() && !uiState.isLoading) {
+----                EmptyState(
+----                    hasSearchOrFilter = uiState.searchQuery.isNotBlank() || uiState.selectedCategoryId != null,
+----                    modifier = Modifier.fillMaxSize()
+----                )
+----            } else {
+----                LazyColumn(
+----                    modifier = Modifier.fillMaxSize(),
+----                    contentPadding = PaddingValues(vertical = 8.dp)
+----                ) {
+----                    items(
+----                        items = uiState.items,
+----                        key = { it.id }
+----                    ) { item ->
+----                        val categoryName = uiState.categories.find { it.id == item.categoryId }?.name ?: "Unknown"
+----                        MediaCardItem(
+----                            item = item,
+----                            categoryName = categoryName,
+----                            onClick = { onItemClick(item) },
+----                            modifier = Modifier.animateItem()
+----                        )
+----                    }
+----                }
+----            }
+----        }
+----    }
+----}
+----
+----@Composable
+----private fun EmptyState(
+----    hasSearchOrFilter: Boolean,
+----    modifier: Modifier = Modifier
+----) {
+----    Column(
+----        modifier = modifier,
+----        horizontalAlignment = Alignment.CenterHorizontally,
+----        verticalArrangement = Arrangement.Center
+----    ) {
+----        Icon(
+----            imageVector = Icons.Filled.MovieFilter,
+----            contentDescription = null,
+----            tint = MaterialTheme.colorScheme.surfaceVariant,
+----            modifier = Modifier.size(64.dp)
+----        )
+----        Spacer(modifier = Modifier.height(16.dp))
+----        Text(
+----            text = if (hasSearchOrFilter) "No results found" else "Your library is empty",
+----            style = MaterialTheme.typography.titleMedium,
+----            color = MaterialTheme.colorScheme.onSurface
+----        )
+----        if (hasSearchOrFilter) {
+----            Spacer(modifier = Modifier.height(4.dp))
+----            Text(
+----                text = "Try changing your search or filter.",
+----                style = MaterialTheme.typography.bodyMedium,
+----                color = MaterialTheme.colorScheme.onSurfaceVariant
+----            )
+----        } else {
+----            Spacer(modifier = Modifier.height(8.dp))
+----            Text(
+----                text = "Press the + icon below to add your first media entry",
+----                style = MaterialTheme.typography.bodyMedium,
+----                color = MaterialTheme.colorScheme.onSurfaceVariant
+----            )
+----        }
+----    }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/OnboardingScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/OnboardingScreen.kt
+---deleted file mode 100644
+---index 2705f8b..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/screens/OnboardingScreen.kt
+---+++ /dev/null
+---@@ -1,148 +0,0 @@
+----package com.app.shouze.ui.screens
+----
+----import android.app.Activity
+----import androidx.compose.animation.core.*
+----import androidx.compose.foundation.Canvas
+----import androidx.compose.foundation.ExperimentalFoundationApi
+----import androidx.compose.foundation.background
+----import androidx.compose.foundation.layout.*
+----import androidx.compose.foundation.pager.HorizontalPager
+----import androidx.compose.foundation.pager.rememberPagerState
+----import androidx.compose.foundation.shape.CircleShape
+----import androidx.compose.material3.*
+----import androidx.compose.runtime.*
+----import androidx.compose.ui.Alignment
+----import androidx.compose.ui.Modifier
+----import androidx.compose.ui.draw.clip
+----import androidx.compose.ui.graphics.Brush
+----import androidx.compose.ui.graphics.Color
+----import androidx.compose.ui.graphics.Path
+----import androidx.compose.ui.platform.LocalContext
+----import androidx.compose.ui.text.font.FontWeight
+----import androidx.compose.ui.text.style.TextAlign
+----import androidx.compose.ui.unit.dp
+----import kotlin.math.PI
+----import kotlin.math.sin
+----
+----@OptIn(ExperimentalFoundationApi::class)
+----@Composable
+----fun OnboardingScreen(
+----    onGetStarted: () -> Unit,
+----    onNotNow: () -> Unit
+----) {
+----    // Use a solid background color – change to your preferred color
+----    val backgroundColor = MaterialTheme.colorScheme.primary
+----
+----    Box(
+----        modifier = Modifier
+----            .fillMaxSize()
+----            .background(backgroundColor)
+----    ) {
+----        Column(
+----            modifier = Modifier
+----                .fillMaxSize()
+----                .padding(horizontal = 24.dp)
+----                .padding(bottom = 48.dp),
+----            horizontalAlignment = Alignment.CenterHorizontally
+----        ) {
+----            // Top spacer pushes content down a bit
+----            Spacer(modifier = Modifier.weight(1f))
+----
+----            Text(
+----                text = "Welcome to Shouze",
+----                style = MaterialTheme.typography.headlineLarge,
+----                fontWeight = FontWeight.Bold,
+----                color = MaterialTheme.colorScheme.onPrimary,
+----                textAlign = TextAlign.Center
+----            )
+----            Spacer(modifier = Modifier.height(8.dp))
+----            Text(
+----                text = "Your personal keeper for anime, manga, and everything you watch.",
+----                style = MaterialTheme.typography.bodyLarge,
+----                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+----                textAlign = TextAlign.Center
+----            )
+----
+----            Spacer(modifier = Modifier.weight(1f))
+----
+----            Button(
+----                onClick = onGetStarted,
+----                modifier = Modifier
+----                    .fillMaxWidth()
+----                    .height(56.dp),
+----                shape = MaterialTheme.shapes.extraLarge,
+----                colors = ButtonDefaults.buttonColors(
+----                    containerColor = MaterialTheme.colorScheme.surface,
+----                    contentColor = MaterialTheme.colorScheme.primary
+----                )
+----            ) {
+----                Text("Get Started", style = MaterialTheme.typography.titleMedium)
+----            }
+----            Spacer(modifier = Modifier.height(16.dp))
+----            TextButton(onClick = onNotNow) {
+----                Text(
+----                    "Not Now",
+----                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+----                )
+----            }
+----        }
+----    }
+----}
+----
+----@Composable
+----private fun AnimePlaceholderPage(page: Int, modifier: Modifier = Modifier) {
+----    val gradients = listOf(
+----        Brush.verticalGradient(listOf(Color(0xFF1B5E20), Color(0xFF2E7D32))),
+----        Brush.verticalGradient(listOf(Color(0xFF0D47A1), Color(0xFF1976D2))),
+----        Brush.verticalGradient(listOf(Color(0xFFB71C1C), Color(0xFFC62828)))
+----    )
+----
+----    Box(
+----        modifier = modifier.background(gradients[page % gradients.size]),
+----        contentAlignment = Alignment.Center
+----    ) {
+----        Text(
+----            text = "Anime Image ${page + 1}",
+----            style = MaterialTheme.typography.headlineMedium,
+----            color = Color.White.copy(alpha = 0.4f)
+----        )
+----    }
+----}
+----
+----@Composable
+----private fun AnimatedWave(modifier: Modifier = Modifier, color: Color) {
+----    val infiniteTransition = rememberInfiniteTransition(label = "wave")
+----    val phase by infiniteTransition.animateFloat(
+----        initialValue = 0f,
+----        targetValue = (2.0 * PI).toFloat(),
+----        animationSpec = infiniteRepeatable(
+----            animation = tween(5000, easing = LinearEasing),
+----            repeatMode = RepeatMode.Restart
+----        ),
+----        label = "phase"
+----    )
+----
+----    Canvas(modifier = modifier) {
+----        val path = Path()
+----        val w = size.width
+----        val h = size.height
+----        val amplitude = h * 0.5f  // gentler bumps
+----        val frequency = (1.5f * 2f * PI.toFloat()) / w  // 1.5 cycles across width
+----
+----        // Start at top-left
+----        path.moveTo(0f, 0f)
+----
+----        // Draw wavy top edge — sine dips down from y=0, never goes above
+----        for (x in 0..w.toInt()) {
+----            val y = amplitude * (1f - sin(frequency * x + phase)) * 0.5f
+----            path.lineTo(x.toFloat(), y)
+----        }
+----
+----        // Close down to bottom-right, bottom-left
+----        path.lineTo(w, h)
+----        path.lineTo(0f, h)
+----        path.close()
+----
+----        drawPath(path, color = color)
+----    }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/ui/screens/SettingsScreen.kt b/app/src/main/java/com/app/Shouze/ui/screens/SettingsScreen.kt
+---deleted file mode 100644
+---index 48ebab0..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/screens/SettingsScreen.kt
+---+++ /dev/null
+---@@ -1,139 +0,0 @@
+----package com.app.shouze.ui.screens
+----
+----import androidx.compose.foundation.clickable
+----import androidx.compose.foundation.layout.*
+----import androidx.compose.foundation.rememberScrollState
+----import androidx.compose.foundation.verticalScroll
+----import androidx.compose.material.icons.Icons
+----import androidx.compose.material.icons.automirrored.filled.ArrowBack
+----import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+----import androidx.compose.material.icons.filled.CloudUpload
+----import androidx.compose.material.icons.filled.Folder
+----import androidx.compose.material.icons.filled.Info
+----import androidx.compose.material.icons.filled.Palette
+----import androidx.compose.material3.*
+----import androidx.compose.runtime.Composable
+----import androidx.compose.ui.Alignment
+----import androidx.compose.ui.Modifier
+----import androidx.compose.ui.unit.dp
+----
+----@OptIn(ExperimentalMaterial3Api::class)
+----@Composable
+----fun SettingsScreen(
+----    onBack: () -> Unit,
+----    onNavigateToAppearance: () -> Unit,
+----    onNavigateToCategories: () -> Unit,
+----    onNavigateToBackup: () -> Unit,
+----    onNavigateToAbout: () -> Unit
+----) {
+----    Scaffold(
+----        topBar = {
+----            TopAppBar(
+----                title = { Text("Settings") },
+----                navigationIcon = {
+----                    IconButton(onClick = onBack) {
+----                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+----                    }
+----                }
+----            )
+----        }
+----    ) { padding ->
+----        Column(
+----            modifier = Modifier
+----                .padding(padding)
+----                .fillMaxSize()
+----                .verticalScroll(rememberScrollState())
+----                .padding(horizontal = 16.dp, vertical = 8.dp)
+----        ) {
+----            SettingsSection(title = "General") {
+----                SettingsItem(
+----                    title = "Appearance",
+----                    subtitle = "Theme, colors, display",
+----                    icon = Icons.Default.Palette,
+----                    onClick = onNavigateToAppearance
+----                )
+----                SettingsItem(
+----                    title = "Categories",
+----                    subtitle = "Manage your library categories",
+----                    icon = Icons.Default.Folder,
+----                    onClick = onNavigateToCategories
+----                )
+----                SettingsItem(
+----                    title = "Backup & Restore",
+----                    subtitle = "Export or import your data",
+----                    icon = Icons.Default.CloudUpload,
+----                    onClick = onNavigateToBackup
+----                )
+----            }
+----
+----            Spacer(modifier = Modifier.height(16.dp))
+----
+----            SettingsSection(title = "Info") {
+----                SettingsItem(
+----                    title = "About",
+----                    subtitle = "App version and information",
+----                    icon = Icons.Default.Info,
+----                    onClick = onNavigateToAbout
+----                )
+----            }
+----        }
+----    }
+----}
+----
+----@Composable
+----private fun SettingsSection(
+----    title: String,
+----    content: @Composable ColumnScope.() -> Unit
+----) {
+----    Text(
+----        text = title,
+----        style = MaterialTheme.typography.titleMedium,
+----        color = MaterialTheme.colorScheme.primary,
+----        modifier = Modifier.padding(vertical = 8.dp)
+----    )
+----    Card(modifier = Modifier.fillMaxWidth()) {
+----        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+----            content()
+----        }
+----    }
+----}
+----
+----@Composable
+----private fun SettingsItem(
+----    title: String,
+----    subtitle: String,
+----    icon: androidx.compose.ui.graphics.vector.ImageVector,
+----    onClick: () -> Unit
+----) {
+----    Row(
+----        modifier = Modifier
+----            .fillMaxWidth()
+----            .clickable(onClick = onClick)
+----            .padding(horizontal = 16.dp, vertical = 14.dp),
+----        verticalAlignment = Alignment.CenterVertically
+----    ) {
+----        Icon(
+----            imageVector = icon,
+----            contentDescription = null,
+----            tint = MaterialTheme.colorScheme.primary,
+----            modifier = Modifier.size(24.dp)
+----        )
+----        Spacer(modifier = Modifier.width(16.dp))
+----        Column(modifier = Modifier.weight(1f)) {
+----            Text(
+----                text = title,
+----                style = MaterialTheme.typography.bodyLarge
+----            )
+----            Text(
+----                text = subtitle,
+----                style = MaterialTheme.typography.bodyMedium,
+----                color = MaterialTheme.colorScheme.onSurfaceVariant
+----            )
+----        }
+----        Icon(
+----            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+----            contentDescription = null,
+----            tint = MaterialTheme.colorScheme.onSurfaceVariant
+----        )
+----    }
+----}
+---diff --git a/app/src/main/java/com/app/Shouze/ui/theme/MediaTrackerTheme.kt b/app/src/main/java/com/app/Shouze/ui/theme/MediaTrackerTheme.kt
+---deleted file mode 100644
+---index 9e6bc87..0000000
+------ a/app/src/main/java/com/app/Shouze/ui/theme/MediaTrackerTheme.kt
+---+++ /dev/null
+---@@ -1,40 +0,0 @@
+----package com.app.shouze.ui.theme
+----
+----import android.os.Build
+----import androidx.compose.foundation.isSystemInDarkTheme
+----import androidx.compose.material3.*
+----import androidx.compose.runtime.Composable
+----import androidx.compose.ui.graphics.Color
+----import androidx.compose.ui.platform.LocalContext
+----import com.app.shouze.data.AppSettings
+----import com.app.shouze.data.ThemeMode
+----
+----@Composable
+----fun MediaTrackerTheme(
+----    settings: AppSettings = AppSettings(),
+----    content: @Composable () -> Unit
+----) {
+----    val darkTheme = when (settings.themeMode) {
+----        ThemeMode.LIGHT -> false
+----        ThemeMode.DARK -> true
+----        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+----    }
+----
+----    val dynamicColor = settings.useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+----
+----    val colorScheme = when {
+----        dynamicColor && darkTheme -> dynamicDarkColorScheme(LocalContext.current)
+----        dynamicColor && !darkTheme -> dynamicLightColorScheme(LocalContext.current)
+----        darkTheme -> if (settings.amoledBlack) darkColorScheme(
+----            background = Color.Black,
+----            surface = Color.Black
+----        ) else darkColorScheme()
+----        else -> lightColorScheme()
+----    }
+----
+----    MaterialTheme(
+----        colorScheme = colorScheme,
+----        typography = Typography(),
+----        content = content
+----    )
+----}

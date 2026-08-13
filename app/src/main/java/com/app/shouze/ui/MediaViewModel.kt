@@ -52,7 +52,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val _sortMode = MutableStateFlow(SortMode.LAST_UPDATED)
     private val _showFavoritesOnly = MutableStateFlow(false)
 
-    // Merge sort + favorites into one flow so the main combine stays at 5 flows
     private val _filterConfig = combine(_sortMode, _showFavoritesOnly) { sort, favOnly ->
         sort to favOnly
     }
@@ -110,12 +109,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val now = System.currentTimeMillis()
             var updated = item.copy(lastUpdated = now)
 
-            // Auto-set start date when beginning to watch/read
             if ((item.status == Status.WATCHING || item.status == Status.READING) && item.startDate == null) {
                 updated = updated.copy(startDate = now)
             }
 
-            // Auto-set end date when completed
             if (item.status == Status.COMPLETED && item.endDate == null) {
                 updated = updated.copy(endDate = now)
             }
@@ -128,6 +125,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val item = uiState.value.allItems.find { it.id == itemId } ?: return@launch
             dao.insertOrUpdate(item.copy(isFavorite = !item.isFavorite))
+        }
+    }
+
+    fun incrementRewatch(itemId: String) {
+        viewModelScope.launch {
+            val item = uiState.value.allItems.find { it.id == itemId } ?: return@launch
+            dao.insertOrUpdate(item.copy(rewatchCount = item.rewatchCount + 1, lastUpdated = System.currentTimeMillis()))
         }
     }
 

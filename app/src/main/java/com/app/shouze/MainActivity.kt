@@ -100,6 +100,7 @@ class MainActivity : ComponentActivity() {
                                         navController.popBackStack()
                                     },
                                     onToggleFavorite = { viewModel.toggleFavorite(item.id) },
+                                    onIncrementRewatch = { viewModel.incrementRewatch(item.id) }
                                 )
                             }
                         }
