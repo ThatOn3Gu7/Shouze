@@ -1,18 +1,16 @@
 package com.app.shouze.data.local
 
 import android.content.Context
-import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import java.io.File
 
 @Database(
     entities = [MediaItemEntity::class, CategoryEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 
@@ -24,6 +22,7 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+        private const val DB_NAME = "media_tracker.db"
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -69,49 +68,41 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("INSERT OR IGNORE INTO categories (id, name, colorHex, createdAt) VALUES ('MANGA', 'Manga', NULL, 0)")
+                db.execSQL("INSERT OR IGNORE INTO categories (id, name, colorHex, createdAt) VALUES ('MOVIE', 'Movie', NULL, 0)")
+                db.execSQL("INSERT OR IGNORE INTO categories (id, name, colorHex, createdAt) VALUES ('LIGHT_NOVEL', 'Light Novel', NULL, 0)")
+                db.execSQL("INSERT OR IGNORE INTO categories (id, name, colorHex, createdAt) VALUES ('OVA', 'OVA', NULL, 0)")
+                db.execSQL("INSERT OR IGNORE INTO categories (id, name, colorHex, createdAt) VALUES ('WEBTOON', 'Webtoon', NULL, 0)")
+            }
+        }
 
         fun getInstance(context: Context): AppDatabase {
-    return INSTANCE ?: synchronized(this) {
-        val instance = Room.databaseBuilder(
-            context.applicationContext,
-            AppDatabase::class.java,
-            DB_NAME
-        )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
-        .addCallback(object : RoomDatabase.Callback() {
-            override fun onCreate(db: SupportSQLiteDatabase) {
-                super.onCreate(db)
-                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('TV_SERIES', 'TV Series', NULL, 0)")
-                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('ANIME', 'Anime', NULL, 0)")
-                db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('NOVEL', 'Novel', NULL, 0)")
-            }
-        })
-        .build()
-        INSTANCE = instance
-        instance
-    }
-}
-
-        fun isCorruptionError(e: Throwable): Boolean {
-            val message = e.message ?: return false
-            return message.contains("malformed") ||
-                message.contains("not a database") ||
-                message.contains("disk I/O error")
-        }
-
-        fun recoverFromCorruption(context: Context) {
-            runCatching {
-                INSTANCE?.close()
-                INSTANCE = null
-                val dbFile = context.getDatabasePath(DB_NAME)
-                listOf("", "-wal", "-shm", "-journal").forEach { suffix ->
-                    val file = File(dbFile.path + suffix)
-                    if (file.exists()) file.delete()
-                }
-                Log.w("Shouze", "Corrupt database files deleted; a fresh database will be created on next open")
+            return INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    DB_NAME
+                )
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addCallback(object : RoomDatabase.Callback() {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        super.onCreate(db)
+                        db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('TV_SERIES', 'TV Series', NULL, 0)")
+                        db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('ANIME', 'Anime', NULL, 0)")
+                        db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('NOVEL', 'Novel', NULL, 0)")
+                        db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('MANGA', 'Manga', NULL, 0)")
+                        db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('MOVIE', 'Movie', NULL, 0)")
+                        db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('LIGHT_NOVEL', 'Light Novel', NULL, 0)")
+                        db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('OVA', 'OVA', NULL, 0)")
+                        db.execSQL("INSERT INTO categories (id, name, colorHex, createdAt) VALUES ('WEBTOON', 'Webtoon', NULL, 0)")
+                    }
+                })
+                .build()
+                INSTANCE = instance
+                instance
             }
         }
-
-        private const val DB_NAME = "media_tracker.db"
     }
 }

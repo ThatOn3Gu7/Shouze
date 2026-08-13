@@ -245,10 +245,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun createItemFromAniList(media: AniListMedia): MediaItemEntity {
         val title = media.title.english ?: media.title.romaji ?: "Unknown"
+        
+        // For anime: use episodes. For manga: use chapters, fall back to volumes.
         val totalCount = when (_searchUiState.value.searchType) {
-            "ANIME" -> media.episodes ?: 0
-            else -> media.chapters ?: 0
-        }
+            "ANIME" -> media.episodes
+            else -> media.chapters ?: media.volumes
+        } ?: 0
+
         val coverImage = media.coverImage?.large ?: media.coverImage?.medium
         val genres = media.genres ?: emptyList()
         val notes = media.description?.let { desc ->
@@ -258,13 +261,29 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         } ?: ""
 
         val categories = uiState.value.categories
+        
+        // Smart category matching using exact names first, then partial
         val categoryId = when (_searchUiState.value.searchType) {
-            "ANIME" -> categories.find { it.name.contains("anime", ignoreCase = true) }?.id
-            "MANGA" -> categories.find {
-                it.name.contains("manga", ignoreCase = true) ||
-                it.name.contains("novel", ignoreCase = true) ||
-                it.name.contains("book", ignoreCase = true)
-            }?.id
+            "ANIME" -> {
+                categories.find { it.name.equals("Anime", ignoreCase = true) }?.id
+                    ?: categories.find { it.name.equals("TV Series", ignoreCase = true) }?.id
+                    ?: categories.find { it.name.equals("OVA", ignoreCase = true) }?.id
+                    ?: categories.find { it.name.equals("Movie", ignoreCase = true) }?.id
+                    ?: categories.find { it.name.contains("anime", ignoreCase = true) }?.id
+                    ?: categories.find { it.name.contains("tv", ignoreCase = true) }?.id
+            }
+            "MANGA" -> {
+                categories.find { it.name.equals("Manga", ignoreCase = true) }?.id
+                    ?: categories.find { it.name.equals("Light Novel", ignoreCase = true) }?.id
+                    ?: categories.find { it.name.equals("Novel", ignoreCase = true) }?.id
+                    ?: categories.find { it.name.equals("Webtoon", ignoreCase = true) }?.id
+                    ?: categories.find { 
+                        it.name.contains("manga", ignoreCase = true) 
+                        || it.name.contains("novel", ignoreCase = true) 
+                        || it.name.contains("book", ignoreCase = true)
+                        || it.name.contains("webtoon", ignoreCase = true)
+                    }?.id
+            }
             else -> null
         } ?: categories.firstOrNull()?.id ?: ""
 
