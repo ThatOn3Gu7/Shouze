@@ -26,6 +26,7 @@ enum class SortMode {
 data class HomeUiState(
     val allItems: List<MediaItemEntity> = emptyList(),
     val items: List<MediaItemEntity> = emptyList(),
+    val upNextItems: List<MediaItemEntity> = emptyList(),
     val categories: List<CategoryEntity> = emptyList(),
     val selectedCategoryId: String? = null,
     val searchQuery: String = "",
@@ -87,10 +88,15 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             ) { allItems, allCategories, catId, query, filterConfig ->
                 val (sort, favOnly) = filterConfig
                 val filtered = filterItems(allItems, catId, query, sort, favOnly)
+                val upNext = allItems
+                    .filter { it.status == Status.WATCHING || it.status == Status.READING }
+                    .sortedByDescending { it.lastUpdated }
+                    .take(10)
                 _uiState.update { current ->
                     current.copy(
                         allItems = allItems,
                         items = filtered,
+                        upNextItems = upNext,
                         categories = allCategories,
                         selectedCategoryId = catId,
                         searchQuery = query,

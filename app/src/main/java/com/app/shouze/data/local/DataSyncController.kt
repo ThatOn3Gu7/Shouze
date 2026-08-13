@@ -19,7 +19,12 @@ data class MediaItemExport(
     val rating: Double,
     val coverImageUri: String?,
     val genres: List<String> = emptyList(),
-    val lastUpdated: Long
+    val lastUpdated: Long,
+    val isFavorite: Boolean = false,
+    val notes: String = "",
+    val rewatchCount: Int = 0,
+    val startDate: Long? = null,
+    val endDate: Long? = null
 )
 
 @Serializable
@@ -32,7 +37,7 @@ data class CategoryExport(
 
 @Serializable
 data class BackupPayload(
-    val version: Int = 2,
+    val version: Int = 3,
     val exportedAt: Long = System.currentTimeMillis(),
     val itemCount: Int = 0,
     val items: List<MediaItemExport> = emptyList(),
@@ -66,7 +71,7 @@ class DataSyncController(private val db: AppDatabase) {
     suspend fun importFromJson(jsonString: String): Result<Int> {
         return try {
             val payload = json.decodeFromString<BackupPayload>(jsonString)
-            if (payload.version != 1 && payload.version != 2) {
+            if (payload.version != 1 && payload.version != 2 && payload.version != 3) {
                 return Result.failure(IllegalArgumentException("Unsupported backup version ${payload.version}"))
             }
             if (payload.items.isEmpty()) {
@@ -101,7 +106,12 @@ private fun MediaItemEntity.toExport() = MediaItemExport(
     rating = rating,
     coverImageUri = coverImageUri,
     genres = genres,
-    lastUpdated = lastUpdated
+    lastUpdated = lastUpdated,
+    isFavorite = isFavorite,
+    notes = notes,
+    rewatchCount = rewatchCount,
+    startDate = startDate,
+    endDate = endDate
 )
 
 private fun MediaItemExport.toEntity(): MediaItemEntity {
@@ -122,7 +132,12 @@ private fun MediaItemExport.toEntity(): MediaItemEntity {
         rating = rating,
         coverImageUri = coverImageUri,
         genres = genres,
-        lastUpdated = lastUpdated
+        lastUpdated = lastUpdated,
+        isFavorite = isFavorite,
+        notes = notes,
+        rewatchCount = rewatchCount,
+        startDate = startDate,
+        endDate = endDate
     )
 }
 
