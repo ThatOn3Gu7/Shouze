@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
             val uiState by viewModel.uiState.collectAsState()
             val settings by viewModel.settings.collectAsState()
             val statsUiState by viewModel.statsUiState.collectAsState()
+            val searchUiState by viewModel.searchUiState.collectAsState()
             val navController = rememberNavController()
 
             com.app.shouze.ui.theme.MediaTrackerTheme(settings = settings) {
@@ -59,6 +60,24 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+                        composable("search") {
+                            SearchScreen(
+                                uiState = searchUiState,
+                                onBack = {
+                                    viewModel.clearSearchResults()
+                                    navController.popBackStack()
+                                },
+                                onSearch = viewModel::searchAniList,
+                                onTypeChange = viewModel::setSearchType,
+                                onSelect = { media ->
+                                    val item = viewModel.createItemFromAniList(media)
+                                    viewModel.setPendingPreFill(item)
+                                    navController.navigate("edit?itemId=null") {
+                                        popUpTo("search") { inclusive = true }
+                                    }
+                                }
+                            )
+                        }
                         composable("home") {
                             HomeScreen(
                                 uiState = uiState,
@@ -80,6 +99,7 @@ class MainActivity : ComponentActivity() {
                                 onSortModeChange = viewModel::setSortMode,
                                 onToggleFavorites = viewModel::toggleShowFavorites,
                                 onToggleFavorite = { viewModel.toggleFavorite(it.id) },
+                                onSearchAniListClick = { navController.navigate("search") },
                                 showFavoritesOnly = uiState.showFavoritesOnly
                             )
                         }
@@ -107,10 +127,17 @@ class MainActivity : ComponentActivity() {
 
                         composable("edit?itemId={itemId}") { backStackEntry ->
                             val itemId = backStackEntry.arguments?.getString("itemId")
-                            val item = if (itemId == null || itemId == "null") {
-                                null
-                            } else {
-                                uiState.allItems.find { it.id == itemId }
+                            val preFilledItem = remember(itemId) {
+                                if (itemId == null || itemId == "null") {
+                                    viewModel.consumePendingPreFill()
+                                } else {
+                                    null
+                                }
+                            }
+                            val item = when {
+                                preFilledItem != null -> preFilledItem
+                                itemId != null && itemId != "null" -> uiState.allItems.find { it.id == itemId }
+                                else -> null
                             }
 
                             DetailEditDialog(

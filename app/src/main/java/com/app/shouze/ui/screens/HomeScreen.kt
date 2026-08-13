@@ -53,6 +53,7 @@ fun HomeScreen(
     onSortModeChange: (SortMode) -> Unit,
     onToggleFavorites: () -> Unit,
     onToggleFavorite: (MediaItemEntity) -> Unit,
+    onSearchAniListClick: () -> Unit,
     showFavoritesOnly: Boolean = false
 ) {
     val isError = uiState.error != null
@@ -149,6 +150,9 @@ fun HomeScreen(
                                 }
                             )
                         }
+                    }
+                    IconButton(onClick = onSearchAniListClick) {
+                        Icon(Icons.Filled.Search, contentDescription = "Search AniList")
                     }
                     IconButton(onClick = onStatisticsClick) {
                         Icon(Icons.Filled.BarChart, contentDescription = "Statistics")

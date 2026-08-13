@@ -7,17 +7,14 @@ import androidx.lifecycle.viewModelScope
 import com.app.shouze.data.SettingsRepository
 import com.app.shouze.data.ThemeMode
 import com.app.shouze.data.local.*
+import com.app.shouze.data.remote.AniListApi
+import com.app.shouze.data.remote.AniListMedia
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
-import com.app.shouze.ui.StatsUiState
-import com.app.shouze.ui.GenreStat
-import com.app.shouze.ui.CategoryStat
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
 
 enum class SortMode {
     LAST_UPDATED, TITLE, RATING_HIGH, PROGRESS
@@ -37,6 +34,13 @@ data class HomeUiState(
     val error: String? = null
 )
 
+data class AniListSearchUiState(
+    val results: List<AniListMedia> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val searchType: String = "ANIME"
+)
+
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getInstance(application)
@@ -44,6 +48,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val categoryDao = db.categoryDao()
     private val syncController = DataSyncController(db)
     private val settingsRepo = SettingsRepository(application)
+    private val aniListApi = AniListApi()
     private val json = Json { ignoreUnknownKeys = true }
 
     val settings = settingsRepo.settings
@@ -63,6 +68,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    private val _searchUiState = MutableStateFlow(AniListSearchUiState())
+    val searchUiState: StateFlow<AniListSearchUiState> = _searchUiState.asStateFlow()
+
+    private var pendingPreFill: MediaItemEntity? = null
 
     val statsUiState: StateFlow<StatsUiState> = combine(
         dao.getAllItems(),
@@ -197,10 +207,88 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- AniList Search ---
+
+    fun searchAniList(query: String) {
+        viewModelScope.launch {
+            _searchUiState.update { it.copy(isLoading = true, error = null) }
+            val type = _searchUiState.value.searchType
+            val result = aniListApi.searchMedia(query, type)
+            result.fold(
+                onSuccess = { media ->
+                    _searchUiState.update { it.copy(results = media, isLoading = false) }
+                },
+                onFailure = { e ->
+                    _searchUiState.update { it.copy(error = e.message ?: "Search failed", isLoading = false) }
+                }
+            )
+        }
+    }
+
+    fun setSearchType(type: String) {
+        _searchUiState.update { it.copy(searchType = type, results = emptyList()) }
+    }
+
+    fun clearSearchResults() {
+        _searchUiState.update { AniListSearchUiState() }
+    }
+
+    fun setPendingPreFill(item: MediaItemEntity?) {
+        pendingPreFill = item
+    }
+
+    fun consumePendingPreFill(): MediaItemEntity? {
+        val item = pendingPreFill
+        pendingPreFill = null
+        return item
+    }
+
+    fun createItemFromAniList(media: AniListMedia): MediaItemEntity {
+        val title = media.title.english ?: media.title.romaji ?: "Unknown"
+        val totalCount = when (_searchUiState.value.searchType) {
+            "ANIME" -> media.episodes ?: 0
+            else -> media.chapters ?: 0
+        }
+        val coverImage = media.coverImage?.large ?: media.coverImage?.medium
+        val genres = media.genres ?: emptyList()
+        val notes = media.description?.let { desc ->
+            desc.replace(Regex("<.*?>"), " ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+        } ?: ""
+
+        val categories = uiState.value.categories
+        val categoryId = when (_searchUiState.value.searchType) {
+            "ANIME" -> categories.find { it.name.contains("anime", ignoreCase = true) }?.id
+            "MANGA" -> categories.find {
+                it.name.contains("manga", ignoreCase = true) ||
+                it.name.contains("novel", ignoreCase = true) ||
+                it.name.contains("book", ignoreCase = true)
+            }?.id
+            else -> null
+        } ?: categories.firstOrNull()?.id ?: ""
+
+        return MediaItemEntity(
+            title = title,
+            categoryId = categoryId,
+            status = Status.PLAN_TO_WATCH,
+            currentProgress = 0,
+            totalCount = totalCount,
+            rating = 0.0,
+            coverImageUri = coverImage,
+            genres = genres,
+            notes = notes
+        )
+    }
+
+    // --- Settings ---
+
     fun setThemeMode(mode: ThemeMode) = settingsRepo.setThemeMode(mode)
     fun setDynamicColor(enabled: Boolean) = settingsRepo.setDynamicColor(enabled)
     fun setAmoledBlack(enabled: Boolean) = settingsRepo.setAmoledBlack(enabled)
     fun setHasSeenOnboarding(seen: Boolean) = settingsRepo.setHasSeenOnboarding(seen)
+
+    // --- Backup / Restore ---
 
     fun backupToLocalZip(uri: Uri) {
         viewModelScope.launch {
