@@ -5,6 +5,11 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -39,7 +44,7 @@ import com.app.shouze.ui.SortMode
 import com.app.shouze.ui.components.MediaCardItem
 import com.app.shouze.ui.components.SafeRemoteImage
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
   fun HomeScreen(
     uiState: HomeUiState,
@@ -51,11 +56,9 @@ import com.app.shouze.ui.components.SafeRemoteImage
     onSearchQueryChange: (String) -> Unit,
     onClearMessage: () -> Unit,
     onSettingsClick: () -> Unit,
-    onStatisticsClick: () -> Unit,
     onSortModeChange: (SortMode) -> Unit,
     onToggleFavorites: () -> Unit,
     onToggleFavorite: (MediaItemEntity) -> Unit,
-    onSearchAniListClick: () -> Unit,
     showFavoritesOnly: Boolean = false,
     onToggleSelection: (String) -> Unit = {},
     onSelectAll: () -> Unit = {},
@@ -67,7 +70,9 @@ import com.app.shouze.ui.components.SafeRemoteImage
     allTags: List<String> = emptyList(),
     selectedTag: String? = null,
     onTagSelected: (String?) -> Unit = {},
-    onAiringScheduleClick: () -> Unit = {}
+    onAiringScheduleClick: () -> Unit = {},
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
@@ -226,14 +231,8 @@ import com.app.shouze.ui.components.SafeRemoteImage
                                 )
                             }
                         }
-                        IconButton(onClick = onSearchAniListClick) {
-                            Icon(Icons.Filled.Search, contentDescription = "Search AniList")
-                        }
                         IconButton(onClick = onAiringScheduleClick) {
                             Icon(Icons.Filled.CalendarToday, contentDescription = "Airing Schedule")
-                        }
-                        IconButton(onClick = onStatisticsClick) {
-                            Icon(Icons.Filled.BarChart, contentDescription = "Statistics")
                         }
                         IconButton(onClick = onSettingsClick) {
                             Icon(Icons.Filled.Settings, contentDescription = "Settings")
@@ -426,6 +425,8 @@ import com.app.shouze.ui.components.SafeRemoteImage
                             },
                             isSelected = item.id in uiState.selectedIds,
                             isSelectionMode = isSelectionMode,
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedVisibilityScope = animatedVisibilityScope,
                             modifier = Modifier.animateItem()
                         )
 
@@ -545,37 +546,58 @@ private fun EmptyState(
     hasSearchOrFilter: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "empty_state")
+    val floatAnim by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "float"
+    )
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Filled.MovieFilter,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.size(64.dp)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = if (hasSearchOrFilter) "No results found" else "Your library is empty",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        if (hasSearchOrFilter) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Try changing your search or filter.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        Box(
+            modifier = Modifier.size(120.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // Floating background circle
+            Box(
+                modifier = Modifier
+                    .size(80.dp + (floatAnim * 20).dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        shape = CircleShape
+                    )
             )
-        } else {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Tap the '+' button to add your first entry",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            // Icon with subtle bounce
+            Icon(
+                imageVector = Icons.Filled.MovieFilter,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f + (floatAnim * 0.2f)),
+                modifier = Modifier.size(64.dp)
             )
         }
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = if (hasSearchOrFilter) "No results found" else "Your library is empty",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = if (hasSearchOrFilter) {
+                "Try changing your search or filter."
+            } else {
+                "Tap the '+' button to add your first entry"
+            },
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

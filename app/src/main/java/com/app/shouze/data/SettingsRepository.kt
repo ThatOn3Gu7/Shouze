@@ -12,7 +12,9 @@ data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val useDynamicColor: Boolean = true,
     val amoledBlack: Boolean = false,
-    val hasSeenOnboarding: Boolean = false
+    val hasSeenOnboarding: Boolean = false,
+    val username: String = "",
+    val profilePictureUri: String? = null
 )
 
 class SettingsRepository(context: Context) {
@@ -42,6 +44,16 @@ class SettingsRepository(context: Context) {
         _settings.value = loadSettings()
     }
 
+    fun setUsername(name: String) {
+        prefs.edit().putString("username", name).apply()
+        _settings.value = loadSettings()
+    }
+
+    fun setProfilePicture(uri: String?) {
+        prefs.edit().putString("profile_picture_uri", uri).apply()
+        _settings.value = loadSettings()
+    }
+
     private fun loadSettings(): AppSettings {
         val themeName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name)
             ?: ThemeMode.SYSTEM.name
@@ -53,7 +65,9 @@ class SettingsRepository(context: Context) {
             },
             useDynamicColor = prefs.getBoolean("dynamic_color", true),
             amoledBlack = prefs.getBoolean("amoled_black", false),
-            hasSeenOnboarding = prefs.getBoolean("has_seen_onboarding", false)
+            hasSeenOnboarding = prefs.getBoolean("has_seen_onboarding", false),
+            username = prefs.getString("username", "") ?: "",
+            profilePictureUri = prefs.getString("profile_picture_uri", null)
         )
     }
 }

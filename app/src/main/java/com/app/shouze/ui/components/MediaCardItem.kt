@@ -1,5 +1,8 @@
 package com.app.shouze.ui.components
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -24,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
   fun MediaCardItem(
     item: MediaItemEntity,
@@ -33,13 +36,19 @@ import com.app.shouze.data.local.Status
     onLongClick: (() -> Unit)? = null,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier
 ) {
+    val view = androidx.compose.ui.platform.LocalView.current
     Card(
         modifier = modifier
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = onLongClick
+                onLongClick = {
+                    com.app.shouze.ui.components.HapticsHelper.performSelectionHaptic(view)
+                    onLongClick?.invoke()
+                }
             )
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -57,10 +66,22 @@ import com.app.shouze.data.local.Status
                 modifier = Modifier.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val sharedKey = "cover-${item.id}"
+                val thumbnailModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                    with(sharedTransitionScope) {
+                        Modifier.width(68.dp).sharedBounds(
+                            rememberSharedContentState(key = sharedKey),
+                            animatedVisibilityScope = animatedVisibilityScope,
+                            boundsTransform = { _, _ -> androidx.compose.animation.core.tween(400) }
+                        )
+                    }
+                } else {
+                    Modifier.width(68.dp)
+                }
                 PosterThumbnail(
                     coverUri = item.coverImageUri,
                     title = item.title,
-                    modifier = Modifier.width(68.dp)
+                    modifier = thumbnailModifier
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {

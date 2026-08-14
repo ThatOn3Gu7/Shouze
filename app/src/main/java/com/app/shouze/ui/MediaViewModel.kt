@@ -529,6 +529,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun setDynamicColor(enabled: Boolean) = settingsRepo.setDynamicColor(enabled)
     fun setAmoledBlack(enabled: Boolean) = settingsRepo.setAmoledBlack(enabled)
     fun setHasSeenOnboarding(seen: Boolean) = settingsRepo.setHasSeenOnboarding(seen)
+    fun setUsername(name: String) = settingsRepo.setUsername(name)
+    fun setProfilePicture(uri: String?) = settingsRepo.setProfilePicture(uri)
 
     // --- Backup / Restore ---
 

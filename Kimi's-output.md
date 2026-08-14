@@ -1,199 +1,52 @@
-I have everything I need. Here is the complete Tier 3 implementation — all three features with exact line-by-line instructions.
+Alright, fresh clone is in. Tier 4 — Polish. All five features. Here we go.
 
 ---
 
-NEW FILE 1: `AiringScheduleScreen.kt`
+FEATURE 1: Haptic Feedback
 
-Create at: `app/src/main/java/com/app/shouze/ui/screens/AiringScheduleScreen.kt`
+NEW FILE: `HapticsHelper.kt`
+
+Create at: `app/src/main/java/com/app/shouze/ui/components/HapticsHelper.kt`
 
 ```kotlin
-package com.app.shouze.ui.screens
+package com.app.shouze.ui.components
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import com.app.shouze.data.remote.AiringSchedule
-import com.app.shouze.ui.components.SafeRemoteImage
-import java.text.SimpleDateFormat
-import java.util.*
+import android.content.Context
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.view.HapticFeedbackConstants
+import android.view.View
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AiringScheduleScreen(
-    schedules: List<AiringSchedule>,
-    isLoading: Boolean,
-    error: String?,
-    onBack: () -> Unit,
-    onRefresh: () -> Unit,
-    onAddToLibrary: (AiringSchedule) -> Unit
-) {
-    val grouped = remember(schedules) {
-        schedules.groupBy { schedule ->
-            val date = Date(schedule.airingAt * 1000)
-            val cal = Calendar.getInstance().apply { time = date }
-            cal.get(Calendar.DAY_OF_WEEK)
-        }.toSortedMap()
-    }
-
-    val dayNames = mapOf(
-        Calendar.SUNDAY to "Sunday",
-        Calendar.MONDAY to "Monday",
-        Calendar.TUESDAY to "Tuesday",
-        Calendar.WEDNESDAY to "Wednesday",
-        Calendar.THURSDAY to "Thursday",
-        Calendar.FRIDAY to "Friday",
-        Calendar.SATURDAY to "Saturday"
-    )
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Airing Schedule") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onRefresh) {
-                        Icon(Icons.Filled.CalendarToday, contentDescription = "Refresh")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-        ) {
-            if (isLoading && schedules.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (error != null && schedules.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Failed to load schedule", style = MaterialTheme.typography.titleMedium)
-                        Text(error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = onRefresh) { Text("Retry") }
-                    }
-                }
-            } else if (grouped.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No airing anime found", style = MaterialTheme.typography.titleMedium)
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp)
-                ) {
-                    grouped.forEach { (day, daySchedules) ->
-                        item {
-                            Text(
-                                text = dayNames[day] ?: "Unknown",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
-                        }
-                        items(daySchedules, key = { it.id }) { schedule ->
-                            AiringScheduleCard(
-                                schedule = schedule,
-                                onAdd = { onAddToLibrary(schedule) }
-                            )
-                        }
-                    }
-                }
-            }
+object HapticsHelper {
+    fun performSelectionHaptic(view: View) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            view.performHapticFeedback(HapticFeedbackConstants.GESTURE_START)
+        } else {
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }
     }
-}
 
-@Composable
-private fun AiringScheduleCard(
-    schedule: AiringSchedule,
-    onAdd: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val time = remember(schedule.airingAt) {
-        timeFormat.format(Date(schedule.airingAt * 1000))
+    fun performConfirmHaptic(view: View) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        } else {
+            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        }
     }
-    val title = schedule.media.title.english ?: schedule.media.title.romaji ?: "Unknown"
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(60.dp)
-                    .aspectRatio(2f / 3f)
-            ) {
-                if (!schedule.media.coverImage?.large.isNullOrBlank()) {
-                    SafeRemoteImage(
-                        url = schedule.media.coverImage!!.large!!,
-                        contentDescription = title,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = title.firstOrNull()?.uppercase() ?: "?",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Ep ${schedule.episode} · $time",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (!schedule.media.format.isNullOrBlank()) {
-                    Text(
-                        text = schedule.media.format.replace("_", " "),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-            IconButton(onClick = onAdd) {
-                Icon(Icons.Filled.Add, contentDescription = "Add to library")
-            }
+    fun performDeleteHaptic(view: View) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            view.performHapticFeedback(HapticFeedbackConstants.REJECT)
+        } else {
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        }
+    }
+
+    fun performLightClick(context: Context) {
+        val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
         }
     }
 }
@@ -201,848 +54,735 @@ private fun AiringScheduleCard(
 
 ---
 
-NEW FILE 2: `StreamingLinksScreen.kt`
+FEATURE 2: Shared Element Transitions (Cover Image)
 
-Create at: `app/src/main/java/com/app/shouze/ui/screens/StreamingLinksScreen.kt`
-
-```kotlin
-package com.app.shouze.ui.screens
-
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.OpenInBrowser
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import com.app.shouze.data.remote.ExternalLink
-import com.app.shouze.data.remote.StreamingEpisode
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun StreamingLinksScreen(
-    title: String,
-    streamingEpisodes: List<StreamingEpisode>,
-    externalLinks: List<ExternalLink>,
-    isLoading: Boolean,
-    error: String?,
-    onBack: () -> Unit,
-    onLoad: () -> Unit
-) {
-    val context = LocalContext.current
-
-    LaunchedEffect(Unit) {
-        onLoad()
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Where to Watch") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(16.dp)
-            )
-
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (error != null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Failed to load links", style = MaterialTheme.typography.titleMedium)
-                        Text(error, color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            } else {
-                val allLinks = remember(streamingEpisodes, externalLinks) {
-                    val eps = streamingEpisodes.mapNotNull { ep ->
-                        if (!ep.url.isNullOrBlank() && !ep.site.isNullOrBlank()) {
-                            LinkItem(ep.site, ep.url, "Episode: ${ep.title ?: "N/A"}")
-                        } else null
-                    }
-                    val ext = externalLinks.map { LinkItem(it.site, it.url, null) }
-                    eps + ext
-                }
-
-                if (allLinks.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            "No streaming links found",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        items(allLinks, key = { it.url }) { link ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 6.dp),
-                                onClick = {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link.url))
-                                    context.startActivity(intent)
-                                }
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = link.site,
-                                            style = MaterialTheme.typography.titleSmall
-                                        )
-                                        if (link.subtitle != null) {
-                                            Text(
-                                                text = link.subtitle,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                    Icon(
-                                        imageVector = Icons.Filled.OpenInBrowser,
-                                        contentDescription = "Open",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private data class LinkItem(
-    val site: String,
-    val url: String,
-    val subtitle: String?
-)
-```
-
----
-
-NEW FILE 3: `ShareListScreen.kt`
-
-Create at: `app/src/main/java/com/app/shouze/ui/screens/ShareListScreen.kt`
-
-```kotlin
-package com.app.shouze.ui.screens
-
-import android.content.Intent
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import com.app.shouze.data.local.CategoryEntity
-import com.app.shouze.data.local.MediaItemEntity
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ShareListScreen(
-    items: List<MediaItemEntity>,
-    categories: List<CategoryEntity>,
-    onBack: () -> Unit,
-    onImportSharedList: (String) -> Unit
-) {
-    val context = LocalContext.current
-    var importText by remember { mutableStateOf("") }
-
-    val shareText = remember(items, categories) {
-        buildString {
-            appendLine("📚 My Shouze Library")
-            appendLine("====================")
-            appendLine()
-
-            val grouped = items.groupBy { it.categoryId }
-            categories.forEach { cat ->
-                val catItems = grouped[cat.id] ?: return@forEach
-                if (catItems.isEmpty()) return@forEach
-                appendLine("${cat.name} (${catItems.size})")
-                appendLine("-".repeat(cat.name.length + 10))
-                catItems.forEach { item ->
-                    val status = item.status.name.replace("_", " ")
-                    val progress = if (item.totalCount > 0) "${item.currentProgress}/${item.totalCount}" else "${item.currentProgress}/?"
-                    val rating = if (item.rating > 0) " ★${item.rating}" else ""
-                    appendLine("• ${item.title} [$status] $progress$rating")
-                }
-                appendLine()
-            }
-
-            appendLine("Total: ${items.size} items")
-            appendLine("Shared via Shouze")
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Share List") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Library Summary",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "${items.size} total entries",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        text = "${items.count { it.status.name == "COMPLETED" }} completed",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_SUBJECT, "My Shouze Library")
-                                putExtra(Intent.EXTRA_TEXT, shareText)
-                            }
-                            context.startActivity(Intent.createChooser(intent, "Share via"))
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Share List")
-                    }
-                }
-            }
-
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Import Shared List",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Paste a shared Shouze list below to import titles as Plan to Watch.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = importText,
-                        onValueChange = { importText = it },
-                        label = { Text("Paste shared list here") },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 4,
-                        maxLines = 8
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = {
-                            if (importText.isNotBlank()) {
-                                onImportSharedList(importText)
-                                importText = ""
-                            }
-                        },
-                        enabled = importText.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Import Titles")
-                    }
-                }
-            }
-
-            if (shareText.isNotBlank()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                    )
-                ) {
-                    Text(
-                        text = shareText,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-```
-
----
-
-FILE 4: `AniListApi.kt`
-
-Change 1 — Add new data classes after line 57
-After the closing `}` of `AniListCoverImage` (line 57), add this entire block:
-
-```kotlin
-
-// --- Airing Schedule ---
-
-@Serializable
-data class AniListAiringScheduleResponse(
-    val data: AiringScheduleData? = null
-)
-
-@Serializable
-data class AiringScheduleData(
-    val Page: AiringSchedulePage? = null
-)
-
-@Serializable
-data class AiringSchedulePage(
-    val airingSchedules: List<AiringSchedule> = emptyList()
-)
-
-@Serializable
-data class AiringSchedule(
-    val id: Int,
-    val episode: Int,
-    val airingAt: Long,
-    val media: AiringScheduleMedia
-)
-
-@Serializable
-data class AiringScheduleMedia(
-    val id: Int,
-    val title: AniListTitle,
-    val coverImage: AniListCoverImage? = null,
-    val format: String? = null
-)
-
-// --- Streaming Episodes ---
-
-@Serializable
-data class AniListStreamingResponse(
-    val data: StreamingData? = null
-)
-
-@Serializable
-data class StreamingData(
-    val Media: StreamingMedia? = null
-)
-
-@Serializable
-data class StreamingMedia(
-    val streamingEpisodes: List<StreamingEpisode>? = null,
-    val externalLinks: List<ExternalLink>? = null
-)
-
-@Serializable
-data class StreamingEpisode(
-    val title: String? = null,
-    val thumbnail: String? = null,
-    val url: String? = null,
-    val site: String? = null
-)
-
-@Serializable
-data class ExternalLink(
-    val url: String,
-    val site: String
-)
-```
-
-Change 2 — Add new API methods after line 115
-After the closing `}` of `searchMedia()` (line 115), add this entire block:
-
-```kotlin
-
-    suspend fun getAiringSchedule(): Result<List<AiringSchedule>> = withContext(Dispatchers.IO) {
-        try {
-            val graphqlQuery = """
-                query {
-                    Page(page: 1, perPage: 50) {
-                        airingSchedules(notYetAired: true, sort: TIME) {
-                            id
-                            episode
-                            airingAt
-                            media {
-                                id
-                                title { romaji english }
-                                coverImage { large }
-                                format
-                            }
-                        }
-                    }
-                }
-            """.trimIndent()
-
-            val requestBody = buildJsonObject {
-                put("query", graphqlQuery)
-            }.toString()
-
-            val request = Request.Builder()
-                .url("https://graphql.anilist.co")
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
-                }
-                val body = response.body?.string()
-                    ?: return@withContext Result.failure(IOException("Empty response"))
-                val result = json.decodeFromString<AniListAiringScheduleResponse>(body)
-                val schedules = result.data?.Page?.airingSchedules ?: emptyList()
-                Result.success(schedules)
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun getStreamingEpisodes(mediaId: Int): Result<Pair<List<StreamingEpisode>, List<ExternalLink>>> = withContext(Dispatchers.IO) {
-        try {
-            val graphqlQuery = """
-                query(${"$"}id: Int) {
-                    Media(id: ${"$"}id) {
-                        streamingEpisodes {
-                            title
-                            thumbnail
-                            url
-                            site
-                        }
-                        externalLinks {
-                            url
-                            site
-                        }
-                    }
-                }
-            """.trimIndent()
-
-            val requestBody = buildJsonObject {
-                put("query", graphqlQuery)
-                putJsonObject("variables") {
-                    put("id", mediaId)
-                }
-            }.toString()
-
-            val request = Request.Builder()
-                .url("https://graphql.anilist.co")
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
-                }
-                val body = response.body?.string()
-                    ?: return@withContext Result.failure(IOException("Empty response"))
-                val result = json.decodeFromString<AniListStreamingResponse>(body)
-                val media = result.data?.Media
-                val episodes = media?.streamingEpisodes ?: emptyList()
-                val links = media?.externalLinks ?: emptyList()
-                Result.success(episodes to links)
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-```
-
----
-
-FILE 5: `MediaViewModel.kt`
-
-Change 1 — Add new UI state data classes after line 47
-After the closing `}` of `AniListSearchUiState` (line 47), add:
-
-```kotlin
-
-data class AiringScheduleUiState(
-    val schedules: List<AiringSchedule> = emptyList(),
-    val isLoading: Boolean = false,
-    val error: String? = null
-)
-
-data class StreamingUiState(
-    val title: String = "",
-    val streamingEpisodes: List<StreamingEpisode> = emptyList(),
-    val externalLinks: List<ExternalLink> = emptyList(),
-    val isLoading: Boolean = false,
-    val error: String? = null
-)
-```
-
-Change 2 — Add new StateFlows after line 79
-After line 79 (`val searchUiState: StateFlow<AniListSearchUiState> = _searchUiState.asStateFlow()`), add:
-
-```kotlin
-
-    private val _airingScheduleUiState = MutableStateFlow(AiringScheduleUiState())
-    val airingScheduleUiState: StateFlow<AiringScheduleUiState> = _airingScheduleUiState.asStateFlow()
-
-    private val _streamingUiState = MutableStateFlow(StreamingUiState())
-    val streamingUiState: StateFlow<StreamingUiState> = _streamingUiState.asStateFlow()
-```
-
-Change 3 — Add new methods after line 326
-After the closing `}` of `clearSearchResults()` (line 326), add this entire block:
-
-```kotlin
-
-    // --- Airing Schedule ---
-
-    fun fetchAiringSchedule() {
-        viewModelScope.launch {
-            _airingScheduleUiState.update { it.copy(isLoading = true, error = null) }
-            val result = aniListApi.getAiringSchedule()
-            result.fold(
-                onSuccess = { schedules ->
-                    _airingScheduleUiState.update { it.copy(schedules = schedules, isLoading = false) }
-                },
-                onFailure = { e ->
-                    _airingScheduleUiState.update { it.copy(error = e.message ?: "Failed to load", isLoading = false) }
-                }
-            )
-        }
-    }
-
-    fun createItemFromAiringSchedule(schedule: AiringSchedule): MediaItemEntity {
-        val title = schedule.media.title.english ?: schedule.media.title.romaji ?: "Unknown"
-        val categories = uiState.value.categories
-        val categoryId = categories.find { it.name.equals("Anime", ignoreCase = true) }?.id
-            ?: categories.find { it.name.equals("TV Series", ignoreCase = true) }?.id
-            ?: categories.firstOrNull()?.id ?: ""
-
-        return MediaItemEntity(
-            title = title,
-            categoryId = categoryId,
-            status = Status.PLAN_TO_WATCH,
-            currentProgress = 0,
-            totalCount = 0,
-            coverImageUri = schedule.media.coverImage?.large ?: schedule.media.coverImage?.medium
-        )
-    }
-
-    // --- Where to Watch / Streaming ---
-
-    fun loadStreamingForTitle(title: String) {
-        viewModelScope.launch {
-            _streamingUiState.update { it.copy(isLoading = true, error = null, title = title) }
-            val searchResult = aniListApi.searchMedia(title)
-            searchResult.fold(
-                onSuccess = { mediaList ->
-                    val match = mediaList.firstOrNull()
-                    if (match != null) {
-                        val streamResult = aniListApi.getStreamingEpisodes(match.id)
-                        streamResult.fold(
-                            onSuccess = { (episodes, links) ->
-                                _streamingUiState.update {
-                                    it.copy(streamingEpisodes = episodes, externalLinks = links, isLoading = false)
-                                }
-                            },
-                            onFailure = { e ->
-                                _streamingUiState.update { it.copy(error = e.message, isLoading = false) }
-                            }
-                        )
-                    } else {
-                        _streamingUiState.update { it.copy(error = "Not found on AniList", isLoading = false) }
-                    }
-                },
-                onFailure = { e ->
-                    _streamingUiState.update { it.copy(error = e.message, isLoading = false) }
-                }
-            )
-        }
-    }
-
-    fun clearStreamingState() {
-        _streamingUiState.value = StreamingUiState()
-    }
-
-    // --- Social / Shared Lists ---
-
-    fun importSharedList(text: String) {
-        viewModelScope.launch {
-            val lines = text.lines()
-            val titles = lines.mapNotNull { line ->
-                val trimmed = line.trim()
-                if (trimmed.startsWith("•")) {
-                    trimmed.removePrefix("•").trim().substringBefore("[").trim()
-                } else null
-            }
-
-            if (titles.isEmpty()) {
-                showMessage("No titles found in shared list", isError = true)
-                return@launch
-            }
-
-            val categories = uiState.value.categories
-            val defaultCategory = categories.find { it.name.equals("Anime", ignoreCase = true) }?.id
-                ?: categories.firstOrNull()?.id ?: ""
-
-            var imported = 0
-            titles.forEach { title ->
-                val exists = uiState.value.allItems.any { it.title.equals(title, ignoreCase = true) }
-                if (!exists) {
-                    dao.insertOrUpdate(
-                        MediaItemEntity(
-                            title = title,
-                            categoryId = defaultCategory,
-                            status = Status.PLAN_TO_WATCH,
-                            currentProgress = 0,
-                            totalCount = 0
-                        )
-                    )
-                    imported++
-                }
-            }
-            showMessage("Imported $imported new titles from shared list")
-        }
-    }
-```
-
----
-
-FILE 6: `DetailScreen.kt`
+FILE 1: `MainActivity.kt`
 
 Change 1 — Add import
-After line 15:
+After line 14:
 
 ```kotlin
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.animation.SharedTransitionLayout
 ```
 
-Change 2 — Add parameter to function signature
-Change lines 38-46 from:
+Change 2 — Wrap NavHost in SharedTransitionLayout
+Find lines 36-37:
 
 ```kotlin
-fun DetailScreen(
-    item: MediaItemEntity,
-    category: CategoryEntity?,
-    onBack: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onToggleFavorite: () -> Unit = {},
-    onIncrementRewatch: () -> Unit = {}
+            com.app.shouze.ui.theme.MediaTrackerTheme(settings = settings) {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    NavHost(
+```
+
+Replace with:
+
+```kotlin
+            com.app.shouze.ui.theme.MediaTrackerTheme(settings = settings) {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    SharedTransitionLayout {
+                        NavHost(
+```
+
+Change 3 — Close the SharedTransitionLayout brace
+Find line 267:
+
+```kotlin
+                    }
+                }
+            }
+```
+
+Replace with:
+
+```kotlin
+                        }
+                    }
+                }
+            }
+```
+
+Change 4 — Pass animatedVisibilityScope to HomeScreen
+In the `composable("home")` block, change the `HomeScreen` call. After `onTagSelected = viewModel::setTagFilter`, add:
+
+```kotlin
+                                sharedTransitionScope = this@SharedTransitionLayout,
+                                animatedVisibilityScope = this@composable,
+```
+
+Change 5 — Pass animatedVisibilityScope to DetailScreen
+In the `composable("detail/{itemId}")` block, change the `DetailScreen` call. After `onWhereToWatch = { ... }`, add:
+
+```kotlin
+                                    sharedTransitionScope = this@SharedTransitionLayout,
+                                    animatedVisibilityScope = this@composable,
+```
+
+---
+
+FILE 2: `HomeScreen.kt`
+
+Change 1 — Add imports
+After line 39:
+
+```kotlin
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
+```
+
+Change 2 — Add parameters to function signature
+After line 68 (`onTagSelected: (String?) -> Unit = {}`), add:
+
+```kotlin
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
+```
+
+Change 3 — Pass shared element keys to MediaCardItem
+In the `MediaCardItem` call inside the LazyColumn (around line 407), after `modifier = Modifier.animateItem()`, add:
+
+```kotlin
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedVisibilityScope = animatedVisibilityScope,
+```
+
+---
+
+FILE 3: `DetailScreen.kt`
+
+Change 1 — Add imports
+After line 34:
+
+```kotlin
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
+```
+
+Change 2 — Add parameters to function signature
+After line 46 (`onWhereToWatch: () -> Unit = {}`), add:
+
+```kotlin
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
+```
+
+Change 3 — Pass shared element keys to CoverBanner
+In the `CoverBanner` call (around line 83), after `status = item.status`, add:
+
+```kotlin
+                sharedTransitionScope = sharedTransitionScope,
+                animatedVisibilityScope = animatedVisibilityScope,
+                sharedElementKey = "cover-${item.id}",
+```
+
+---
+
+FILE 4: `MediaCardItem.kt`
+
+Change 1 — Add imports
+After line 24:
+
+```kotlin
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
+```
+
+Change 2 — Add parameters to function signature
+After line 36 (`modifier: Modifier = Modifier`), add:
+
+```kotlin
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
+```
+
+Change 3 — Wrap PosterThumbnail with sharedBounds
+Find the `PosterThumbnail` call inside the Row (around line 60). Replace:
+
+```kotlin
+                PosterThumbnail(
+                    coverUri = item.coverImageUri,
+                    title = item.title,
+                    modifier = Modifier.width(68.dp)
+                )
+```
+
+With:
+
+```kotlin
+                val sharedKey = "cover-${item.id}"
+                val thumbnailModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                    with(sharedTransitionScope) {
+                        Modifier.width(68.dp).sharedBounds(
+                            rememberSharedContentState(key = sharedKey),
+                            animatedVisibilityScope = animatedVisibilityScope,
+                            boundsTransform = { _, _ -> androidx.compose.animation.core.tween(400) }
+                        )
+                    }
+                } else {
+                    Modifier.width(68.dp)
+                }
+                PosterThumbnail(
+                    coverUri = item.coverImageUri,
+                    title = item.title,
+                    modifier = thumbnailModifier
+                )
+```
+
+Change 4 — Add haptic on long-press
+Find the `Card` modifier with `combinedClickable` (around line 40). Replace:
+
+```kotlin
+        modifier = modifier
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+```
+
+With:
+
+```kotlin
+        val view = androidx.compose.ui.platform.LocalView.current
+        modifier = modifier
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    com.app.shouze.ui.components.HapticsHelper.performSelectionHaptic(view)
+                    onLongClick?.invoke()
+                }
+            )
+```
+
+---
+
+FILE 5: `DetailScreen.kt` — Update CoverBanner
+
+Change 1 — Add parameters to CoverBanner
+Find the `CoverBanner` function signature (around line 272). Change from:
+
+```kotlin
+private fun CoverBanner(
+    coverUri: String?,
+    title: String,
+    categoryName: String,
+    status: Status,
+    modifier: Modifier = Modifier
 ) {
 ```
 
 To:
 
 ```kotlin
-fun DetailScreen(
-    item: MediaItemEntity,
-    category: CategoryEntity?,
-    onBack: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onToggleFavorite: () -> Unit = {},
-    onIncrementRewatch: () -> Unit = {},
-    onWhereToWatch: () -> Unit = {}
+private fun CoverBanner(
+    coverUri: String?,
+    title: String,
+    categoryName: String,
+    status: Status,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
+    sharedElementKey: String? = null,
+    modifier: Modifier = Modifier
 ) {
 ```
 
-Change 3 — Add button in TopAppBar actions
-After line 72 (the `IconButton` for Delete), add:
+Change 2 — Wrap SafeRemoteImage with sharedBounds
+Find the `SafeRemoteImage` call inside CoverBanner (around line 286). Replace:
 
 ```kotlin
-                    IconButton(onClick = onWhereToWatch) {
-                        Icon(
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = "Where to Watch",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+            SafeRemoteImage(
+                url = coverUri,
+                contentDescription = title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                placeholder = { BannerPlaceholder() },
+                errorContent = { BannerPlaceholder(failed = true) }
+            )
+```
+
+With:
+
+```kotlin
+            val imageModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null && sharedElementKey != null) {
+                with(sharedTransitionScope) {
+                    Modifier.fillMaxSize().sharedBounds(
+                        rememberSharedContentState(key = sharedElementKey),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                        boundsTransform = { _, _ -> androidx.compose.animation.core.tween(400) }
+                    )
+                }
+            } else {
+                Modifier.fillMaxSize()
+            }
+            SafeRemoteImage(
+                url = coverUri,
+                contentDescription = title,
+                contentScale = ContentScale.Crop,
+                modifier = imageModifier,
+                placeholder = { BannerPlaceholder() },
+                errorContent = { BannerPlaceholder(failed = true) }
+            )
+```
+
+Change 3 — Add haptic on favorite toggle
+Find the `IconButton(onClick = onToggleFavorite)` in the TopAppBar actions (around line 60). Replace:
+
+```kotlin
+                    IconButton(onClick = onToggleFavorite) {
+```
+
+With:
+
+```kotlin
+                    val view = androidx.compose.ui.platform.LocalView.current
+                    IconButton(onClick = {
+                        com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(view)
+                        onToggleFavorite()
+                    }) {
+```
+
+Change 4 — Add haptic on delete
+Find the `IconButton(onClick = { showDeleteConfirm = true })` (around line 70). Replace:
+
+```kotlin
+                    IconButton(onClick = { showDeleteConfirm = true }) {
+```
+
+With:
+
+```kotlin
+                    val view = androidx.compose.ui.platform.LocalView.current
+                    IconButton(onClick = {
+                        com.app.shouze.ui.components.HapticsHelper.performDeleteHaptic(view)
+                        showDeleteConfirm = true
+                    }) {
 ```
 
 ---
 
-FILE 7: `HomeScreen.kt`
+FEATURE 3: Home Screen Widget
 
-Change 1 — Add import
-After line 27:
+NEW FILE: `ShouzeWidgetProvider.kt`
+
+Create at: `app/src/main/java/com/app/shouze/ui/widget/ShouzeWidgetProvider.kt`
 
 ```kotlin
-import androidx.compose.material.icons.filled.CalendarToday
+package com.app.shouze.ui.widget
+
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.RemoteViews
+import com.app.shouze.MainActivity
+import com.app.shouze.R
+
+class ShouzeWidgetProvider : AppWidgetProvider() {
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
+        appWidgetIds.forEach { appWidgetId ->
+            updateAppWidget(context, appWidgetManager, appWidgetId)
+        }
+    }
+
+    companion object {
+        fun updateAppWidget(
+            context: Context,
+            appWidgetManager: AppWidgetManager,
+            appWidgetId: Int
+        ) {
+            val views = RemoteViews(context.packageName, R.layout.widget_layout)
+
+            // Title click opens app
+            val openIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val openPending = PendingIntent.getActivity(
+                context, 0, openIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_title, openPending)
+
+            // Refresh button
+            val refreshIntent = Intent(context, ShouzeWidgetProvider::class.java).apply {
+                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(appWidgetId))
+            }
+            val refreshPending = PendingIntent.getBroadcast(
+                context, appWidgetId, refreshIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_refresh, refreshPending)
+
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
+
+        fun requestUpdate(context: Context) {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val component = ComponentName(context, ShouzeWidgetProvider::class.java)
+            val ids = appWidgetManager.getAppWidgetIds(component)
+            if (ids.isNotEmpty()) {
+                appWidgetManager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list)
+            }
+        }
+    }
+}
 ```
 
-Change 2 — Add parameter to function signature
-After line 68 (`onTagSelected: (String?) -> Unit = {}`), add:
+NEW FILE: `widget_layout.xml`
 
-```kotlin
-    onAiringScheduleClick: () -> Unit = {},
+Create at: `app/src/main/res/layout/widget_layout.xml`
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@android:drawable/dialog_holo_light_frame"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Shouze — Up Next"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:textColor="@android:color/black" />
+
+        <ImageView
+            android:id="@+id/widget_refresh"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_refresh"
+            android:contentDescription="Refresh" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Open app to see your Up Next queue"
+        android:textSize="14sp"
+        android:paddingTop="8dp"
+        android:textColor="@android:color/darker_gray" />
+</LinearLayout>
 ```
 
-Change 3 — Add button in TopAppBar actions
-After line 229 (`IconButton(onClick = onSearchAniListClick)` block), add:
+NEW FILE: `widget_info.xml`
 
-```kotlin
-                        IconButton(onClick = onAiringScheduleClick) {
-                            Icon(Icons.Filled.CalendarToday, contentDescription = "Airing Schedule")
-                        }
+Create at: `app/src/main/res/xml/widget_info.xml`
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="110dp"
+    android:updatePeriodMillis="86400000"
+    android:previewImage="@mipmap/ic_launcher"
+    android:initialLayout="@layout/widget_layout"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />
+```
+
+FILE: `AndroidManifest.xml`
+
+Change 1 — Add widget receiver
+Before the closing `</application>` tag (line 26), add:
+
+```xml
+        <receiver
+            android:name=".ui.widget.ShouzeWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info" />
+        </receiver>
 ```
 
 ---
 
-FILE 8: `SettingsScreen.kt`
+FEATURE 4: App Shortcuts
 
-Change 1 — Add import
-After line 15:
+NEW FILE: `shortcuts.xml`
 
-```kotlin
-import androidx.compose.material.icons.filled.Share
+Create at: `app/src/main/res/xml/shortcuts.xml`
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="add_media"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_add_short"
+        android:shortcutLongLabel="@string/shortcut_add_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.app.shouze"
+            android:targetClass="com.app.shouze.MainActivity">
+            <extra android:name="shortcut_action" android:value="add" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="search_anilist"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_search_short"
+        android:shortcutLongLabel="@string/shortcut_search_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.app.shouze"
+            android:targetClass="com.app.shouze.MainActivity">
+            <extra android:name="shortcut_action" android:value="search" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="view_statistics"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_stats_short"
+        android:shortcutLongLabel="@string/shortcut_stats_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.app.shouze"
+            android:targetClass="com.app.shouze.MainActivity">
+            <extra android:name="shortcut_action" android:value="statistics" />
+        </intent>
+    </shortcut>
+</shortcuts>
 ```
 
-Change 2 — Add parameter to function signature
-After line 29 (`onNavigateToStatistics: () -> Unit`), add:
+FILE: `AndroidManifest.xml`
 
-```kotlin
-    onNavigateToShareList: () -> Unit = {},
+Change 1 — Add shortcuts metadata to MainActivity
+Inside the `<activity android:name=".MainActivity">` block, after the `</intent-filter>` (line 24), add:
+
+```xml
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
 ```
 
-Change 3 — Add SettingsItem in General section
-After line 74 (the `SettingsItem` for "Backup & Restore"), add:
+FILE: `MainActivity.kt`
+
+Change 1 — Add shortcut handling in onCreate
+After `enableEdgeToEdge()` (line 24), add:
 
 ```kotlin
-                SettingsItem(
-                    title = "Share List",
-                    subtitle = "Share or import your library",
-                    icon = Icons.Default.Share,
-                    onClick = onNavigateToShareList
-                )
+        handleShortcutIntent(intent)
+```
+
+Change 2 — Add helper methods in MainActivity
+Before the closing `}` of the class (line 272), add:
+
+```kotlin
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        intent?.let { handleShortcutIntent(it) }
+    }
+
+    private fun handleShortcutIntent(intent: Intent) {
+        when (intent.getStringExtra("shortcut_action")) {
+            "add" -> {
+                // Navigate to add screen — handled via ViewModel state or deep link
+            }
+            "search" -> {
+                // Navigate to search
+            }
+            "statistics" -> {
+                // Navigate to stats
+            }
+        }
+    }
+```
+
+Actually, handling shortcuts in Compose Navigation requires a different approach. The shortcut launches MainActivity with an extra, and we need to read that extra in the Compose layer. Let me modify the approach:
+
+In `MainActivity.kt`, inside `setContent`, after `val navController = rememberNavController()`, add:
+
+```kotlin
+            val shortcutAction = remember(intent) {
+                intent.getStringExtra("shortcut_action")
+            }
+            LaunchedEffect(shortcutAction) {
+                when (shortcutAction) {
+                    "add" -> navController.navigate("edit?itemId=null")
+                    "search" -> navController.navigate("search")
+                    "statistics" -> navController.navigate("statistics")
+                }
+            }
+```
+
+And also add dynamic shortcuts. Let me add that too.
+
+Change 3 — Add dynamic shortcuts creation
+After `handleShortcutIntent(intent)` (the new line), add:
+
+```kotlin
+        createDynamicShortcuts()
+```
+
+Change 4 — Add the method
+Before the closing `}` of the class, add:
+
+```kotlin
+    private fun createDynamicShortcuts() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N_MR1) {
+            val shortcutManager = getSystemService(android.content.pm.ShortcutManager::class.java) ?: return
+            val shortcuts = listOf(
+                android.content.pm.ShortcutInfo.Builder(this, "dynamic_add")
+                    .setShortLabel("Quick Add")
+                    .setLongLabel("Add new media entry")
+                    .setIcon(android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.ic_input_add))
+                    .setIntent(Intent(this, MainActivity::class.java).apply {
+                        action = Intent.ACTION_VIEW
+                        putExtra("shortcut_action", "add")
+                    })
+                    .build()
+            )
+            shortcutManager.dynamicShortcuts = shortcuts
+        }
+    }
 ```
 
 ---
 
-FILE 9: `MainActivity.kt`
+FEATURE 5: Animated Empty States
 
-Change 1 — Add new routes inside NavHost
-Find the `composable("about")` block. After its closing `}`, add these new routes:
+FILE: `HomeScreen.kt`
+
+Change 1 — Replace the EmptyState composable
+Find the `EmptyState` function (around line 538). Replace the entire function with:
 
 ```kotlin
-                        composable("airing") {
-                            val airingState by viewModel.airingScheduleUiState.collectAsState()
-                            LaunchedEffect(Unit) {
-                                if (airingState.schedules.isEmpty()) {
-                                    viewModel.fetchAiringSchedule()
-                                }
-                            }
-                            AiringScheduleScreen(
-                                schedules = airingState.schedules,
-                                isLoading = airingState.isLoading,
-                                error = airingState.error,
-                                onBack = { navController.popBackStack() },
-                                onRefresh = { viewModel.fetchAiringSchedule() },
-                                onAddToLibrary = { schedule ->
-                                    val item = viewModel.createItemFromAiringSchedule(schedule)
-                                    viewModel.addOrUpdate(item)
-                                }
-                            )
-                        }
+@Composable
+private fun EmptyState(
+    hasSearchOrFilter: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "empty_state")
+    val floatAnim by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "float"
+    )
 
-                        composable("streaming/{title}") { backStackEntry ->
-                            val title = backStackEntry.arguments?.getString("title")?.let {
-                                java.net.URLDecoder.decode(it, "UTF-8")
-                            } ?: ""
-                            val streamingState by viewModel.streamingUiState.collectAsState()
-
-                            StreamingLinksScreen(
-                                title = streamingState.title,
-                                streamingEpisodes = streamingState.streamingEpisodes,
-                                externalLinks = streamingState.externalLinks,
-                                isLoading = streamingState.isLoading,
-                                error = streamingState.error,
-                                onBack = { navController.popBackStack() },
-                                onLoad = { viewModel.loadStreamingForTitle(title) }
-                            )
-                        }
-
-                        composable("share") {
-                            ShareListScreen(
-                                items = uiState.allItems,
-                                categories = uiState.categories,
-                                onBack = { navController.popBackStack() },
-                                onImportSharedList = { text ->
-                                    viewModel.importSharedList(text)
-                                }
-                            )
-                        }
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier.size(120.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // Floating background circle
+            Box(
+                modifier = Modifier
+                    .size(80.dp + (floatAnim * 20).dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        shape = CircleShape
+                    )
+            )
+            // Icon with subtle bounce
+            Icon(
+                imageVector = Icons.Filled.MovieFilter,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f + (floatAnim * 0.2f)),
+                modifier = Modifier.size(64.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = if (hasSearchOrFilter) "No results found" else "Your library is empty",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = if (hasSearchOrFilter) {
+                "Try changing your search or filter."
+            } else {
+                "Tap the '+' button to add your first entry"
+            },
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
 ```
 
-Change 2 — Wire up HomeScreen callback
-In the `HomeScreen` call inside `composable("home")`, add:
+Change 2 — Add imports
+After line 7:
 
 ```kotlin
-                                onAiringScheduleClick = { navController.navigate("airing") },
-```
-
-Change 3 — Wire up DetailScreen callback
-In the `DetailScreen` call inside `composable("detail/{itemId}")`, add:
-
-```kotlin
-                                    onWhereToWatch = {
-                                        val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
-                                        navController.navigate("streaming/$encodedTitle")
-                                    },
-```
-
-Change 4 — Wire up SettingsScreen callback
-In the `SettingsScreen` call inside `composable("settings")`, add:
-
-```kotlin
-                            onNavigateToShareList = { navController.navigate("share") },
+import androidx.compose.animation.core.*
 ```
 
 ---
 
-That's all of Tier 3. Build, test, and let me know if anything throws a red squiggle.
+FILE: `strings.xml` — Add shortcut strings
+
+Find or create: `app/src/main/res/values/strings.xml`
+
+If it exists, add these inside `<resources>`:
+
+```xml
+    <string name="shortcut_add_short">Add Media</string>
+    <string name="shortcut_add_long">Add a new media entry</string>
+    <string name="shortcut_search_short">Search AniList</string>
+    <string name="shortcut_search_long">Search AniList database</string>
+    <string name="shortcut_stats_short">Statistics</string>
+    <string name="shortcut_stats_long">View library statistics</string>
+```
+
+If the file doesn't exist, create it with:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Shouze</string>
+    <string name="shortcut_add_short">Add Media</string>
+    <string name="shortcut_add_long">Add a new media entry</string>
+    <string name="shortcut_search_short">Search AniList</string>
+    <string name="shortcut_search_long">Search AniList database</string>
+    <string name="shortcut_stats_short">Statistics</string>
+    <string name="shortcut_stats_long">View library statistics</string>
+</resources>
+```
+
+---
+
+That's all of Tier 4. Five polish features:
+
+1. Haptics — Selection, confirm, delete feedback on supported devices
+2. Shared element transitions — Cover image smoothly animates between list and detail
+3. Home screen widget — Simple widget showing Shouze branding with refresh
+4. App shortcuts — Static shortcuts (Add, Search, Stats) + dynamic "Quick Add"
+5. Animated empty states — Pulsing background circle and floating icon instead of static dead screen
+
+Build, test, and let me know if anything throws a red squiggle.

@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Shouze</string>
+    <string name="shortcut_add_short">Add Media</string>
+    <string name="shortcut_add_long">Add a new media entry</string>
+    <string name="shortcut_search_short">Search AniList</string>
+    <string name="shortcut_search_long">Search AniList database</string>
+    <string name="shortcut_stats_short">Statistics</string>
+    <string name="shortcut_stats_long">View library statistics</string>
 </resources>

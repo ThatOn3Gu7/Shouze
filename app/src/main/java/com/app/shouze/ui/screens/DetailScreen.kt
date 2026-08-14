@@ -1,5 +1,8 @@
 package com.app.shouze.ui.screens
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -34,7 +37,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun DetailScreen(
     item: MediaItemEntity,
@@ -44,7 +47,9 @@ fun DetailScreen(
     onDelete: () -> Unit,
     onToggleFavorite: () -> Unit = {},
     onIncrementRewatch: () -> Unit = {},
-    onWhereToWatch: () -> Unit = {}
+    onWhereToWatch: () -> Unit = {},
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -59,7 +64,11 @@ fun DetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onToggleFavorite) {
+                    val view = androidx.compose.ui.platform.LocalView.current
+                    IconButton(onClick = {
+                        com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(view)
+                        onToggleFavorite()
+                    }) {
                         Icon(
                             imageVector = if (item.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
                             contentDescription = if (item.isFavorite) "Unfavorite" else "Favorite",
@@ -69,7 +78,11 @@ fun DetailScreen(
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Filled.Edit, contentDescription = "Edit")
                     }
-                    IconButton(onClick = { showDeleteConfirm = true }) {
+                    val viewForDelete = androidx.compose.ui.platform.LocalView.current
+                    IconButton(onClick = {
+                        com.app.shouze.ui.components.HapticsHelper.performDeleteHaptic(viewForDelete)
+                        showDeleteConfirm = true
+                    }) {
                         Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                     }
                     IconButton(onClick = onWhereToWatch) {
@@ -93,7 +106,10 @@ fun DetailScreen(
                 coverUri = item.coverImageUri,
                 title = item.title,
                 categoryName = category?.name ?: "Unknown",
-                status = item.status
+                status = item.status,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedVisibilityScope = animatedVisibilityScope,
+                sharedElementKey = "cover-${item.id}"
             )
 
             Column(
@@ -277,12 +293,16 @@ private fun BannerPlaceholder(failed: Boolean = false) {
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun CoverBanner(
     coverUri: String?,
     title: String,
     categoryName: String,
     status: Status,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
+    sharedElementKey: String? = null,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -292,11 +312,22 @@ private fun CoverBanner(
             .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
     ) {
         if (!coverUri.isNullOrBlank()) {
+            val imageModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null && sharedElementKey != null) {
+                with(sharedTransitionScope) {
+                    Modifier.fillMaxSize().sharedBounds(
+                        rememberSharedContentState(key = sharedElementKey),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                        boundsTransform = { _, _ -> androidx.compose.animation.core.tween(400) }
+                    )
+                }
+            } else {
+                Modifier.fillMaxSize()
+            }
             SafeRemoteImage(
                 url = coverUri,
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+                modifier = imageModifier,
                 placeholder = { BannerPlaceholder() },
                 errorContent = { BannerPlaceholder(failed = true) }
             )

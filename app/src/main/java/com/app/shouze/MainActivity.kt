@@ -5,24 +5,50 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.animation.SharedTransitionLayout
 import com.app.shouze.ui.MediaViewModel
+import com.app.shouze.ui.screens.*
 import com.app.shouze.ui.components.CoverImageStore
 import com.app.shouze.ui.components.DetailEditDialog
 import com.app.shouze.ui.StatsUiState
-import com.app.shouze.ui.screens.*
+private fun NavHostController.navigateToTab(route: String) {
+    val start = graph.startDestinationRoute ?: return
+    navigate(route) {
+        popUpTo(start) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
 
 class MainActivity : ComponentActivity() {
+    private val shortcutActions = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
+
+    @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        createDynamicShortcuts()
         CoverImageStore.init(applicationContext)
+
+        // Handle initial intent
+        intent?.getStringExtra("shortcut_action")?.let {
+            shortcutActions.tryEmit(it)
+        }
 
         setContent {
             val viewModel: MediaViewModel = viewModel()
@@ -32,12 +58,55 @@ class MainActivity : ComponentActivity() {
             val searchUiState by viewModel.searchUiState.collectAsState()
             val navController = rememberNavController()
 
+            LaunchedEffect(Unit) {
+                shortcutActions.collect { action ->
+                    when (action) {
+                        "add" -> navController.navigate("edit?itemId=null")
+                        "search" -> navController.navigate("search")
+                        "statistics" -> navController.navigate("statistics")
+                    }
+                }
+            }
+
             com.app.shouze.ui.theme.MediaTrackerTheme(settings = settings) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    NavHost(
-                        navController = navController,
-                        startDestination = if (settings.hasSeenOnboarding) "home" else "onboarding"
-                    ) {
+                    SharedTransitionLayout {
+                        val navBackStackEntry by navController.currentBackStackEntryAsState()
+                        val currentRoute = navBackStackEntry?.destination?.route
+                        val showBottomBar = currentRoute in listOf("home", "search", "profile")
+                        Scaffold(
+                            bottomBar = {
+                                if (showBottomBar) {
+                                    NavigationBar {
+                                        NavigationBarItem(
+                                            selected = currentRoute == "home",
+                                            onClick = { navController.navigateToTab("home") },
+                                            icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
+                                            label = { Text("Home") }
+                                        )
+                                        NavigationBarItem(
+                                            selected = currentRoute == "search",
+                                            onClick = { navController.navigateToTab("search") },
+                                            icon = { Icon(Icons.Filled.Search, contentDescription = "Search") },
+                                            label = { Text("Search") }
+                                        )
+                                        NavigationBarItem(
+                                            selected = currentRoute == "profile",
+                                            onClick = { navController.navigateToTab("profile") },
+                                            icon = { Icon(Icons.Filled.Person, contentDescription = "Profile") },
+                                            label = { Text("Profile") }
+                                        )
+                                    }
+                                }
+                            },
+                            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                            containerColor = MaterialTheme.colorScheme.background
+                        ) { innerPadding ->
+                        NavHost(
+                            navController = navController,
+                            startDestination = if (settings.hasSeenOnboarding) "home" else "onboarding",
+                            modifier = Modifier.padding(innerPadding)
+                        ) {
                         composable("onboarding") {
                             OnboardingScreen(
                                 onGetStarted = {
@@ -95,11 +164,9 @@ class MainActivity : ComponentActivity() {
                                 onSearchQueryChange = viewModel::setSearchQuery,
                                 onClearMessage = viewModel::clearSyncMessage,
                                 onSettingsClick = { navController.navigate("settings") },
-                                onStatisticsClick = { navController.navigate("statistics") },
                                 onSortModeChange = viewModel::setSortMode,
                                 onToggleFavorites = viewModel::toggleShowFavorites,
                                 onToggleFavorite = { viewModel.toggleFavorite(it.id) },
-                                onSearchAniListClick = { navController.navigate("search") },
                                 onAiringScheduleClick = { navController.navigate("airing") },
                                 showFavoritesOnly = uiState.showFavoritesOnly,
                                 onToggleSelection = viewModel::toggleSelection,
@@ -111,7 +178,9 @@ class MainActivity : ComponentActivity() {
                                 onBulkToggleFavorite = viewModel::bulkToggleFavorite,
                                 allTags = uiState.allTags,
                                 selectedTag = uiState.selectedTag,
-                                onTagSelected = viewModel::setTagFilter
+                                onTagSelected = viewModel::setTagFilter,
+                                sharedTransitionScope = this@SharedTransitionLayout,
+                                animatedVisibilityScope = this@composable
                             )
                         }
 
@@ -135,7 +204,9 @@ class MainActivity : ComponentActivity() {
                                     onWhereToWatch = {
                                         val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
                                         navController.navigate("streaming/${'$'}encodedTitle")
-                                    }
+                                    },
+                                    sharedTransitionScope = this@SharedTransitionLayout,
+                                    animatedVisibilityScope = this@composable
                                 )
                             }
                         }
@@ -264,9 +335,48 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+
+                        composable("profile") {
+                            ProfileScreen(
+                                username = settings.username,
+                                profilePictureUri = settings.profilePictureUri,
+                                onUsernameChange = viewModel::setUsername,
+                                onProfilePictureChange = viewModel::setProfilePicture,
+                                onNavigateToStatistics = { navController.navigate("statistics") },
+                                onNavigateToSettings = { navController.navigate("settings") }
+                            )
+                        }
+                    }
+                    }
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra("shortcut_action")?.let {
+            shortcutActions.tryEmit(it)
+        }
+    }
+
+    private fun createDynamicShortcuts() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N_MR1) {
+            val shortcutManager = getSystemService(android.content.pm.ShortcutManager::class.java) ?: return
+            val shortcuts = listOf(
+                android.content.pm.ShortcutInfo.Builder(this, "dynamic_add")
+                    .setShortLabel("Quick Add")
+                    .setLongLabel("Add new media entry")
+                    .setIcon(android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.ic_input_add))
+                    .setIntent(android.content.Intent(this, MainActivity::class.java).apply {
+                        action = android.content.Intent.ACTION_VIEW
+                        putExtra("shortcut_action", "add")
+                    })
+                    .build()
+            )
+            shortcutManager.dynamicShortcuts = shortcuts
         }
     }
 }
