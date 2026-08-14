@@ -26,6 +26,21 @@ import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
 import java.util.UUID
 
+private data class EditSnapshot(
+    val title: String,
+    val categoryId: String,
+    val status: Status,
+    val progress: String,
+    val total: String,
+    val volume: String,
+    val rating: String,
+    val rewatch: String,
+    val cover: String,
+    val genres: List<String>,
+    val tags: List<String>,
+    val notes: String
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DetailEditDialog(
@@ -53,6 +68,41 @@ fun DetailEditDialog(
     var rewatchCount by remember { mutableStateOf(item?.rewatchCount?.toString() ?: "0") }
 
     var showCategoryPicker by remember { mutableStateOf(false) }
+    var showDiscardConfirm by remember { mutableStateOf(false) }
+
+    val initialSnapshot = remember(item?.id) {
+        item?.let {
+            EditSnapshot(
+                title = it.title,
+                categoryId = it.categoryId,
+                status = it.status,
+                progress = it.currentProgress.toString(),
+                total = it.totalCount.toString(),
+                volume = it.currentVolume?.toString() ?: "",
+                rating = it.rating.toString(),
+                rewatch = it.rewatchCount.toString(),
+                cover = it.coverImageUri ?: "",
+                genres = it.genres,
+                tags = it.tags,
+                notes = it.notes
+            )
+        }
+    }
+    val currentSnapshot = EditSnapshot(
+        title = title,
+        categoryId = categoryId,
+        status = status,
+        progress = currentProgress,
+        total = totalCount,
+        volume = currentVolume,
+        rating = rating,
+        rewatch = rewatchCount,
+        cover = coverImageUri,
+        genres = genres,
+        tags = tags,
+        notes = notes
+    )
+    val isDirty = initialSnapshot != null && initialSnapshot != currentSnapshot
     var showStatusPicker by remember { mutableStateOf(false) }
 
     val photoPicker = rememberLauncherForActivityResult(
@@ -74,6 +124,9 @@ fun DetailEditDialog(
     val totalInt = totalCount.toIntOrNull()?.coerceAtLeast(0) ?: 0
     val clampedProgress = if (totalInt > 0) progressInt.coerceIn(0, totalInt) else progressInt
 
+    val coverLooksValid = coverImageUri.isBlank() ||
+        Regex("(?i).+\\.(jpg|jpeg|png|webp|gif)(\\?.*)?\$").containsMatchIn(coverImageUri)
+
     val selectedCategory = categories.find { it.id == categoryId }
     val isLiterature = selectedCategory?.name?.contains("novel", ignoreCase = true) == true
             || selectedCategory?.name?.contains("book", ignoreCase = true) == true
@@ -81,7 +134,7 @@ fun DetailEditDialog(
     val unitLabel = if (isLiterature) "Chapter" else "Episode"
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (isDirty) showDiscardConfirm = true else onDismiss },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false
@@ -223,7 +276,14 @@ fun DetailEditDialog(
                     value = coverImageUri,
                     onValueChange = { coverImageUri = it },
                     label = { Text("Cover Image URL") },
-                    supportingText = { Text("Direct image link only (ends in .jpg, .png, .webp). Webpages won't work.") },
+                    isError = !coverLooksValid,
+                    supportingText = {
+                        if (!coverLooksValid) {
+                            Text("Please use a direct image link ending in .jpg, .png or .webp.")
+                        } else {
+                            Text("Direct image link only (ends in .jpg, .png, .webp). Webpages won't work.")
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.medium
                 )
@@ -239,6 +299,12 @@ fun DetailEditDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Pick from Gallery")
                 }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Opens your device's photo picker to use a local image.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 Spacer(modifier = Modifier.height(20.dp))
 
@@ -392,7 +458,7 @@ fun DetailEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
                 ) {
-                    TextButton(onClick = onDismiss) {
+                    TextButton(onClick = { if (isDirty) showDiscardConfirm = true else onDismiss }) {
                         Text("Cancel")
                     }
                     Button(
@@ -509,6 +575,26 @@ fun DetailEditDialog(
                 TextButton(onClick = { showStatusPicker = false }) {
                     Text("Cancel")
                 }
+            }
+        )
+    }
+
+    if (showDiscardConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirm = false },
+            title = { Text("Discard changes?") },
+            text = { Text("You have unsaved changes. Are you sure you want to discard them?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirm = false
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("Discard") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirm = false }) { Text("Keep Editing") }
             }
         )
     }

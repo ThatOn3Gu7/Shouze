@@ -43,7 +43,9 @@ data class AniListSearchUiState(
     val results: List<AniListMedia> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val searchType: String = "ANIME"
+    val searchType: String = "ANIME",
+    val trending: List<AniListMedia> = emptyList(),
+    val isTrendingLoading: Boolean = false
 )
 
 data class AiringScheduleUiState(
@@ -295,6 +297,51 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- Quick progress actions ---
+
+    private fun isLiterature(item: MediaItemEntity): Boolean {
+        val cat = _uiState.value.categories.find { it.id == item.categoryId }
+        return cat?.name?.let { name ->
+            name.contains("novel", ignoreCase = true) ||
+                name.contains("book", ignoreCase = true) ||
+                name.contains("manga", ignoreCase = true)
+        } ?: false
+    }
+
+    fun incrementProgress(itemId: String) {
+        viewModelScope.launch {
+            val item = _uiState.value.allItems.find { it.id == itemId } ?: return@launch
+            val now = System.currentTimeMillis()
+            val newProgress = if (item.totalCount > 0) {
+                (item.currentProgress + 1).coerceAtMost(item.totalCount)
+            } else {
+                item.currentProgress + 1
+            }
+            var updated = item.copy(currentProgress = newProgress, lastUpdated = now)
+            if (item.status == Status.PLAN_TO_WATCH || item.status == Status.COMPLETED) {
+                updated = updated.copy(
+                    status = if (isLiterature(item)) Status.READING else Status.WATCHING,
+                    startDate = item.startDate ?: now
+                )
+            }
+            dao.insertOrUpdate(updated)
+        }
+    }
+
+    fun markCompleted(itemId: String) {
+        viewModelScope.launch {
+            val item = _uiState.value.allItems.find { it.id == itemId } ?: return@launch
+            val now = System.currentTimeMillis()
+            val updated = item.copy(
+                currentProgress = item.totalCount,
+                status = Status.COMPLETED,
+                endDate = item.endDate ?: now,
+                lastUpdated = now
+            )
+            dao.insertOrUpdate(updated)
+        }
+    }
+
     private fun filterItems(
         all: List<MediaItemEntity>,
         categoryId: String?,
@@ -331,14 +378,30 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     _searchUiState.update { it.copy(results = media, isLoading = false) }
                 },
                 onFailure = { e ->
-                    _searchUiState.update { it.copy(error = e.message ?: "Search failed", isLoading = false) }
+                    _searchUiState.update { it.copy(error = friendlyError(e), isLoading = false) }
                 }
             )
         }
     }
 
     fun setSearchType(type: String) {
-        _searchUiState.update { it.copy(searchType = type, results = emptyList()) }
+        _searchUiState.update { it.copy(searchType = type, results = emptyList(), trending = emptyList()) }
+    }
+
+    fun loadTrending() {
+        viewModelScope.launch {
+            if (_searchUiState.value.trending.isNotEmpty()) return@launch
+            _searchUiState.update { it.copy(isTrendingLoading = true) }
+            val result = aniListApi.getTrending(_searchUiState.value.searchType)
+            result.fold(
+                onSuccess = { media ->
+                    _searchUiState.update { it.copy(trending = media, isTrendingLoading = false) }
+                },
+                onFailure = {
+                    _searchUiState.update { it.copy(isTrendingLoading = false) }
+                }
+            )
+        }
     }
 
     fun clearSearchResults() {
@@ -356,7 +419,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     _airingScheduleUiState.update { it.copy(schedules = schedules, isLoading = false) }
                 },
                 onFailure = { e ->
-                    _airingScheduleUiState.update { it.copy(error = e.message ?: "Failed to load", isLoading = false) }
+                    _airingScheduleUiState.update { it.copy(error = friendlyError(e), isLoading = false) }
                 }
             )
         }
@@ -397,15 +460,15 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                                 }
                             },
                             onFailure = { e ->
-                                _streamingUiState.update { it.copy(error = e.message, isLoading = false) }
+                                _streamingUiState.update { it.copy(error = friendlyError(e), isLoading = false) }
                             }
                         )
                     } else {
-                        _streamingUiState.update { it.copy(error = "Not found on AniList", isLoading = false) }
+                        _streamingUiState.update { it.copy(error = "That title wasn't found on AniList.", isLoading = false) }
                     }
                 },
                 onFailure = { e ->
-                    _streamingUiState.update { it.copy(error = e.message, isLoading = false) }
+                    _streamingUiState.update { it.copy(error = friendlyError(e), isLoading = false) }
                 }
             )
         }
@@ -788,6 +851,22 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         _syncMessage.value = null
         _error.value = null
         _uiState.update { it.copy(syncMessage = null, error = null) }
+    }
+
+    private fun friendlyError(e: Throwable?): String {
+        val msg = e?.message?.lowercase() ?: ""
+        return when {
+            msg.contains("resolve host") ||
+                msg.contains("unknownhost") ||
+                msg.contains("unable to resolve") ||
+                msg.contains("no address associated with hostname") ->
+                "Couldn't reach AniList. Check your internet connection and try again."
+            msg.contains("timeout") || msg.contains("timed out") ->
+                "The request timed out. Please try again."
+            msg.contains("cleartext") || msg.contains("protocol") ->
+                "A secure connection to AniList couldn't be made. Please try again."
+            else -> "Something went wrong reaching AniList. Please try again."
+        }
     }
 
     private fun showMessage(message: String, isError: Boolean = false) {

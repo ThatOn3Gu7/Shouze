@@ -138,6 +138,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onSearch = viewModel::searchAniList,
                                 onTypeChange = viewModel::setSearchType,
+                                onLoadTrending = viewModel::loadTrending,
                                 onSelect = { media ->
                                     val item = viewModel.createItemFromAniList(media)
                                     viewModel.setPendingPreFill(item)
@@ -199,9 +200,11 @@ class MainActivity : ComponentActivity() {
                                         viewModel.deleteItem(item.id)
                                         navController.popBackStack()
                                     },
-                                    onToggleFavorite = { viewModel.toggleFavorite(item.id) },
-                                    onIncrementRewatch = { viewModel.incrementRewatch(item.id) },
-                                    onWhereToWatch = {
+                                onToggleFavorite = { viewModel.toggleFavorite(item.id) },
+                                onIncrementRewatch = { viewModel.incrementRewatch(item.id) },
+                                onIncrementProgress = { viewModel.incrementProgress(item.id) },
+                                onMarkCompleted = { viewModel.markCompleted(item.id) },
+                                onWhereToWatch = {
                                         val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
                                         navController.navigate("streaming/${'$'}encodedTitle")
                                     },
@@ -351,6 +354,34 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+        }
+
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra("shortcut_action")?.let {
+            shortcutActions.tryEmit(it)
+        }
+    }
+
+    private fun createDynamicShortcuts() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N_MR1) {
+            val shortcutManager = getSystemService(android.content.pm.ShortcutManager::class.java) ?: return
+            val shortcuts = listOf(
+                android.content.pm.ShortcutInfo.Builder(this, "dynamic_add")
+                    .setShortLabel("Quick Add")
+                    .setLongLabel("Add new media entry")
+                    .setIcon(android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.ic_input_add))
+                    .setIntent(android.content.Intent(this, MainActivity::class.java).apply {
+                        action = android.content.Intent.ACTION_VIEW
+                        putExtra("shortcut_action", "add")
+                    })
+                    .build()
+            )
+            shortcutManager.dynamicShortcuts = shortcuts
         }
     }
 

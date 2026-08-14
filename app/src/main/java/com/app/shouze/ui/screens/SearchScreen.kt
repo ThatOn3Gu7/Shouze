@@ -28,9 +28,14 @@ fun SearchScreen(
     onBack: () -> Unit,
     onSearch: (String) -> Unit,
     onTypeChange: (String) -> Unit,
-    onSelect: (AniListMedia) -> Unit
+    onSelect: (AniListMedia) -> Unit,
+    onLoadTrending: () -> Unit = {}
 ) {
     var query by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        onLoadTrending()
+    }
 
     Scaffold(
         topBar = {
@@ -75,12 +80,12 @@ fun SearchScreen(
             TabRow(selectedTabIndex = if (uiState.searchType == "ANIME") 0 else 1) {
                 Tab(
                     selected = uiState.searchType == "ANIME",
-                    onClick = { onTypeChange("ANIME") },
+                    onClick = { onTypeChange("ANIME"); onLoadTrending() },
                     text = { Text("Anime") }
                 )
                 Tab(
                     selected = uiState.searchType == "MANGA",
-                    onClick = { onTypeChange("MANGA") },
+                    onClick = { onTypeChange("MANGA"); onLoadTrending() },
                     text = { Text("Manga") }
                 )
             }
@@ -114,27 +119,57 @@ fun SearchScreen(
                 }
             }
 
-            if (!uiState.isLoading && uiState.results.isEmpty() && uiState.error == null) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Search for anime or manga to add to your library",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            when {
+                uiState.results.isNotEmpty() -> {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 16.dp)
+                    ) {
+                        items(uiState.results, key = { it.id }) { media ->
+                            AniListResultCard(
+                                media = media,
+                                onClick = { onSelect(media) }
+                            )
+                        }
+                    }
                 }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
-                    items(uiState.results, key = { it.id }) { media ->
-                        AniListResultCard(
-                            media = media,
-                            onClick = { onSelect(media) }
+                uiState.error == null && !uiState.isLoading -> {
+                    if (uiState.isTrendingLoading) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.padding(24.dp))
+                        }
+                    } else if (uiState.trending.isNotEmpty()) {
+                        Text(
+                            text = "Trending",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(vertical = 8.dp)
                         )
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(bottom = 16.dp)
+                        ) {
+                            items(uiState.trending, key = { it.id }) { media ->
+                                AniListResultCard(
+                                    media = media,
+                                    onClick = { onSelect(media) }
+                                )
+                            }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Search for anime or manga to add to your library",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

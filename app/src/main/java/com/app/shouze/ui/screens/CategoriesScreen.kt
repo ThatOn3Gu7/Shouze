@@ -1,8 +1,10 @@
 package com.app.shouze.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -45,7 +47,18 @@ fun CategoriesScreen(
         ) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Categories help you organize your library. Use the search and filter chips on the home screen to show one at a time.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     categories.forEach { cat ->
+                        val color = cat.colorHex?.let { hex ->
+                            runCatching {
+                                androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(hex))
+                            }.getOrNull()
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -53,11 +66,24 @@ fun CategoriesScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = cat.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f)
-                            )
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (color != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .clip(androidx.compose.foundation.shape.CircleShape)
+                                            .background(color)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                }
+                                Text(
+                                    text = cat.name,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
                             IconButton(onClick = { onDeleteCategory(cat.id) }) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,

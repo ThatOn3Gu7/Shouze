@@ -223,6 +223,55 @@ class AniListApi {
         }
     }
 
+    suspend fun getTrending(type: String = "ANIME"): Result<List<AniListMedia>> = withContext(Dispatchers.IO) {
+        try {
+            val graphqlQuery = """
+                query Trending(${'$'}type: MediaType) {
+                    Page(page: 1, perPage: 20) {
+                        media(sort: POPULARITY_DESC, type: ${'$'}type) {
+                            id
+                            title { romaji english native }
+                            coverImage { large medium }
+                            description
+                            episodes
+                            chapters
+                            volumes
+                            status
+                            genres
+                            averageScore
+                            format
+                        }
+                    }
+                }
+            """.trimIndent()
+
+            val requestBody = buildJsonObject {
+                put("query", graphqlQuery)
+                putJsonObject("variables") {
+                    put("type", type)
+                }
+            }.toString()
+
+            val request = Request.Builder()
+                .url("https://graphql.anilist.co")
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                }
+                val body = response.body?.string()
+                    ?: return@withContext Result.failure(IOException("Empty response"))
+                val result = json.decodeFromString<AniListSearchResponse>(body)
+                val media = result.data?.Page?.media ?: emptyList()
+                Result.success(media)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getStreamingEpisodes(mediaId: Int): Result<Pair<List<StreamingEpisode>, List<ExternalLink>>> = withContext(Dispatchers.IO) {
         try {
             val graphqlQuery = """

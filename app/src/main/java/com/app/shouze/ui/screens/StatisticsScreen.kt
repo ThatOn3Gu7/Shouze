@@ -188,6 +188,7 @@ private fun OverviewSection(stats: StatsUiState) {
             StatCard(
                 value = "${stats.totalProgressConsumed}",
                 label = "Consumed",
+                caption = "Episodes & chapters",
                 modifier = Modifier.weight(1f)
             )
         }

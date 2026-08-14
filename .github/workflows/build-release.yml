@@ -1,0 +1,83 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # If this step fails (compose/kotlin/build error), the job stops here
+      # and NO release is created for this commit.
+      - name: Build (compile + assemble)
+        id: build
+        env:
+          STORE_PWD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KEY_PWD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          if [ -n "${{ secrets.SIGNING_KEY_BASE64 }}" ]; then
+            echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > keystore.jks
+            ./gradlew assembleRelease assembleDebug \
+              -Pandroid.injected.signing.store.file=keystore.jks \
+              -Pandroid.injected.signing.store.password="$STORE_PWD" \
+              -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$KEY_PWD"
+          else
+            ./gradlew assembleRelease assembleDebug
+          fi
+
+      - name: Determine next version tag
+        id: version
+        run: |
+          LATEST=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          if [ -z "$LATEST" ]; then LATEST="v0.0.0"; fi
+          echo "previous tag: $LATEST"
+          VER=${LATEST#v}
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VER"
+          PATCH=$((10#$PATCH + 1))
+          NEXT="v$MAJOR.$MINOR.$PATCH"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "next tag: $NEXT"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          LATEST=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          if [ -z "$LATEST" ]; then RANGE=""; else RANGE="$LATEST..HEAD"; fi
+          python3 .github/scripts/gen_release_notes.py "$RANGE" > release_notes.md
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.next }}
+          name: Shouze ${{ steps.version.outputs.next }}
+          body_path: release_notes.md
+          files: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/debug/*.apk
+          draft: false
+          prerelease: false

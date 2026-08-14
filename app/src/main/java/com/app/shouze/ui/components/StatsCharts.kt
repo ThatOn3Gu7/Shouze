@@ -27,7 +27,8 @@ import androidx.compose.ui.unit.dp
 fun StatCard(
     value: String,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    caption: String? = null
 ) {
     Card(
         modifier = modifier.aspectRatio(1f),
@@ -57,6 +58,16 @@ fun StatCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (caption != null) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = caption,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

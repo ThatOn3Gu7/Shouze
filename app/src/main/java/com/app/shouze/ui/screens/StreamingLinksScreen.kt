@@ -65,7 +65,13 @@ fun StreamingLinksScreen(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Failed to load links", style = MaterialTheme.typography.titleMedium)
-                        Text(error, color = MaterialTheme.colorScheme.error)
+                        Text(
+                            error,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = onLoad) { Text("Retry") }
                     }
                 }
             } else {

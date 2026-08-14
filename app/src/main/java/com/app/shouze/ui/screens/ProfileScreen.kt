@@ -41,7 +41,7 @@ fun ProfileScreen(
 
     val context = LocalContext.current
     val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia(),
+        contract = ActivityResultContracts.GetContent(),
         onResult = { uri ->
             uri?.let {
                 try {
@@ -182,9 +182,7 @@ fun ProfileScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showPictureDialog = false
-                    galleryLauncher.launch(
-                        androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
+                    galleryLauncher.launch("image/*")
                 }) { Text("From Gallery") }
             },
             dismissButton = {

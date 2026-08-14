@@ -78,7 +78,14 @@ fun AppearanceScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Dynamic Colors")
+                        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                            Text("Dynamic Colors")
+                            Text(
+                                text = "Use the accent color from your device's wallpaper (Android 12+).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Switch(
                             checked = settings.useDynamicColor,
                             onCheckedChange = onDynamicColorChange
@@ -95,12 +102,26 @@ fun AppearanceScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("AMOLED Black")
+                            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                                Text("AMOLED Black")
+                                Text(
+                                    text = "Use pure black backgrounds for OLED screens. Only available in dark mode.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             Switch(
                                 checked = settings.amoledBlack,
                                 onCheckedChange = onAmoledBlackChange
                             )
                         }
+                    } else {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "AMOLED Black is available when the theme is set to Dark.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

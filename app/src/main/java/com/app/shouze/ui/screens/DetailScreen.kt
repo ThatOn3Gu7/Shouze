@@ -13,8 +13,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.StarHalf
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.BrokenImage
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.PlayArrow
@@ -47,12 +49,21 @@ fun DetailScreen(
     onDelete: () -> Unit,
     onToggleFavorite: () -> Unit = {},
     onIncrementRewatch: () -> Unit = {},
+    onIncrementProgress: (MediaItemEntity) -> Unit = {},
+    onMarkCompleted: (MediaItemEntity) -> Unit = {},
     onWhereToWatch: () -> Unit = {},
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var notesExpanded by remember { mutableStateOf(false) }
+    val isLiterature = category?.name?.let { name ->
+        name.contains("novel", ignoreCase = true) ||
+            name.contains("book", ignoreCase = true) ||
+            name.contains("manga", ignoreCase = true)
+    } ?: false
+    val progressUnit = if (isLiterature) "Chapter" else "Episode"
 
     Scaffold(
         topBar = {
@@ -176,6 +187,24 @@ fun DetailScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { onIncrementProgress(item) },
+                            enabled = item.totalCount == 0 || item.currentProgress < item.totalCount
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("+1 $progressUnit")
+                        }
+                        if (item.status != Status.COMPLETED) {
+                            Button(onClick = { onMarkCompleted(item) }) {
+                                Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Mark Complete")
+                            }
+                        }
+                    }
                     if (item.currentVolume != null) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
@@ -220,8 +249,15 @@ fun DetailScreen(
                         Text(
                             text = item.notes,
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = if (notesExpanded) Int.MAX_VALUE else 4,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        if (item.notes.length > 120) {
+                            TextButton(onClick = { notesExpanded = !notesExpanded }) {
+                                Text(if (notesExpanded) "Show less" else "Read more")
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                 }
