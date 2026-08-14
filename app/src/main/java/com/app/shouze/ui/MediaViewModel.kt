@@ -46,6 +46,20 @@ data class AniListSearchUiState(
     val searchType: String = "ANIME"
 )
 
+data class AiringScheduleUiState(
+    val schedules: List<com.app.shouze.data.remote.AiringSchedule> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
+
+data class StreamingUiState(
+    val title: String = "",
+    val streamingEpisodes: List<com.app.shouze.data.remote.StreamingEpisode> = emptyList(),
+    val externalLinks: List<com.app.shouze.data.remote.ExternalLink> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
+
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getInstance(application)
@@ -77,6 +91,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _searchUiState = MutableStateFlow(AniListSearchUiState())
     val searchUiState: StateFlow<AniListSearchUiState> = _searchUiState.asStateFlow()
+
+    private val _airingScheduleUiState = MutableStateFlow(AiringScheduleUiState())
+    val airingScheduleUiState: StateFlow<AiringScheduleUiState> = _airingScheduleUiState.asStateFlow()
+
+    private val _streamingUiState = MutableStateFlow(StreamingUiState())
+    val streamingUiState: StateFlow<StreamingUiState> = _streamingUiState.asStateFlow()
 
     private var pendingPreFill: MediaItemEntity? = null
 
@@ -323,6 +343,117 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearSearchResults() {
         _searchUiState.update { AniListSearchUiState() }
+    }
+
+    // --- Airing Schedule ---
+
+    fun fetchAiringSchedule() {
+        viewModelScope.launch {
+            _airingScheduleUiState.update { it.copy(isLoading = true, error = null) }
+            val result = aniListApi.getAiringSchedule()
+            result.fold(
+                onSuccess = { schedules ->
+                    _airingScheduleUiState.update { it.copy(schedules = schedules, isLoading = false) }
+                },
+                onFailure = { e ->
+                    _airingScheduleUiState.update { it.copy(error = e.message ?: "Failed to load", isLoading = false) }
+                }
+            )
+        }
+    }
+
+    fun createItemFromAiringSchedule(schedule: com.app.shouze.data.remote.AiringSchedule): MediaItemEntity {
+        val title = schedule.media.title.english ?: schedule.media.title.romaji ?: "Unknown"
+        val categories = uiState.value.categories
+        val categoryId = categories.find { it.name.equals("Anime", ignoreCase = true) }?.id
+            ?: categories.find { it.name.equals("TV Series", ignoreCase = true) }?.id
+            ?: categories.firstOrNull()?.id ?: ""
+
+        return MediaItemEntity(
+            title = title,
+            categoryId = categoryId,
+            status = Status.PLAN_TO_WATCH,
+            currentProgress = 0,
+            totalCount = 0,
+            coverImageUri = schedule.media.coverImage?.large ?: schedule.media.coverImage?.medium
+        )
+    }
+
+    // --- Where to Watch / Streaming ---
+
+    fun loadStreamingForTitle(title: String) {
+        viewModelScope.launch {
+            _streamingUiState.update { it.copy(isLoading = true, error = null, title = title) }
+            val searchResult = aniListApi.searchMedia(title)
+            searchResult.fold(
+                onSuccess = { mediaList ->
+                    val match = mediaList.firstOrNull()
+                    if (match != null) {
+                        val streamResult = aniListApi.getStreamingEpisodes(match.id)
+                        streamResult.fold(
+                            onSuccess = { (episodes, links) ->
+                                _streamingUiState.update {
+                                    it.copy(streamingEpisodes = episodes, externalLinks = links, isLoading = false)
+                                }
+                            },
+                            onFailure = { e ->
+                                _streamingUiState.update { it.copy(error = e.message, isLoading = false) }
+                            }
+                        )
+                    } else {
+                        _streamingUiState.update { it.copy(error = "Not found on AniList", isLoading = false) }
+                    }
+                },
+                onFailure = { e ->
+                    _streamingUiState.update { it.copy(error = e.message, isLoading = false) }
+                }
+            )
+        }
+    }
+
+    fun clearStreamingState() {
+        _streamingUiState.value = StreamingUiState()
+    }
+
+    // --- Social / Shared Lists ---
+
+    fun importSharedList(text: String) {
+        viewModelScope.launch {
+            val lines = text.lines()
+            val titles = lines.mapNotNull { line ->
+                val trimmed = line.trim()
+                if (trimmed.startsWith("•")) {
+                    trimmed.removePrefix("•").trim().substringBefore("[").trim()
+                } else null
+            }
+
+            if (titles.isEmpty()) {
+                showMessage("No titles found in shared list", isError = true)
+                return@launch
+            }
+
+            val categories = uiState.value.categories
+            val defaultCategory = categories.find { it.name.equals("Anime", ignoreCase = true) }?.id
+                ?: categories.firstOrNull()?.id ?: ""
+
+            var imported = 0
+            titles.forEach { title ->
+                val exists = uiState.value.allItems.any { it.title.equals(title, ignoreCase = true) }
+                if (!exists) {
+                    dao.insertOrUpdate(
+                        MediaItemEntity(
+                            title = title,
+                            categoryId = defaultCategory,
+                            status = Status.PLAN_TO_WATCH,
+                            currentProgress = 0,
+                            totalCount = 0
+                        )
+                    )
+                    imported++
+                }
+            }
+            showMessage("Imported ${'$'}imported new titles from shared list")
+        }
     }
 
     fun setPendingPreFill(item: MediaItemEntity?) {

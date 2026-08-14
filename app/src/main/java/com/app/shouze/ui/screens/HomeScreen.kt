@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -65,7 +66,8 @@ import com.app.shouze.ui.components.SafeRemoteImage
     onBulkToggleFavorite: () -> Unit = {},
     allTags: List<String> = emptyList(),
     selectedTag: String? = null,
-    onTagSelected: (String?) -> Unit = {}
+    onTagSelected: (String?) -> Unit = {},
+    onAiringScheduleClick: () -> Unit = {}
 ) {
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
@@ -226,6 +228,9 @@ import com.app.shouze.ui.components.SafeRemoteImage
                         }
                         IconButton(onClick = onSearchAniListClick) {
                             Icon(Icons.Filled.Search, contentDescription = "Search AniList")
+                        }
+                        IconButton(onClick = onAiringScheduleClick) {
+                            Icon(Icons.Filled.CalendarToday, contentDescription = "Airing Schedule")
                         }
                         IconButton(onClick = onStatisticsClick) {
                             Icon(Icons.Filled.BarChart, contentDescription = "Statistics")

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.*
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,7 +27,8 @@ fun SettingsScreen(
     onNavigateToCategories: () -> Unit,
     onNavigateToBackup: () -> Unit,
     onNavigateToAbout: () -> Unit,
-    onNavigateToStatistics: () -> Unit 
+    onNavigateToStatistics: () -> Unit,
+    onNavigateToShareList: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -71,6 +73,12 @@ fun SettingsScreen(
                     subtitle = "Export or import your data",
                     icon = Icons.Default.CloudUpload,
                     onClick = onNavigateToBackup
+                )
+                SettingsItem(
+                    title = "Share List",
+                    subtitle = "Share or import your library",
+                    icon = Icons.Default.Share,
+                    onClick = onNavigateToShareList
                 )
             }
 

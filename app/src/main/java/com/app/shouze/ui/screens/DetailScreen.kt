@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,7 +43,8 @@ fun DetailScreen(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onToggleFavorite: () -> Unit = {},
-    onIncrementRewatch: () -> Unit = {}
+    onIncrementRewatch: () -> Unit = {},
+    onWhereToWatch: () -> Unit = {}
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -69,6 +71,13 @@ fun DetailScreen(
                     }
                     IconButton(onClick = { showDeleteConfirm = true }) {
                         Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                    }
+                    IconButton(onClick = onWhereToWatch) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = "Where to Watch",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             )

@@ -100,6 +100,7 @@ class MainActivity : ComponentActivity() {
                                 onToggleFavorites = viewModel::toggleShowFavorites,
                                 onToggleFavorite = { viewModel.toggleFavorite(it.id) },
                                 onSearchAniListClick = { navController.navigate("search") },
+                                onAiringScheduleClick = { navController.navigate("airing") },
                                 showFavoritesOnly = uiState.showFavoritesOnly,
                                 onToggleSelection = viewModel::toggleSelection,
                                 onSelectAll = viewModel::selectAllVisible,
@@ -130,7 +131,11 @@ class MainActivity : ComponentActivity() {
                                         navController.popBackStack()
                                     },
                                     onToggleFavorite = { viewModel.toggleFavorite(item.id) },
-                                    onIncrementRewatch = { viewModel.incrementRewatch(item.id) }
+                                    onIncrementRewatch = { viewModel.incrementRewatch(item.id) },
+                                    onWhereToWatch = {
+                                        val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
+                                        navController.navigate("streaming/${'$'}encodedTitle")
+                                    }
                                 )
                             }
                         }
@@ -172,7 +177,8 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToCategories = { navController.navigate("categories") },
                                 onNavigateToBackup = { navController.navigate("backup") },
                                 onNavigateToAbout = { navController.navigate("about") },
-                                onNavigateToStatistics = { navController.navigate("statistics") }
+                                onNavigateToStatistics = { navController.navigate("statistics") },
+                                onNavigateToShareList = { navController.navigate("share") }
                             )
                         }
 
@@ -208,6 +214,54 @@ class MainActivity : ComponentActivity() {
                         composable("about") {
                             AboutScreen(
                                 onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("airing") {
+                            val airingState by viewModel.airingScheduleUiState.collectAsState()
+                            LaunchedEffect(Unit) {
+                                if (airingState.schedules.isEmpty()) {
+                                    viewModel.fetchAiringSchedule()
+                                }
+                            }
+                            AiringScheduleScreen(
+                                schedules = airingState.schedules,
+                                isLoading = airingState.isLoading,
+                                error = airingState.error,
+                                onBack = { navController.popBackStack() },
+                                onRefresh = { viewModel.fetchAiringSchedule() },
+                                onAddToLibrary = { schedule ->
+                                    val item = viewModel.createItemFromAiringSchedule(schedule)
+                                    viewModel.addOrUpdate(item)
+                                }
+                            )
+                        }
+
+                        composable("streaming/{title}") { backStackEntry ->
+                            val title = backStackEntry.arguments?.getString("title")?.let {
+                                java.net.URLDecoder.decode(it, "UTF-8")
+                            } ?: ""
+                            val streamingState by viewModel.streamingUiState.collectAsState()
+
+                            StreamingLinksScreen(
+                                title = streamingState.title,
+                                streamingEpisodes = streamingState.streamingEpisodes,
+                                externalLinks = streamingState.externalLinks,
+                                isLoading = streamingState.isLoading,
+                                error = streamingState.error,
+                                onBack = { navController.popBackStack() },
+                                onLoad = { viewModel.loadStreamingForTitle(title) }
+                            )
+                        }
+
+                        composable("share") {
+                            ShareListScreen(
+                                items = uiState.allItems,
+                                categories = uiState.categories,
+                                onBack = { navController.popBackStack() },
+                                onImportSharedList = { text ->
+                                    viewModel.importSharedList(text)
+                                }
                             )
                         }
                     }

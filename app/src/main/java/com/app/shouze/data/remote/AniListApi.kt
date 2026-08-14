@@ -56,6 +56,71 @@ data class AniListCoverImage(
     val medium: String? = null
 )
 
+// --- Airing Schedule ---
+
+@Serializable
+data class AniListAiringScheduleResponse(
+    val data: AiringScheduleData? = null
+)
+
+@Serializable
+data class AiringScheduleData(
+    val Page: AiringSchedulePage? = null
+)
+
+@Serializable
+data class AiringSchedulePage(
+    val airingSchedules: List<AiringSchedule> = emptyList()
+)
+
+@Serializable
+data class AiringSchedule(
+    val id: Int,
+    val episode: Int,
+    val airingAt: Long,
+    val media: AiringScheduleMedia
+)
+
+@Serializable
+data class AiringScheduleMedia(
+    val id: Int,
+    val title: AniListTitle,
+    val coverImage: AniListCoverImage? = null,
+    val format: String? = null
+)
+
+// --- Streaming Episodes ---
+
+@Serializable
+data class AniListStreamingResponse(
+    val data: StreamingData? = null
+)
+
+@Serializable
+data class StreamingData(
+    val Media: StreamingMedia? = null
+)
+
+@Serializable
+data class StreamingMedia(
+    val streamingEpisodes: List<StreamingEpisode>? = null,
+    val externalLinks: List<ExternalLink>? = null
+)
+
+@Serializable
+data class StreamingEpisode(
+    val title: String? = null,
+    val thumbnail: String? = null,
+    val url: String? = null,
+    val site: String? = null
+)
+
+@Serializable
+data class ExternalLink(
+    val url: String,
+    val site: String
+)
+
 class AniListApi {
     private val client = OkHttpClient()
     private val json = Json { ignoreUnknownKeys = true }
@@ -108,6 +173,98 @@ class AniListApi {
                 val result = json.decodeFromString<AniListSearchResponse>(body)
                 val media = result.data?.Page?.media ?: emptyList()
                 Result.success(media)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getAiringSchedule(): Result<List<AiringSchedule>> = withContext(Dispatchers.IO) {
+        try {
+            val graphqlQuery = """
+                query {
+                    Page(page: 1, perPage: 50) {
+                        airingSchedules(notYetAired: true, sort: TIME) {
+                            id
+                            episode
+                            airingAt
+                            media {
+                                id
+                                title { romaji english }
+                                coverImage { large }
+                                format
+                            }
+                        }
+                    }
+                }
+            """.trimIndent()
+
+            val requestBody = buildJsonObject {
+                put("query", graphqlQuery)
+            }.toString()
+
+            val request = Request.Builder()
+                .url("https://graphql.anilist.co")
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                }
+                val body = response.body?.string()
+                    ?: return@withContext Result.failure(IOException("Empty response"))
+                val result = json.decodeFromString<AniListAiringScheduleResponse>(body)
+                val schedules = result.data?.Page?.airingSchedules ?: emptyList()
+                Result.success(schedules)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getStreamingEpisodes(mediaId: Int): Result<Pair<List<StreamingEpisode>, List<ExternalLink>>> = withContext(Dispatchers.IO) {
+        try {
+            val graphqlQuery = """
+                query(${'$'}id: Int) {
+                    Media(id: ${'$'}id) {
+                        streamingEpisodes {
+                            title
+                            thumbnail
+                            url
+                            site
+                        }
+                        externalLinks {
+                            url
+                            site
+                        }
+                    }
+                }
+            """.trimIndent()
+
+            val requestBody = buildJsonObject {
+                put("query", graphqlQuery)
+                putJsonObject("variables") {
+                    put("id", mediaId)
+                }
+            }.toString()
+
+            val request = Request.Builder()
+                .url("https://graphql.anilist.co")
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                }
+                val body = response.body?.string()
+                    ?: return@withContext Result.failure(IOException("Empty response"))
+                val result = json.decodeFromString<AniListStreamingResponse>(body)
+                val media = result.data?.Media
+                val episodes = media?.streamingEpisodes ?: emptyList()
+                val links = media?.externalLinks ?: emptyList()
+                Result.success(episodes to links)
             }
         } catch (e: Exception) {
             Result.failure(e)
