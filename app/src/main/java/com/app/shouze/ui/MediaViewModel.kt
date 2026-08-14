@@ -529,7 +529,17 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         return item
     }
 
-    fun createItemFromAniList(media: AniListMedia): MediaItemEntity {
+    var selectedAniListMedia: AniListMedia? = null
+        private set
+
+    fun selectAniListMedia(media: AniListMedia) {
+        selectedAniListMedia = media
+    }
+
+    fun createItemFromAniList(
+        media: AniListMedia,
+        defaultStatus: Status = Status.PLAN_TO_WATCH
+    ): MediaItemEntity {
         val title = media.title.english ?: media.title.romaji ?: "Unknown"
         
         // For anime: use episodes. For manga: use chapters, fall back to volumes.
@@ -576,7 +586,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         return MediaItemEntity(
             title = title,
             categoryId = categoryId,
-            status = Status.PLAN_TO_WATCH,
+            status = defaultStatus,
             currentProgress = 0,
             totalCount = totalCount,
             rating = 0.0,

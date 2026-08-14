@@ -25,7 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.app.shouze.ui.components.SafeRemoteImage
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ProfileScreen(
     username: String,
@@ -79,14 +79,29 @@ fun ProfileScreen(
                         .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
                 ) {
                     if (!profilePictureUri.isNullOrBlank()) {
-                        SafeRemoteImage(
-                            url = profilePictureUri,
-                            contentDescription = "Profile picture",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            placeholder = { ProfileInitials(username) },
-                            errorContent = { ProfileInitials(username) }
-                        )
+                        if (profilePictureUri.startsWith("emoji:")) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = profilePictureUri.removePrefix("emoji:"),
+                                    style = MaterialTheme.typography.displayMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        } else {
+                            SafeRemoteImage(
+                                url = profilePictureUri,
+                                contentDescription = "Profile picture",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                placeholder = { ProfileInitials(username) },
+                                errorContent = { ProfileInitials(username) }
+                            )
+                        }
                     } else {
                         ProfileInitials(username)
                     }
@@ -155,7 +170,15 @@ fun ProfileScreen(
                     value = text,
                     onValueChange = { text = it },
                     singleLine = true,
-                    placeholder = { Text("Enter a username") }
+                    placeholder = { Text("Enter a username") },
+                    trailingIcon = {
+                        IconButton(onClick = { text = randomAnimeUsername() }) {
+                            Icon(
+                                Icons.Filled.Refresh,
+                                contentDescription = "Generate random username"
+                            )
+                        }
+                    }
                 )
             },
             confirmButton = {
@@ -171,12 +194,58 @@ fun ProfileScreen(
     }
 
     if (showPictureDialog) {
+        var avatarTab by remember { mutableStateOf(0) }
         AlertDialog(
             onDismissRequest = { showPictureDialog = false },
             title = { Text("Change profile picture") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Choose how to set your profile picture.")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        "Pick a default avatar or upload your own — your call!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    TabRow(selectedTabIndex = avatarTab) {
+                        AVATAR_PRESETS.forEachIndexed { index, (name, _) ->
+                            Tab(
+                                selected = avatarTab == index,
+                                onClick = { avatarTab = index },
+                                text = { Text(name) }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        AVATAR_PRESETS[avatarTab].second.forEach { emoji ->
+                            Surface(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        onProfilePictureChange("emoji:$emoji")
+                                        showPictureDialog = false
+                                    },
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = CircleShape
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = emoji,
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -280,4 +349,27 @@ private fun ProfileMenuItem(
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+private val AVATAR_PRESETS = listOf(
+    "Chibi" to listOf("🐱", "🐶", "🐰", "🐼", "🦊", "🐲", "🐥", "🐙"),
+    "Shonen" to listOf("⚔️", "🔥", "💥", "⚡", "🥷", "🦸", "🚀", "🌪️"),
+    "Minimalist" to listOf("⭐", "🌸", "🌟", "🌙", "💎", "🍃", "☀️", "🌈")
+)
+
+private val USERNAME_ADJECTIVES = listOf(
+    "Shadow", "Neon", "Crimson", "Silent", "Lunar",
+    "Electric", "Hidden", "Mystic", "Rapid", "Frozen"
+)
+
+private val USERNAME_NOUNS = listOf(
+    "Shinobi", "Otaku", "Samurai", "Ronin", "Kitsune",
+    "Titan", "Reaper", "Phantom", "Saiyan", "Wolf"
+)
+
+private fun randomAnimeUsername(): String {
+    val adj = USERNAME_ADJECTIVES.random()
+    val noun = USERNAME_NOUNS.random()
+    val num = (10..99).random()
+    return "$adj$noun$num"
 }

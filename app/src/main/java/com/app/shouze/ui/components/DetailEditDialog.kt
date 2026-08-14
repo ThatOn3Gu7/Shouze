@@ -154,6 +154,8 @@ fun DetailEditDialog(
                 modifier = Modifier
                     .padding(20.dp)
                     .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
+                    .imePadding()
             ) {
                 Text(
                     text = if (item == null) "Add New Item" else "Edit Item",

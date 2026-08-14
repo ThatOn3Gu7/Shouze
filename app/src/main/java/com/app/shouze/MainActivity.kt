@@ -129,6 +129,21 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+                        composable("anidetail") {
+                            val media = viewModel.selectedAniListMedia
+                            if (media != null) {
+                                AniListDetailScreen(
+                                    media = media,
+                                    onBack = { navController.popBackStack() },
+                                    onAdd = { m, status ->
+                                        viewModel.addOrUpdate(
+                                            viewModel.createItemFromAniList(m, status)
+                                        )
+                                    }
+                                )
+                            }
+                        }
+
                         composable("search") {
                             SearchScreen(
                                 uiState = searchUiState,
@@ -140,11 +155,8 @@ class MainActivity : ComponentActivity() {
                                 onTypeChange = viewModel::setSearchType,
                                 onLoadTrending = viewModel::loadTrending,
                                 onSelect = { media ->
-                                    val item = viewModel.createItemFromAniList(media)
-                                    viewModel.setPendingPreFill(item)
-                                    navController.navigate("edit?itemId=null") {
-                                        popUpTo("search") { inclusive = true }
-                                    }
+                                    viewModel.selectAniListMedia(media)
+                                    navController.navigate("anidetail")
                                 }
                             )
                         }
@@ -357,8 +369,6 @@ class MainActivity : ComponentActivity() {
         }
         }
 
-    }
-
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -385,29 +395,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: android.content.Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        intent.getStringExtra("shortcut_action")?.let {
-            shortcutActions.tryEmit(it)
-        }
-    }
-
-    private fun createDynamicShortcuts() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N_MR1) {
-            val shortcutManager = getSystemService(android.content.pm.ShortcutManager::class.java) ?: return
-            val shortcuts = listOf(
-                android.content.pm.ShortcutInfo.Builder(this, "dynamic_add")
-                    .setShortLabel("Quick Add")
-                    .setLongLabel("Add new media entry")
-                    .setIcon(android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.ic_input_add))
-                    .setIntent(android.content.Intent(this, MainActivity::class.java).apply {
-                        action = android.content.Intent.ACTION_VIEW
-                        putExtra("shortcut_action", "add")
-                    })
-                    .build()
-            )
-            shortcutManager.dynamicShortcuts = shortcuts
-        }
-    }
 }
