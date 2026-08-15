@@ -26,21 +26,6 @@ import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
 import java.util.UUID
 
-private data class EditSnapshot(
-    val title: String,
-    val categoryId: String,
-    val status: Status,
-    val progress: String,
-    val total: String,
-    val volume: String,
-    val rating: String,
-    val rewatch: String,
-    val cover: String,
-    val genres: List<String>,
-    val tags: List<String>,
-    val notes: String
-)
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DetailEditDialog(
@@ -68,41 +53,6 @@ fun DetailEditDialog(
     var rewatchCount by remember { mutableStateOf(item?.rewatchCount?.toString() ?: "0") }
 
     var showCategoryPicker by remember { mutableStateOf(false) }
-    var showDiscardConfirm by remember { mutableStateOf(false) }
-
-    val initialSnapshot = remember(item?.id) {
-        item?.let {
-            EditSnapshot(
-                title = it.title,
-                categoryId = it.categoryId,
-                status = it.status,
-                progress = it.currentProgress.toString(),
-                total = it.totalCount.toString(),
-                volume = it.currentVolume?.toString() ?: "",
-                rating = it.rating.toString(),
-                rewatch = it.rewatchCount.toString(),
-                cover = it.coverImageUri ?: "",
-                genres = it.genres,
-                tags = it.tags,
-                notes = it.notes
-            )
-        }
-    }
-    val currentSnapshot = EditSnapshot(
-        title = title,
-        categoryId = categoryId,
-        status = status,
-        progress = currentProgress,
-        total = totalCount,
-        volume = currentVolume,
-        rating = rating,
-        rewatch = rewatchCount,
-        cover = coverImageUri,
-        genres = genres,
-        tags = tags,
-        notes = notes
-    )
-    val isDirty = initialSnapshot != null && initialSnapshot != currentSnapshot
     var showStatusPicker by remember { mutableStateOf(false) }
 
     val photoPicker = rememberLauncherForActivityResult(
@@ -134,7 +84,7 @@ fun DetailEditDialog(
     val unitLabel = if (isLiterature) "Chapter" else "Episode"
 
     Dialog(
-        onDismissRequest = { if (isDirty) showDiscardConfirm = true else onDismiss },
+        onDismissRequest = onDismiss,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false
@@ -460,7 +410,7 @@ fun DetailEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
                 ) {
-                    TextButton(onClick = { if (isDirty) showDiscardConfirm = true else onDismiss }) {
+                    TextButton(onClick = onDismiss) {
                         Text("Cancel")
                     }
                     Button(
@@ -577,26 +527,6 @@ fun DetailEditDialog(
                 TextButton(onClick = { showStatusPicker = false }) {
                     Text("Cancel")
                 }
-            }
-        )
-    }
-
-    if (showDiscardConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDiscardConfirm = false },
-            title = { Text("Discard changes?") },
-            text = { Text("You have unsaved changes. Are you sure you want to discard them?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDiscardConfirm = false
-                        onDismiss()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Discard") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDiscardConfirm = false }) { Text("Keep Editing") }
             }
         )
     }

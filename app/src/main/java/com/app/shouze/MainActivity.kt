@@ -2,6 +2,7 @@ package com.app.shouze
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.animation.SharedTransitionLayout
+import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.ui.MediaViewModel
 import com.app.shouze.ui.screens.*
 import com.app.shouze.ui.components.CoverImageStore
@@ -60,11 +62,17 @@ class MainActivity : ComponentActivity() {
             val statsUiState by viewModel.statsUiState.collectAsState()
             val searchUiState by viewModel.searchUiState.collectAsState()
             val navController = rememberNavController()
+            var editDialogItem by remember { mutableStateOf<MediaItemEntity?>(null) }
+            var editDialogOpen by remember { mutableStateOf(false) }
+            BackHandler(enabled = editDialogOpen) { editDialogOpen = false }
 
             LaunchedEffect(Unit) {
                 shortcutActions.collect { action ->
                     when (action) {
-                        "add" -> navController.navigate("edit?itemId=null")
+                        "add" -> {
+                            editDialogItem = null
+                            editDialogOpen = true
+                        }
                         "search" -> navController.navigate("search")
                         "statistics" -> navController.navigate("statistics")
                     }
@@ -170,12 +178,16 @@ class MainActivity : ComponentActivity() {
                         composable("home") {
                             HomeScreen(
                                 uiState = uiState,
-                                onAddClick = { navController.navigate("edit?itemId=null") },
+                                onAddClick = {
+                                    editDialogItem = null
+                                    editDialogOpen = true
+                                },
                                 onItemClick = { item ->
                                     navController.navigate("detail/${item.id}")
                                 },
                                 onEditItem = { item ->
-                                    navController.navigate("edit?itemId=${item.id}")
+                                    editDialogItem = item
+                                    editDialogOpen = true
                                 },
                                 onDeleteItem = { item ->
                                     viewModel.deleteItem(item.id)
@@ -215,7 +227,10 @@ class MainActivity : ComponentActivity() {
                                     item = item,
                                     category = category,
                                     onBack = { navController.popBackStack() },
-                                    onEdit = { navController.navigate("edit?itemId=${item.id}") },
+                                    onEdit = {
+                                        editDialogItem = item
+                                        editDialogOpen = true
+                                    },
                                     onDelete = {
                                         viewModel.deleteItem(item.id)
                                         navController.popBackStack()
@@ -232,36 +247,6 @@ class MainActivity : ComponentActivity() {
                                     animatedVisibilityScope = this@composable
                                 )
                             }
-                        }
-
-                        composable("edit?itemId={itemId}") { backStackEntry ->
-                            val itemId = backStackEntry.arguments?.getString("itemId")
-                            val preFilledItem = remember(itemId) {
-                                if (itemId == null || itemId == "null") {
-                                    viewModel.consumePendingPreFill()
-                                } else {
-                                    null
-                                }
-                            }
-                            val item = when {
-                                preFilledItem != null -> preFilledItem
-                                itemId != null && itemId != "null" -> uiState.allItems.find { it.id == itemId }
-                                else -> null
-                            }
-
-                            DetailEditDialog(
-                                item = item,
-                                categories = uiState.categories,
-                                onDismiss = { navController.popBackStack() },
-                                onSave = {
-                                    viewModel.addOrUpdate(it)
-                                    navController.popBackStack()
-                                },
-                                onDelete = {
-                                    viewModel.deleteItem(it)
-                                    navController.popBackStack()
-                                }
-                            )
                         }
 
                         composable("settings") {
@@ -371,10 +356,25 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     }
+                    if (editDialogOpen) {
+                        DetailEditDialog(
+                            item = editDialogItem,
+                            categories = uiState.categories,
+                            onDismiss = { editDialogOpen = false },
+                            onSave = {
+                                viewModel.addOrUpdate(it)
+                                editDialogOpen = false
+                            },
+                            onDelete = {
+                                viewModel.deleteItem(it)
+                                editDialogOpen = false
+                            }
+                        )
                     }
                 }
-            }
-        }
+             }
+         }
+         }
         }
 
     override fun onNewIntent(intent: android.content.Intent) {

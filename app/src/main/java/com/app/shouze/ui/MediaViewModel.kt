@@ -253,7 +253,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun bulkDelete() {
         viewModelScope.launch {
+            val count = _uiState.value.selectedIds.size
             _uiState.value.selectedIds.forEach { dao.deleteById(it) }
+            showMessage("Deleted $count items")
             clearSelection()
         }
     }
@@ -261,9 +263,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun bulkUpdateCategory(categoryId: String) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            _uiState.value.allItems
+            val selected = _uiState.value.allItems
                 .filter { it.id in _uiState.value.selectedIds }
-                .forEach { dao.insertOrUpdate(it.copy(categoryId = categoryId, lastUpdated = now)) }
+            selected.forEach { dao.insertOrUpdate(it.copy(categoryId = categoryId, lastUpdated = now)) }
+            val categoryName = _uiState.value.categories.find { it.id == categoryId }?.name ?: "new category"
+            showMessage("Moved ${selected.size} items to $categoryName")
             clearSelection()
         }
     }
@@ -271,18 +275,22 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun bulkUpdateStatus(status: Status) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            _uiState.value.allItems
+            val selected = _uiState.value.allItems
                 .filter { it.id in _uiState.value.selectedIds }
-                .forEach { item ->
-                    var updated = item.copy(status = status, lastUpdated = now)
-                    if ((status == Status.WATCHING || status == Status.READING) && item.startDate == null) {
-                        updated = updated.copy(startDate = now)
-                    }
-                    if (status == Status.COMPLETED && item.endDate == null) {
-                        updated = updated.copy(endDate = now)
-                    }
-                    dao.insertOrUpdate(updated)
+            selected.forEach { item ->
+                var updated = item.copy(status = status, lastUpdated = now)
+                if ((status == Status.WATCHING || status == Status.READING) && item.startDate == null) {
+                    updated = updated.copy(startDate = now)
                 }
+                if (status == Status.COMPLETED && item.endDate == null) {
+                    updated = updated.copy(endDate = now)
+                }
+                dao.insertOrUpdate(updated)
+            }
+            val statusName = status.name.lowercase().split("_").joinToString(" ") { word ->
+                word.replaceFirstChar { it.uppercase() }
+            }
+            showMessage("Marked ${selected.size} items as $statusName")
             clearSelection()
         }
     }
@@ -290,9 +298,16 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun bulkToggleFavorite() {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            _uiState.value.allItems
+            val selected = _uiState.value.allItems
                 .filter { it.id in _uiState.value.selectedIds }
-                .forEach { dao.insertOrUpdate(it.copy(isFavorite = !it.isFavorite, lastUpdated = now)) }
+            // Smart toggle: if any selected item is NOT a favorite, favorite them all.
+            // Only when every selected item is already a favorite do we unfavorite.
+            val addToFavorites = selected.any { !it.isFavorite }
+            selected.forEach { dao.insertOrUpdate(it.copy(isFavorite = addToFavorites, lastUpdated = now)) }
+            showMessage(
+                if (addToFavorites) "Added ${selected.size} items to favorites"
+                else "Removed ${selected.size} items from favorites"
+            )
             clearSelection()
         }
     }
