@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
@@ -30,23 +32,41 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.window.PopupPositionProvider
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
 import com.app.shouze.ui.HomeUiState
 import com.app.shouze.ui.SortMode
 import com.app.shouze.ui.components.MediaCardItem
 import com.app.shouze.ui.components.SafeRemoteImage
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
-  fun HomeScreen(
+fun HomeScreen(
     uiState: HomeUiState,
     onAddClick: () -> Unit,
     onItemClick: (MediaItemEntity) -> Unit,
@@ -71,6 +91,7 @@ import com.app.shouze.ui.components.SafeRemoteImage
     selectedTag: String? = null,
     onTagSelected: (String?) -> Unit = {},
     onAiringScheduleClick: () -> Unit = {},
+    profileTabBounds: () -> Rect = { Rect.Zero },
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
@@ -82,42 +103,87 @@ import com.app.shouze.ui.components.SafeRemoteImage
     var showBulkStatusMenu by remember { mutableStateOf(false) }
     var showBulkCategoryMenu by remember { mutableStateOf(false) }
 
-      Scaffold(
-       bottomBar = {
-           if (!isSelectionMode) {
-               val sel = selectedItem
-               if (sel != null) {
-                   BottomAppBar(
-                       actions = {
-                           IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
-                               Icon(Icons.Filled.Edit, contentDescription = "Edit")
-                           }
-                           IconButton(onClick = { onToggleFavorite(sel); selectedItem = null }) {
-                               Icon(
-                                   imageVector = if (sel.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
-                                   contentDescription = if (sel.isFavorite) "Unfavorite" else "Favorite",
-                                   tint = if (sel.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
-                               )
-                           }
-                           IconButton(
-                               onClick = { onDeleteItem(sel); selectedItem = null }
-                           ) {
-                               Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
-                           }
-                       },
-                       floatingActionButton = {
-                           FloatingActionButton(onClick = { selectedItem = null }) {
-                               Icon(Icons.Filled.Close, contentDescription = "Close")
-                           }
-                       }
-                   )
-               }
-           }
-       },
-       topBar = {
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    val hideDistancePx = with(density) { 200.dp.toPx() } // Increased distance slightly for a smoother transition 
+    val fabFlingThreshold = 400f
+    
+    // Fix 1: Manage scroll state separately from the animation entirely. 
+    // This stops jittering/glitchiness completely.
+    var scrollAccumulator by remember { mutableFloatStateOf(0f) }
+    
+    // Fix 2: Let Compose handle the smooth transitions automatically based on the accumulator
+    val fabProgress by animateFloatAsState(
+        targetValue = (scrollAccumulator / hideDistancePx).coerceIn(0f, 1f),
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        label = "fabProgress"
+    )
+    
+    var fabRestBounds by remember { mutableStateOf(Rect.Zero) }
+
+    LaunchedEffect(isSelectionMode) {
+        if (!isSelectionMode) {
+            scrollAccumulator = 0f
+        }
+    }
+
+    val fabNestedScrollConnection = remember(hideDistancePx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    // available.y < 0 means scrolling DOWN the list. We SUBTRACT to increase the accumulator (move towards hidden)
+                    // available.y > 0 means scrolling UP the list. We ADD it (subtract a positive) to decrease (move towards expanded)
+                    scrollAccumulator = (scrollAccumulator - available.y).coerceIn(0f, hideDistancePx)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (abs(available.y) > fabFlingThreshold) {
+                    // available.y < 0 in fling means scrolling down fast, hide it fully
+                    scrollAccumulator = if (available.y < 0f) hideDistancePx else 0f
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+
+    Scaffold(
+        bottomBar = {
+            if (!isSelectionMode) {
+                val sel = selectedItem
+                if (sel != null) {
+                    BottomAppBar(
+                        actions = {
+                            IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                            }
+                            IconButton(onClick = { onToggleFavorite(sel); selectedItem = null }) {
+                                Icon(
+                                    imageVector = if (sel.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                    contentDescription = if (sel.isFavorite) "Unfavorite" else "Favorite",
+                                    tint = if (sel.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                                )
+                            }
+                            IconButton(
+                                onClick = { onDeleteItem(sel); selectedItem = null }
+                            ) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                            }
+                        },
+                        floatingActionButton = {
+                            FloatingActionButton(onClick = { selectedItem = null }) {
+                                Icon(Icons.Filled.Close, contentDescription = "Close")
+                            }
+                        }
+                    )
+                }
+            }
+        },
+        topBar = {
             if (isSelectionMode) {
                 TopAppBar(
-                    title = { Text("$selectedCount selected") },
+                    title = { Text("$selectedCount / ${uiState.items.size}") },
                     navigationIcon = {
                         IconButton(onClick = onClearSelection) {
                             Icon(Icons.Filled.Close, contentDescription = "Cancel")
@@ -178,15 +244,33 @@ import com.app.shouze.ui.components.SafeRemoteImage
                         var expanded by remember { mutableStateOf(false) }
                         Box {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = onToggleFavorites) {
-                                    Icon(
-                                        imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
-                                        contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
-                                        tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
-                                    )
+                                TooltipBox(
+                                    tooltip = {
+                                        PlainTooltip {
+                                            Text(if (showFavoritesOnly) "Show all" else "Show favorites")
+                                        }
+                                    },
+                                    state = rememberTooltipState(),
+                                    positionProvider = rememberTooltipPositionProvider()
+                                ) {
+                                    IconButton(onClick = onToggleFavorites) {
+                                        Icon(
+                                            imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                            contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
+                                            tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                                        )
+                                    }
                                 }
-                                IconButton(onClick = { expanded = true }) {
-                                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                                TooltipBox(
+                                    tooltip = {
+                                        PlainTooltip { Text("Sort library") }
+                                    },
+                                    state = rememberTooltipState(),
+                                    positionProvider = rememberTooltipPositionProvider()
+                                ) {
+                                    IconButton(onClick = { expanded = true }) {
+                                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                                    }
                                 }
                             }
                             DropdownMenu(
@@ -231,11 +315,27 @@ import com.app.shouze.ui.components.SafeRemoteImage
                                 )
                             }
                         }
-                        IconButton(onClick = onAiringScheduleClick) {
-                            Icon(Icons.Filled.CalendarToday, contentDescription = "Airing Schedule")
+                        TooltipBox(
+                            tooltip = {
+                                PlainTooltip { Text("Airing schedule") }
+                            },
+                            state = rememberTooltipState(),
+                            positionProvider = rememberTooltipPositionProvider()
+                        ) {
+                            IconButton(onClick = onAiringScheduleClick) {
+                                Icon(Icons.Filled.CalendarMonth, contentDescription = "Airing Schedule")
+                            }
                         }
-                        IconButton(onClick = onSettingsClick) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        TooltipBox(
+                            tooltip = {
+                                PlainTooltip { Text("Settings") }
+                            },
+                            state = rememberTooltipState(),
+                            positionProvider = rememberTooltipPositionProvider()
+                        ) {
+                            IconButton(onClick = onSettingsClick) {
+                                Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                            }
                         }
                     }
                 )
@@ -243,11 +343,16 @@ import com.app.shouze.ui.components.SafeRemoteImage
         },
         floatingActionButton = {
             if (!isSelectionMode) {
-                ExtendedFloatingActionButton(
-                    onClick = onAddClick,
-                    icon = { Icon(Icons.Filled.Add, contentDescription = "Add item") },
-                    text = { Text("Add Media") }
-                )
+                Box(
+                    modifier = Modifier.onGloballyPositioned { fabRestBounds = it.boundsInWindow() }
+                ) {
+                    AnimatedFab(
+                        progress = fabProgress,
+                        restBounds = fabRestBounds,
+                        profileTabBounds = profileTabBounds(),
+                        onClick = onAddClick
+                    )
+                }
             }
         },
         floatingActionButtonPosition = FabPosition.End,
@@ -400,7 +505,10 @@ import com.app.shouze.ui.components.SafeRemoteImage
                 )
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(fabNestedScrollConnection),
+                    state = listState,
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     items(
@@ -432,6 +540,99 @@ import com.app.shouze.ui.components.SafeRemoteImage
 
                     }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AnimatedFab(
+    progress: Float,
+    restBounds: Rect,
+    profileTabBounds: Rect,
+    onClick: () -> Unit
+) {
+    val fabSize = 56.dp
+    // Fix 3: Standardize max width to 140dp so the button isn't excessively huge
+    val extendedWidth = 140.dp 
+    val collapsePhase = 0.4f // Phase 1: 0 to 0.4 handles collapsing and text sliding
+    val collapse = (progress / collapsePhase).coerceIn(0f, 1f)
+    val translate = ((progress - collapsePhase) / (1f - collapsePhase)).coerceIn(0f, 1f)
+    
+    // Fix 4: Smooth out the collapsing effect instead of using a linear change
+    val collapseEasing = FastOutSlowInEasing.transform(collapse)
+    val width = lerp(extendedWidth, fabSize, collapseEasing)
+    
+    val hasTarget = restBounds != Rect.Zero && profileTabBounds != Rect.Zero
+    // Fallback translate Y heavily downwards just in case no profile bounds exist
+    val targetY = if (hasTarget) (profileTabBounds.center.y - restBounds.center.y) else 250f 
+
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .graphicsLayer {
+                translationY = targetY * translate
+                val s = 1f - 0.4f * translate
+                scaleX = s
+                scaleY = s
+                alpha = 1f - (translate * 0.3f) // Fade out gently as it scales down
+            }
+            .width(width)
+            .height(fabSize),
+        shape = RoundedCornerShape(16.dp), // Fix 5: Lock standard extended FAB border radius
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = "Add item",
+                modifier = Modifier.graphicsLayer { rotationZ = 180f * collapseEasing }
+            )
+            // Fix 6: Animate the text translating to the left simultaneously 
+            if (collapseEasing < 1f) {
+                Text(
+                    text = "Add Media",
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .padding(start = 12.dp)
+                        .alpha(1f - collapseEasing)
+                        .graphicsLayer {
+                            translationX = -30f * collapseEasing 
+                        }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun rememberTooltipPositionProvider(): PopupPositionProvider {
+    val density = LocalDensity.current
+    return remember(density) {
+        object : PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: IntRect,
+                windowSize: IntSize,
+                layoutDirection: LayoutDirection,
+                popupContentSize: IntSize
+            ): IntOffset {
+                val x = (anchorBounds.left + anchorBounds.right - popupContentSize.width) / 2
+                val clampedX = x.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
+                
+                val yOffset = with(density) { 8.dp.roundToPx() }
+                
+                return IntOffset(
+                    x = clampedX,
+                    y = anchorBounds.bottom + yOffset
+                )
             }
         }
     }
