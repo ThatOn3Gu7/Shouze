@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.remote.AiringSchedule
 import com.app.shouze.ui.components.SafeRemoteImage
+import com.app.shouze.ui.components.rememberTooltipPositionProvider
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -56,8 +57,17 @@ fun AiringScheduleScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onRefresh) {
-                        Icon(Icons.Filled.CalendarToday, contentDescription = "Refresh")
+                    TooltipBox(
+                        tooltip = {
+                            PlainTooltip { Text("Refresh schedule") }
+                        },
+                        state = rememberTooltipState(),
+                        positionProvider = rememberTooltipPositionProvider(),
+                        focusable = false
+                    ) {
+                        IconButton(onClick = onRefresh) {
+                            Icon(Icons.Filled.CalendarToday, contentDescription = "Refresh")
+                        }
                     }
                 }
             )
@@ -112,6 +122,7 @@ fun AiringScheduleScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AiringScheduleCard(
     schedule: AiringSchedule,
@@ -182,8 +193,17 @@ private fun AiringScheduleCard(
                     )
                 }
             }
-            IconButton(onClick = onAdd) {
-                Icon(Icons.Filled.Add, contentDescription = "Add to library")
+            TooltipBox(
+                tooltip = {
+                    PlainTooltip { Text("Add to library") }
+                },
+                state = rememberTooltipState(),
+                positionProvider = rememberTooltipPositionProvider(),
+                focusable = false
+            ) {
+                IconButton(onClick = onAdd) {
+                    Icon(Icons.Filled.Add, contentDescription = "Add to library")
+                }
             }
         }
     }

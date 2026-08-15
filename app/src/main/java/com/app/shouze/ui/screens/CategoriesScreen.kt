@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.CategoryEntity
+import com.app.shouze.ui.components.rememberTooltipPositionProvider
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,12 +85,21 @@ fun CategoriesScreen(
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                             }
-                            IconButton(onClick = { onDeleteCategory(cat.id) }) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete ${cat.name}",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
+                            TooltipBox(
+                                tooltip = {
+                                    PlainTooltip { Text("Delete category") }
+                                },
+                                state = rememberTooltipState(),
+                                positionProvider = rememberTooltipPositionProvider(),
+                                focusable = false
+                            ) {
+                                IconButton(onClick = { onDeleteCategory(cat.id) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete ${cat.name}",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
                         }
                     }
@@ -117,16 +127,25 @@ fun CategoriesScreen(
                             singleLine = true,
                             modifier = Modifier.weight(1f)
                         )
-                        IconButton(
-                            onClick = {
-                                val trimmed = newCategoryName.trim()
-                                if (trimmed.isNotBlank()) {
-                                    onAddCategory(trimmed)
-                                    newCategoryName = ""
-                                }
-                            }
+                        TooltipBox(
+                            tooltip = {
+                                PlainTooltip { Text("Add category") }
+                            },
+                            state = rememberTooltipState(),
+                            positionProvider = rememberTooltipPositionProvider(),
+                            focusable = false
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Add category")
+                            IconButton(
+                                onClick = {
+                                    val trimmed = newCategoryName.trim()
+                                    if (trimmed.isNotBlank()) {
+                                        onAddCategory(trimmed)
+                                        newCategoryName = ""
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Add category")
+                            }
                         }
                     }
                 }

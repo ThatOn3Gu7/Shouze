@@ -55,20 +55,16 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
-import androidx.compose.ui.window.PopupPositionProvider
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
 import com.app.shouze.ui.HomeUiState
 import com.app.shouze.ui.SortMode
 import com.app.shouze.ui.components.MediaCardItem
 import com.app.shouze.ui.components.SafeRemoteImage
+import com.app.shouze.ui.components.rememberTooltipPositionProvider
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
@@ -304,7 +300,8 @@ fun HomeScreen(
                                         }
                                     },
                                     state = rememberTooltipState(),
-                                    positionProvider = rememberTooltipPositionProvider()
+                                    positionProvider = rememberTooltipPositionProvider(),
+                        focusable = false
                                 ) {
                                     IconButton(onClick = onToggleFavorites) {
                                         Icon(
@@ -319,7 +316,8 @@ fun HomeScreen(
                                         PlainTooltip { Text("Sort library") }
                                     },
                                     state = rememberTooltipState(),
-                                    positionProvider = rememberTooltipPositionProvider()
+                                    positionProvider = rememberTooltipPositionProvider(),
+                        focusable = false
                                 ) {
                                     IconButton(onClick = { expanded = true }) {
                                         Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
@@ -373,7 +371,8 @@ fun HomeScreen(
                                 PlainTooltip { Text("Airing schedule") }
                             },
                             state = rememberTooltipState(),
-                            positionProvider = rememberTooltipPositionProvider()
+                            positionProvider = rememberTooltipPositionProvider(),
+                        focusable = false
                         ) {
                             IconButton(onClick = onAiringScheduleClick) {
                                 Icon(Icons.Filled.CalendarMonth, contentDescription = "Airing Schedule")
@@ -384,7 +383,8 @@ fun HomeScreen(
                                 PlainTooltip { Text("Settings") }
                             },
                             state = rememberTooltipState(),
-                            positionProvider = rememberTooltipPositionProvider()
+                            positionProvider = rememberTooltipPositionProvider(),
+                        focusable = false
                         ) {
                             IconButton(onClick = onSettingsClick) {
                                 Icon(Icons.Filled.Settings, contentDescription = "Settings")
@@ -672,31 +672,6 @@ private fun statusBulkIcon(status: Status): ImageVector = when (status) {
     Status.COMPLETED -> Icons.Filled.CheckCircle
     Status.DROPPED -> Icons.Filled.Block
     Status.PLAN_TO_WATCH -> Icons.Filled.Schedule
-}
-
-@Composable
-private fun rememberTooltipPositionProvider(): PopupPositionProvider {
-    val density = LocalDensity.current
-    return remember(density) {
-        object : PopupPositionProvider {
-            override fun calculatePosition(
-                anchorBounds: IntRect,
-                windowSize: IntSize,
-                layoutDirection: LayoutDirection,
-                popupContentSize: IntSize
-            ): IntOffset {
-                val x = (anchorBounds.left + anchorBounds.right - popupContentSize.width) / 2
-                val clampedX = x.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
-                
-                val yOffset = with(density) { 8.dp.roundToPx() }
-                
-                return IntOffset(
-                    x = clampedX,
-                    y = anchorBounds.bottom + yOffset
-                )
-            }
-        }
-    }
 }
 
 @Composable

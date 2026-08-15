@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -82,6 +83,8 @@ fun DetailEditDialog(
             || selectedCategory?.name?.contains("manga", ignoreCase = true) == true
     val unitLabel = if (isLiterature) "Chapter" else "Episode"
 
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -92,20 +95,21 @@ fun DetailEditDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 24.dp)
-                .wrapContentHeight(),
+                .padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 96.dp)
+                .wrapContentHeight()
+                .heightIn(max = (screenHeightDp - 120).dp),
             shape = MaterialTheme.shapes.extraLarge,
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
             )
         ) {
-            Column(
-                modifier = Modifier
-                    .padding(20.dp)
-                    .verticalScroll(rememberScrollState())
-                    .navigationBarsPadding()
-                    .imePadding()
-            ) {
+            Column(modifier = Modifier.fillMaxWidth().imePadding()) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
                 Text(
                     text = if (item == null) "Add New Item" else "Edit Item",
                     style = MaterialTheme.typography.headlineSmall
@@ -403,10 +407,11 @@ fun DetailEditDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
-
+                }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
                 ) {
                     TextButton(onClick = onDismiss) {

@@ -35,6 +35,7 @@ import com.app.shouze.data.local.CategoryEntity
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
 import com.app.shouze.ui.components.SafeRemoteImage
+import com.app.shouze.ui.components.rememberTooltipPositionProvider
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -76,32 +77,70 @@ fun DetailScreen(
                 },
                 actions = {
                     val view = androidx.compose.ui.platform.LocalView.current
-                    IconButton(onClick = {
-                        com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(view)
-                        onToggleFavorite()
-                    }) {
-                        Icon(
-                            imageVector = if (item.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
-                            contentDescription = if (item.isFavorite) "Unfavorite" else "Favorite",
-                            tint = if (item.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
-                        )
+                    TooltipBox(
+                        tooltip = {
+                            PlainTooltip {
+                                Text(if (item.isFavorite) "Unfavorite" else "Favorite")
+                            }
+                        },
+                        state = rememberTooltipState(),
+                        positionProvider = rememberTooltipPositionProvider(),
+                        focusable = false
+                    ) {
+                        IconButton(onClick = {
+                            com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(view)
+                            onToggleFavorite()
+                        }) {
+                            Icon(
+                                imageVector = if (item.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                contentDescription = if (item.isFavorite) "Unfavorite" else "Favorite",
+                                tint = if (item.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                            )
+                        }
                     }
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                    TooltipBox(
+                        tooltip = {
+                            PlainTooltip { Text("Edit") }
+                        },
+                        state = rememberTooltipState(),
+                        positionProvider = rememberTooltipPositionProvider(),
+                        focusable = false
+                    ) {
+                        IconButton(onClick = onEdit) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                        }
                     }
                     val viewForDelete = androidx.compose.ui.platform.LocalView.current
-                    IconButton(onClick = {
-                        com.app.shouze.ui.components.HapticsHelper.performDeleteHaptic(viewForDelete)
-                        showDeleteConfirm = true
-                    }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                    TooltipBox(
+                        tooltip = {
+                            PlainTooltip { Text("Delete") }
+                        },
+                        state = rememberTooltipState(),
+                        positionProvider = rememberTooltipPositionProvider(),
+                        focusable = false
+                    ) {
+                        IconButton(onClick = {
+                            com.app.shouze.ui.components.HapticsHelper.performDeleteHaptic(viewForDelete)
+                            showDeleteConfirm = true
+                        }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                        }
                     }
-                    IconButton(onClick = onWhereToWatch) {
-                        Icon(
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = "Where to Watch",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                    TooltipBox(
+                        tooltip = {
+                            PlainTooltip { Text("Where to Watch") }
+                        },
+                        state = rememberTooltipState(),
+                        positionProvider = rememberTooltipPositionProvider(),
+                        focusable = false
+                    ) {
+                        IconButton(onClick = onWhereToWatch) {
+                            Icon(
+                                imageVector = Icons.Filled.PlayArrow,
+                                contentDescription = "Where to Watch",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             )

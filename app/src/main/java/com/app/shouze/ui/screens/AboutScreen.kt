@@ -28,8 +28,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-private const val APP_VERSION = "1.2"
-// TODO: replace with your real GitHub repo slug (owner/repo) so "Check for Updates" works.
+private const val APP_VERSION = "1.3"
 private const val GITHUB_REPO = "ThatOn3Gu7/Shouze"
 private const val FEEDBACK_EMAIL = "recoveringdotcom@gmail.com"
 
@@ -55,11 +54,6 @@ fun AboutScreen(
     fun checkForUpdates() {
         scope.launch {
             updateState = UpdateState.Checking
-            if (GITHUB_REPO == "OWNER/REPO") {
-                Toast.makeText(context, "Set GITHUB_REPO in AboutScreen.kt", Toast.LENGTH_LONG).show()
-                updateState = UpdateState.Idle
-                return@launch
-            }
             val latest = withContext(Dispatchers.IO) { fetchLatestRelease(GITHUB_REPO) }
             if (latest == null) {
                 updateState = UpdateState.Error

@@ -52,6 +52,15 @@ jobs:
             ./gradlew assembleRelease assembleDebug
           fi
 
+      - name: Stage APKs with descriptive names
+        id: apk
+        run: |
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1)
+          if [ -z "$VERSION" ]; then VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//'); fi
+          mkdir -p apks
+          cp app/build/outputs/apk/release/*.apk "apks/Shouze-release-$VERSION.apk"
+          cp app/build/outputs/apk/debug/*.apk "apks/Shouze-debug-$VERSION.apk"
+
       - name: Generate release notes
         id: notes
         run: |
@@ -67,7 +76,6 @@ jobs:
           name: Shouze ${{ github.ref_name }}
           body_path: release_notes.md
           files: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/apk/debug/*.apk
+            apks/*.apk
           draft: false
           prerelease: false

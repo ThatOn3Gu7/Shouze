@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.app.shouze.ui.components.SafeRemoteImage
+import com.app.shouze.ui.components.rememberTooltipPositionProvider
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -106,13 +107,22 @@ fun ProfileScreen(
                         ProfileInitials(username)
                     }
                 }
-                SmallFloatingActionButton(
-                    onClick = { showPictureDialog = true },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .offset(x = 4.dp, y = 4.dp)
+                TooltipBox(
+                    tooltip = {
+                        PlainTooltip { Text("Change picture") }
+                    },
+                    state = rememberTooltipState(),
+                    positionProvider = rememberTooltipPositionProvider(),
+                    focusable = false
                 ) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Change picture")
+                    SmallFloatingActionButton(
+                        onClick = { showPictureDialog = true },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .offset(x = 4.dp, y = 4.dp)
+                    ) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Change picture")
+                    }
                 }
             }
 
@@ -128,8 +138,17 @@ fun ProfileScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                IconButton(onClick = { showUsernameDialog = true }) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Edit username")
+                TooltipBox(
+                    tooltip = {
+                        PlainTooltip { Text("Edit username") }
+                    },
+                    state = rememberTooltipState(),
+                    positionProvider = rememberTooltipPositionProvider(),
+                    focusable = false
+                ) {
+                    IconButton(onClick = { showUsernameDialog = true }) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit username")
+                    }
                 }
             }
 
