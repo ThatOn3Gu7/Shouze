@@ -21,9 +21,15 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MovieFilter
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -41,6 +47,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -100,8 +107,8 @@ fun HomeScreen(
     var selectedItem by remember { mutableStateOf<MediaItemEntity?>(null) }
     val isSelectionMode = uiState.isSelectionMode
     val selectedCount = uiState.selectedIds.size
-    var showBulkStatusMenu by remember { mutableStateOf(false) }
-    var showBulkCategoryMenu by remember { mutableStateOf(false) }
+    var showBulkMenu by remember { mutableStateOf(false) }
+    var bulkMenuLevel by remember { mutableIntStateOf(0) }
 
     val listState = rememberLazyListState()
     val density = LocalDensity.current
@@ -191,48 +198,94 @@ fun HomeScreen(
                     },
                     actions = {
                         TextButton(onClick = onSelectAll) {
+                            Icon(
+                                imageVector = Icons.Filled.DoneAll,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text("All")
                         }
-                        IconButton(onClick = { showBulkStatusMenu = true }) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = "Change status")
-                        }
-                        IconButton(onClick = onBulkToggleFavorite) {
-                            Icon(Icons.Filled.Star, contentDescription = "Toggle favorite")
-                        }
-                        IconButton(onClick = { showBulkCategoryMenu = true }) {
-                            Icon(Icons.Filled.MovieFilter, contentDescription = "Change category")
-                        }
-                        IconButton(onClick = onBulkDelete) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
-                        }
-
-                        DropdownMenu(
-                            expanded = showBulkStatusMenu,
-                            onDismissRequest = { showBulkStatusMenu = false }
-                        ) {
-                            Status.values().forEach { status ->
-                                DropdownMenuItem(
-                                    text = { Text(status.name.replace("_", " ")) },
-                                    onClick = {
-                                        onBulkChangeStatus(status)
-                                        showBulkStatusMenu = false
-                                    }
-                                )
+                        Box {
+                            IconButton(onClick = { bulkMenuLevel = 0; showBulkMenu = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "More options")
                             }
-                        }
-
-                        DropdownMenu(
-                            expanded = showBulkCategoryMenu,
-                            onDismissRequest = { showBulkCategoryMenu = false }
-                        ) {
-                            uiState.categories.forEach { cat ->
-                                DropdownMenuItem(
-                                    text = { Text(cat.name) },
-                                    onClick = {
-                                        onBulkChangeCategory(cat.id)
-                                        showBulkCategoryMenu = false
+                            DropdownMenu(
+                                expanded = showBulkMenu,
+                                onDismissRequest = { showBulkMenu = false; bulkMenuLevel = 0 }
+                            ) {
+                                when (bulkMenuLevel) {
+                                    1 -> {
+                                        Status.values().forEach { status ->
+                                            DropdownMenuItem(
+                                                text = { Text(status.name.replace("_", " ")) },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = statusBulkIcon(status),
+                                                        contentDescription = null
+                                                    )
+                                                },
+                                                onClick = {
+                                                    onBulkChangeStatus(status)
+                                                    showBulkMenu = false
+                                                    bulkMenuLevel = 0
+                                                }
+                                            )
+                                        }
                                     }
-                                )
+                                    2 -> {
+                                        uiState.categories.forEach { cat ->
+                                            DropdownMenuItem(
+                                                text = { Text(cat.name) },
+                                                onClick = {
+                                                    onBulkChangeCategory(cat.id)
+                                                    showBulkMenu = false
+                                                    bulkMenuLevel = 0
+                                                }
+                                            )
+                                        }
+                                    }
+                                    else -> {
+                                        DropdownMenuItem(
+                                            text = { Text("Change Status") },
+                                            leadingIcon = {
+                                                Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                                            },
+                                            onClick = { bulkMenuLevel = 1 }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Toggle Favorite") },
+                                            leadingIcon = {
+                                                Icon(Icons.Filled.Star, contentDescription = null)
+                                            },
+                                            onClick = {
+                                                onBulkToggleFavorite()
+                                                showBulkMenu = false
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Change Category") },
+                                            leadingIcon = {
+                                                Icon(Icons.Filled.MovieFilter, contentDescription = null)
+                                            },
+                                            onClick = { bulkMenuLevel = 2 }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Delete") },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Filled.Delete,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                            },
+                                            onClick = {
+                                                onBulkDelete()
+                                                showBulkMenu = false
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -611,6 +664,14 @@ private fun AnimatedFab(
             }
         }
     }
+}
+
+private fun statusBulkIcon(status: Status): ImageVector = when (status) {
+    Status.WATCHING -> Icons.Filled.PlayCircle
+    Status.READING -> Icons.Filled.MenuBook
+    Status.COMPLETED -> Icons.Filled.CheckCircle
+    Status.DROPPED -> Icons.Filled.Block
+    Status.PLAN_TO_WATCH -> Icons.Filled.Schedule
 }
 
 @Composable
