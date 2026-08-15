@@ -3,6 +3,7 @@ package com.app.shouze.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -172,11 +173,40 @@ fun AboutScreen(
                         title = "Send Feedback",
                         subtitle = "Report issues or share ideas",
                         onClick = {
-                            val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                data = Uri.parse("mailto:$FEEDBACK_EMAIL")
-                                putExtra(Intent.EXTRA_SUBJECT, "Shouze Feedback")
+                            val pkgInfo = runCatching {
+                                context.packageManager.getPackageInfo(context.packageName, 0)
+                            }.getOrNull()
+                            val versionName = pkgInfo?.versionName ?: "?"
+                            val versionCode = if (Build.VERSION.SDK_INT >= 28) {
+                                pkgInfo?.longVersionCode
+                            } else {
+                                pkgInfo?.versionCode?.toLong()
                             }
-                            runCatching { context.startActivity(intent) }
+                            // The device information gets built here perfectly
+                            val info = buildString {
+                                appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
+                                appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+                                appendLine("Architecture: ${Build.SUPPORTED_ABIS.joinToString()}")
+                                appendLine("App: Shouze $versionName (code $versionCode)")
+                                appendLine()
+                                appendLine("--- Write your feedback after this line ---")
+                                appendLine()
+                            }
+                            
+                            // Updated Intent using ACTION_SENDTO and mailto: to guarantee email app behavior
+                            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("mailto:") // Only email apps should handle this
+                                putExtra(Intent.EXTRA_EMAIL, arrayOf(FEEDBACK_EMAIL))
+                                putExtra(Intent.EXTRA_SUBJECT, "Shouze Feedback")
+                                putExtra(Intent.EXTRA_TEXT, info)
+                            }
+                            
+                            runCatching {
+                                context.startActivity(intent)
+                            }.onFailure {
+                                // Fallback if the user has no email app installed
+                                Toast.makeText(context, "No email app installed", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     )
                     HorizontalDivider()
