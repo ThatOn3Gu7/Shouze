@@ -32,8 +32,7 @@ fun DetailEditDialog(
     item: MediaItemEntity?,
     categories: List<CategoryEntity>,
     onDismiss: () -> Unit,
-    onSave: (MediaItemEntity) -> Unit,
-    onDelete: (String) -> Unit
+    onSave: (MediaItemEntity) -> Unit
 ) {
     var title by remember { mutableStateOf(item?.title ?: "") }
     var categoryId by remember(item?.id) {
@@ -458,17 +457,6 @@ fun DetailEditDialog(
                         enabled = isTitleValid && categoryId.isNotBlank()
                     ) {
                         Text("Save")
-                    }
-                }
-
-                if (item != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(
-                        onClick = { onDelete(item.id) },
-                        modifier = Modifier.align(Alignment.End),
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Text("Delete Item")
                     }
                 }
             }

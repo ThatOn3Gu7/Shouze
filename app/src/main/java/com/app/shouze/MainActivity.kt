@@ -364,10 +364,6 @@ class MainActivity : ComponentActivity() {
                             onSave = {
                                 viewModel.addOrUpdate(it)
                                 editDialogOpen = false
-                            },
-                            onDelete = {
-                                viewModel.deleteItem(it)
-                                editDialogOpen = false
                             }
                         )
                     }
