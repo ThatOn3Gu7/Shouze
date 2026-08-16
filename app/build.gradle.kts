@@ -1,3 +1,6 @@
+import java.io.File
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +8,22 @@ plugins {
     alias(libs.plugins.kotlin.compose)   // Compose compiler built-in for Kotlin 2.x
     alias(libs.plugins.ksp)              // KSP for Room
 }
+
+val keystorePropertiesFile = rootProject.file("local.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
+val releaseStoreFile = if (keystoreProperties.getProperty("KEYSTORE_FILE").isNullOrEmpty()) {
+    rootProject.file("release-key.jks")
+} else {
+    File(keystoreProperties.getProperty("KEYSTORE_FILE"))
+}
+val hasReleaseSigning = releaseStoreFile.exists() &&
+    !keystoreProperties.getProperty("KEYSTORE_PASSWORD").isNullOrEmpty() &&
+    !keystoreProperties.getProperty("KEY_ALIAS").isNullOrEmpty() &&
+    !keystoreProperties.getProperty("KEY_PASSWORD").isNullOrEmpty()
 
 android {
     namespace = "com.app.shouze"
@@ -19,8 +38,22 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    if (hasReleaseSigning) {
+        signingConfigs {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = keystoreProperties.getProperty("KEYSTORE_PASSWORD")
+                keyAlias = keystoreProperties.getProperty("KEY_ALIAS")
+                keyPassword = keystoreProperties.getProperty("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
