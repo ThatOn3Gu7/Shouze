@@ -8,6 +8,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
@@ -44,14 +45,13 @@ import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -76,10 +76,13 @@ import com.app.shouze.ui.components.SafeRemoteImage
 import com.app.shouze.ui.components.rememberTooltipPositionProvider
 import kotlin.math.abs
 import kotlin.math.ceil
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    androidx.compose.animation.ExperimentalSharedTransitionApi::class,
+    ExperimentalFoundationApi::class
+)
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
@@ -424,204 +427,190 @@ fun HomeScreen(
         floatingActionButtonPosition = FabPosition.End,
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
-        Column(modifier = Modifier.padding(innerPadding)) {
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = onSearchQueryChange,
+        Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+            LazyColumn(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                placeholder = { Text("Search your library...") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.large
-            )
-
-            if (allTags.isNotEmpty()) {
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item {
-                        FilterChip(
-                            selected = selectedTag == null,
-                            onClick = { onTagSelected(null) },
-                            label = { Text("All Tags") },
-                            leadingIcon = if (selectedTag == null) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            } else null
-                        )
-                    }
-                    items(allTags, key = { it }) { tag ->
-                        FilterChip(
-                            selected = selectedTag == tag,
-                            onClick = { onTagSelected(tag) },
-                            label = { Text(tag) },
-                            leadingIcon = if (selectedTag == tag) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            } else null
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .fillMaxSize()
+                    .nestedScroll(fabNestedScrollConnection),
+                state = listState,
+                contentPadding = PaddingValues(vertical = 8.dp)
             ) {
-                item {
-                    FilterChip(
-                        selected = uiState.selectedCategoryId == null,
-                        onClick = { onCategorySelected(null) },
-                        label = { Text("All") },
-                        leadingIcon = if (uiState.selectedCategoryId == null) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        } else null
-                    )
-                }
-
-
-                items(uiState.categories, key = { it.id }) { category ->
-                    FilterChip(
-                        selected = uiState.selectedCategoryId == category.id,
-                        onClick = { onCategorySelected(category.id) },
-                        label = { Text(category.name) },
-                        leadingIcon = if (uiState.selectedCategoryId == category.id) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        } else null
-                    )
-                }
-            }
-
-            if (uiState.upNextItems.isNotEmpty()) {
-                UpNextMarquee(
-                    items = uiState.upNextItems,
-                    categories = uiState.categories,
-                    onItemClick = onItemClick
-                )
-            }
-
-            if (uiState.isLoading) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            AnimatedVisibility(
-                visible = message != null,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                val snackbarColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.inverseSurface
-                val snackbarContent = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.inverseOnSurface
-                Snackbar(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    containerColor = snackbarColor,
-                    contentColor = snackbarContent,
-                    action = {
-                        TextButton(onClick = onClearMessage) {
-                            Text("Dismiss", color = snackbarContent)
-                        }
-                    }
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (isError) Icons.Filled.ErrorOutline else Icons.Filled.CheckCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(message ?: "")
-                    }
-                }
-            }
-
-            if (uiState.items.isEmpty() && !uiState.isLoading) {
-                EmptyState(
-                    hasSearchOrFilter = uiState.searchQuery.isNotBlank() ||
-                        uiState.selectedCategoryId != null ||
-                        uiState.showFavoritesOnly ||
-                        uiState.selectedTag != null,
-                    onClearFilters = if (uiState.searchQuery.isNotBlank() ||
-                        uiState.selectedCategoryId != null ||
-                        uiState.showFavoritesOnly ||
-                        uiState.selectedTag != null
-                    ) {
-                        onClearFilters
-                    } else null,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                if (uiState.items.isNotEmpty()) {
-                    Row(
+                item(key = "search") {
+                    OutlinedTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = onSearchQueryChange,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        placeholder = { Text("Search your library...") },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.large
+                    )
+                }
+
+                if (allTags.isNotEmpty()) {
+                    item(key = "tags") {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            item {
+                                FilterChip(
+                                    selected = selectedTag == null,
+                                    onClick = { onTagSelected(null) },
+                                    label = { Text("All Tags") },
+                                    leadingIcon = if (selectedTag == null) {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Filled.Check,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    } else null
+                                )
+                            }
+                            items(allTags, key = { it }) { tag ->
+                                FilterChip(
+                                    selected = selectedTag == tag,
+                                    onClick = { onTagSelected(tag) },
+                                    label = { Text(tag) },
+                                    leadingIcon = if (selectedTag == tag) {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Filled.Check,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    } else null
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+
+                item(key = "chips") {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.VideoLibrary,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Library",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "${uiState.items.size} ${if (uiState.items.size == 1) "item" else "items"}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                        item {
+                            FilterChip(
+                                selected = uiState.selectedCategoryId == null,
+                                onClick = { onCategorySelected(null) },
+                                label = { Text("All") },
+                                leadingIcon = if (uiState.selectedCategoryId == null) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Filled.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                } else null
+                            )
+                        }
+
+                        items(uiState.categories, key = { it.id }) { category ->
+                            FilterChip(
+                                selected = uiState.selectedCategoryId == category.id,
+                                onClick = { onCategorySelected(category.id) },
+                                label = { Text(category.name) },
+                                leadingIcon = if (uiState.selectedCategoryId == category.id) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Filled.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                } else null
+                            )
+                        }
+                    }
+                }
+
+                if (uiState.upNextItems.isNotEmpty()) {
+                    item(key = "upnext") {
+                        UpNextMarquee(
+                            items = uiState.upNextItems,
+                            categories = uiState.categories,
+                            onItemClick = onItemClick
                         )
                     }
                 }
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .nestedScroll(fabNestedScrollConnection),
-                    state = listState,
-                    contentPadding = PaddingValues(vertical = 8.dp)
-                ) {
+
+                if (uiState.isLoading) {
+                    item(key = "loading") {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+            if (uiState.items.isNotEmpty()) {
+                    stickyHeader(key = "library_header") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.background)
+                                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.VideoLibrary,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Library",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "${uiState.items.size} ${if (uiState.items.size == 1) "item" else "items"}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                if (uiState.items.isEmpty() && !uiState.isLoading) {
+                    item(key = "empty") {
+                        EmptyState(
+                            hasSearchOrFilter = uiState.searchQuery.isNotBlank() ||
+                                uiState.selectedCategoryId != null ||
+                                uiState.showFavoritesOnly ||
+                                uiState.selectedTag != null,
+                            onClearFilters = if (uiState.searchQuery.isNotBlank() ||
+                                uiState.selectedCategoryId != null ||
+                                uiState.showFavoritesOnly ||
+                                uiState.selectedTag != null
+                            ) {
+                                onClearFilters
+                            } else null,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                } else {
                     items(
                         items = uiState.items,
                         key = { it.id }
                     ) { item ->
                         val categoryName = uiState.categories.find { it.id == item.categoryId }?.name ?: "Unknown"
-                         MediaCardItem(
+                        MediaCardItem(
                             item = item,
                             categoryName = categoryName,
                             onClick = {
@@ -642,7 +631,37 @@ fun HomeScreen(
                             animatedVisibilityScope = animatedVisibilityScope,
                             modifier = Modifier.animateItem()
                         )
+                    }
+                }
+            }
 
+            AnimatedVisibility(
+                visible = message != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                val snackbarColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.inverseSurface
+                val snackbarContent = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.inverseOnSurface
+                Snackbar(
+                    containerColor = snackbarColor,
+                    contentColor = snackbarContent,
+                    action = {
+                        TextButton(onClick = onClearMessage) {
+                            Text("Dismiss", color = snackbarContent)
+                        }
+                    }
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (isError) Icons.Filled.ErrorOutline else Icons.Filled.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(message ?: "")
                     }
                 }
             }
@@ -743,26 +762,28 @@ private fun UpNextMarquee(
     val spacingPx = with(density) { spacing.toPx() }
     val setWidthPx = marqueeItems.size * (cardWidthPx + spacingPx)
     val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
-    val shouldLoop = setWidthPx > screenWidthPx
+    
+    // Fix: Account for the padding when calculating if we need to loop
+    val paddingPx = with(density) { 32.dp.toPx() } // 16.dp on each side
+    val contentWidthWithPadding = setWidthPx - spacingPx + paddingPx
+    val shouldLoop = contentWidthWithPadding > screenWidthPx
+    
     val repeats = if (shouldLoop) {
         maxOf(2, ceil(screenWidthPx / setWidthPx).toInt() + 1)
     } else 1
 
-    var offsetPx by remember(marqueeItems.size) { mutableFloatStateOf(0f) }
+    var offsetPx by rememberSaveable(marqueeItems.size) { mutableFloatStateOf(0f) }
     var pressed by remember { mutableStateOf(false) }
 
-    LaunchedEffect(marqueeItems.size, setWidthPx) {
+    LaunchedEffect(marqueeItems.size, setWidthPx, shouldLoop) {
         if (!shouldLoop) return@LaunchedEffect
         val speedPxPerSecond = with(density) { 55.dp.toPx() }
         var lastNanos = withFrameNanos { it }
         while (isActive) {
-            if (pressed) {
-                delay(50)
-                continue
-            }
-            withFrameNanos { now ->
-                val dtSeconds = (now - lastNanos).coerceIn(0L, 100_000_000L) / 1e9f
-                lastNanos = now
+            val now = withFrameNanos { it }
+            val dtSeconds = ((now - lastNanos).coerceIn(0L, 100_000_000L)) / 1e9f
+            lastNanos = now
+            if (!pressed) {
                 offsetPx = (offsetPx + dtSeconds * speedPxPerSecond) % setWidthPx
             }
         }
@@ -816,10 +837,13 @@ private fun UpNextMarquee(
         ) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
                     .then(
                         if (shouldLoop) {
-                            Modifier.graphicsLayer { translationX = -offsetPx }
+                            Modifier
+                                // CRITICAL FIX 1: Allow the Row to render larger than the screen width!
+                                // Without this, Compose aggressively squeezes the items to try and fit them on screen.
+                                .wrapContentWidth(unbounded = true, align = Alignment.Start)
+                                .graphicsLayer { translationX = -offsetPx }
                         } else {
                             Modifier
                         }
@@ -839,26 +863,40 @@ private fun UpNextMarquee(
                             item = item,
                             categoryName = categories.find { it.id == item.categoryId }?.name ?: "Unknown",
                             onClick = { onItemClick(item) },
-                            modifier = Modifier.width(cardWidth)
+                            // CRITICAL FIX 2: Use requiredWidth instead of width so the Layout system absolutely cannot shrink it.
+                            modifier = Modifier.requiredWidth(cardWidth)
                         )
                     }
                 }
             }
             if (shouldLoop) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(
-                            Brush.horizontalGradient(
-                                colorStops = arrayOf(
-                                    0f to MaterialTheme.colorScheme.background,
-                                    0.05f to Color.Transparent,
-                                    0.95f to Color.Transparent,
-                                    1f to MaterialTheme.colorScheme.background
+                val bgColor = MaterialTheme.colorScheme.background
+                Row(modifier = Modifier.matchParentSize()) {
+                    // Left shadow fade
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(40.dp) // Adjust width to make the fade thicker/thinner
+                            .background(
+                                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    colors = listOf(bgColor, androidx.compose.ui.graphics.Color.Transparent)
                                 )
                             )
-                        )
-                )
+                    )
+                    // Empty space in the middle to let the cards show
+                    Spacer(modifier = Modifier.weight(1f))
+                    // Right shadow fade
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(40.dp)
+                            .background(
+                                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    colors = listOf(androidx.compose.ui.graphics.Color.Transparent, bgColor)
+                                )
+                            )
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.height(4.dp))
