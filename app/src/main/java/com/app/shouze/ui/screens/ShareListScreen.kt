@@ -3,15 +3,18 @@ package com.app.shouze.ui.screens
 import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.CategoryEntity
 import com.app.shouze.data.local.MediaItemEntity
@@ -55,13 +58,26 @@ fun ShareListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Share List") },
+            CenterAlignedTopAppBar(
+                title = { 
+                    Text(
+                        text = "Share List",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack, 
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.Transparent
+                )
             )
         }
     ) { padding ->
@@ -70,26 +86,43 @@ fun ShareListScreen(
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
+            
+            // Card 1: Library Summary
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(32.dp),
+                colors = CardDefaults.cardColors(
+                    // You can also try surfaceContainer here if surfaceVariant is still too bright
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant 
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp)
+                ) {
                     Text(
                         text = "Library Summary",
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "${items.size} total entries",
-                        style = MaterialTheme.typography.bodyLarge
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "${items.count { it.status.name == "COMPLETED" }} completed",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
                     Button(
                         onClick = {
                             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -99,37 +132,62 @@ fun ShareListScreen(
                             }
                             context.startActivity(Intent.createChooser(intent, "Share via"))
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 14.dp)
                     ) {
-                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Share List")
+                        Icon(
+                            imageVector = Icons.Rounded.Share, 
+                            contentDescription = null, 
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Share List",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
+            // Card 2: Import Shared List
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(32.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp)
+                ) {
                     Text(
                         text = "Import Shared List",
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = "Paste a shared Shouze list below to import titles as Plan to Watch.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                     OutlinedTextField(
                         value = importText,
                         onValueChange = { importText = it },
                         label = { Text("Paste shared list here") },
                         modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
                         minLines = 4,
-                        maxLines = 8
+                        maxLines = 8,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        )
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                     Button(
                         onClick = {
                             if (importText.isNotBlank()) {
@@ -138,28 +196,39 @@ fun ShareListScreen(
                             }
                         },
                         enabled = importText.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 14.dp)
                     ) {
-                        Text("Import Titles")
+                        Text(
+                            text = "Import Titles",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
 
+            // Card 3: Preview Box (Only visible if library isn't completely empty)
             if (shareText.isNotBlank()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(32.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                        // Slightly darker/different container for contrast against the main cards
+                        containerColor = MaterialTheme.colorScheme.surface
                     )
                 ) {
                     Text(
                         text = shareText,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(24.dp),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
+            
+            // Add a little bottom padding for scrolling
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
