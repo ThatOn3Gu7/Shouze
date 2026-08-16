@@ -45,7 +45,8 @@ data class AniListSearchUiState(
     val error: String? = null,
     val searchType: String = "ANIME",
     val trending: List<AniListMedia> = emptyList(),
-    val isTrendingLoading: Boolean = false
+    val isTrendingLoading: Boolean = false,
+    val trendingError: String? = null
 )
 
 data class AiringScheduleUiState(
@@ -217,6 +218,15 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
    
     fun setTagFilter(tag: String?) {
         _selectedTag.value = tag
+    }
+
+    fun clearHomeFilters() {
+        _searchQuery.value = ""
+        _selectedCategoryId.value = null
+        _selectedTag.value = null
+        if (_showFavoritesOnly.value) {
+            _showFavoritesOnly.value = false
+        }
     }
 
     
@@ -406,14 +416,16 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun loadTrending() {
         viewModelScope.launch {
             if (_searchUiState.value.trending.isNotEmpty()) return@launch
-            _searchUiState.update { it.copy(isTrendingLoading = true) }
+            _searchUiState.update { it.copy(isTrendingLoading = true, trendingError = null) }
             val result = aniListApi.getTrending(_searchUiState.value.searchType)
             result.fold(
                 onSuccess = { media ->
                     _searchUiState.update { it.copy(trending = media, isTrendingLoading = false) }
                 },
-                onFailure = {
-                    _searchUiState.update { it.copy(isTrendingLoading = false) }
+                onFailure = { e ->
+                    _searchUiState.update {
+                        it.copy(isTrendingLoading = false, trendingError = friendlyError(e))
+                    }
                 }
             )
         }
@@ -890,6 +902,19 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 "The request timed out. Please try again."
             msg.contains("cleartext") || msg.contains("protocol") ->
                 "A secure connection to AniList couldn't be made. Please try again."
+            msg.contains("temporarily disabled") || msg.contains("stability") ->
+                "AniList is temporarily down for maintenance. Please try again later."
+            msg.contains("rate limit") || msg.contains("too many requests") ->
+                "Too many requests to AniList. Please wait a moment and try again."
+            msg.contains("http 5") || msg.contains("server error") ||
+                msg.contains("bad gateway") || msg.contains("service unavailable") ->
+                "AniList is having server trouble right now. Please try again later."
+            msg.contains("http 404") || msg.contains("not found") ->
+                "That wasn't found on AniList."
+            msg.contains("unauthorized") || msg.contains("forbidden") ->
+                "AniList denied this request. Please try again later."
+            msg.isNotBlank() ->
+                "Something went wrong reaching AniList: ${e?.message}"
             else -> "Something went wrong reaching AniList. Please try again."
         }
     }

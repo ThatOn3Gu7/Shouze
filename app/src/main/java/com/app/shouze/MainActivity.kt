@@ -211,6 +211,7 @@ class MainActivity : ComponentActivity() {
                                 allTags = uiState.allTags,
                                 selectedTag = uiState.selectedTag,
                                 onTagSelected = viewModel::setTagFilter,
+                                onClearFilters = viewModel::clearHomeFilters,
                                 profileTabBounds = { profileTabBounds.value },
                                 sharedTransitionScope = this@SharedTransitionLayout,
                                 animatedVisibilityScope = this@composable

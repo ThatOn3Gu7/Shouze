@@ -159,6 +159,22 @@ fun SearchScreen(
                                 )
                             }
                         }
+                    } else if (uiState.trendingError != null) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Text(
+                                text = uiState.trendingError!!,
+                                modifier = Modifier.padding(16.dp),
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
                     } else {
                         Box(
                             modifier = Modifier.fillMaxSize(),

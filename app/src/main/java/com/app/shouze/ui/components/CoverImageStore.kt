@@ -83,7 +83,7 @@ object CoverImageStore {
             rememberFailure(url)
             return null
         }
-        val bitmap = decodeSampled(bytes)
+        val bitmap = withContext(Dispatchers.IO) { decodeSampled(bytes) }
         if (bitmap == null) {
             rememberFailure(url)
             return null

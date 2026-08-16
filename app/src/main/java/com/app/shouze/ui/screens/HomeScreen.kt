@@ -36,6 +36,9 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.BrokenImage
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -47,12 +50,18 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
@@ -66,6 +75,9 @@ import com.app.shouze.ui.components.MediaCardItem
 import com.app.shouze.ui.components.SafeRemoteImage
 import com.app.shouze.ui.components.rememberTooltipPositionProvider
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
@@ -93,6 +105,7 @@ fun HomeScreen(
     allTags: List<String> = emptyList(),
     selectedTag: String? = null,
     onTagSelected: (String?) -> Unit = {},
+    onClearFilters: () -> Unit = {},
     onAiringScheduleClick: () -> Unit = {},
     profileTabBounds: () -> Rect = { Rect.Zero },
     sharedTransitionScope: SharedTransitionScope? = null,
@@ -412,14 +425,6 @@ fun HomeScreen(
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding)) {
-            if (uiState.upNextItems.isNotEmpty()) {
-                UpNextSection(
-                    items = uiState.upNextItems,
-                    categories = uiState.categories,
-                    onItemClick = onItemClick
-                )
-            }
-
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = onSearchQueryChange,
@@ -515,6 +520,14 @@ fun HomeScreen(
                 }
             }
 
+            if (uiState.upNextItems.isNotEmpty()) {
+                UpNextMarquee(
+                    items = uiState.upNextItems,
+                    categories = uiState.categories,
+                    onItemClick = onItemClick
+                )
+            }
+
             if (uiState.isLoading) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth(),
@@ -553,10 +566,49 @@ fun HomeScreen(
 
             if (uiState.items.isEmpty() && !uiState.isLoading) {
                 EmptyState(
-                    hasSearchOrFilter = uiState.searchQuery.isNotBlank() || uiState.selectedCategoryId != null,
+                    hasSearchOrFilter = uiState.searchQuery.isNotBlank() ||
+                        uiState.selectedCategoryId != null ||
+                        uiState.showFavoritesOnly ||
+                        uiState.selectedTag != null,
+                    onClearFilters = if (uiState.searchQuery.isNotBlank() ||
+                        uiState.selectedCategoryId != null ||
+                        uiState.showFavoritesOnly ||
+                        uiState.selectedTag != null
+                    ) {
+                        onClearFilters
+                    } else null,
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
+                if (uiState.items.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.VideoLibrary,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Library",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "${uiState.items.size} ${if (uiState.items.size == 1) "item" else "items"}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -674,14 +726,49 @@ private fun statusBulkIcon(status: Status): ImageVector = when (status) {
     Status.PLAN_TO_WATCH -> Icons.Filled.Schedule
 }
 
+private const val MAX_MARQUEE_ITEMS = 12
+
 @Composable
-private fun UpNextSection(
+private fun UpNextMarquee(
     items: List<MediaItemEntity>,
     categories: List<com.app.shouze.data.local.CategoryEntity>,
     onItemClick: (MediaItemEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.padding(vertical = 12.dp)) {
+    val density = LocalDensity.current
+    val marqueeItems = items.take(MAX_MARQUEE_ITEMS)
+    val cardWidth = 96.dp
+    val spacing = 12.dp
+    val cardWidthPx = with(density) { cardWidth.toPx() }
+    val spacingPx = with(density) { spacing.toPx() }
+    val setWidthPx = marqueeItems.size * (cardWidthPx + spacingPx)
+    val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val shouldLoop = setWidthPx > screenWidthPx
+    val repeats = if (shouldLoop) {
+        maxOf(2, ceil(screenWidthPx / setWidthPx).toInt() + 1)
+    } else 1
+
+    var offsetPx by remember(marqueeItems.size) { mutableFloatStateOf(0f) }
+    var pressed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(marqueeItems.size, setWidthPx) {
+        if (!shouldLoop) return@LaunchedEffect
+        val speedPxPerSecond = with(density) { 55.dp.toPx() }
+        var lastNanos = withFrameNanos { it }
+        while (isActive) {
+            if (pressed) {
+                delay(50)
+                continue
+            }
+            withFrameNanos { now ->
+                val dtSeconds = (now - lastNanos).coerceIn(0L, 100_000_000L) / 1e9f
+                lastNanos = now
+                offsetPx = (offsetPx + dtSeconds * speedPxPerSecond) % setWidthPx
+            }
+        }
+    }
+
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -700,25 +787,86 @@ private fun UpNextSection(
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary
             )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "${items.size} in progress",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clipToBounds()
+                .then(
+                    if (shouldLoop) {
+                        Modifier.pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    pressed = awaitPointerEvent().changes.any { it.pressed }
+                                }
+                            }
+                        }
+                    } else {
+                        Modifier
+                    }
+                )
         ) {
-            items(items, key = { it.id }) { item ->
-                val categoryName = categories.find { it.id == item.categoryId }?.name ?: "Unknown"
-                UpNextCard(
-                    item = item,
-                    categoryName = categoryName,
-                    onClick = { onItemClick(item) }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (shouldLoop) {
+                            Modifier.graphicsLayer { translationX = -offsetPx }
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .then(
+                        if (!shouldLoop) {
+                            Modifier.padding(horizontal = 16.dp)
+                        } else {
+                            Modifier
+                        }
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(spacing)
+            ) {
+                repeat(repeats) {
+                    marqueeItems.forEach { item ->
+                        UpNextTinyCard(
+                            item = item,
+                            categoryName = categories.find { it.id == item.categoryId }?.name ?: "Unknown",
+                            onClick = { onItemClick(item) },
+                            modifier = Modifier.width(cardWidth)
+                        )
+                    }
+                }
+            }
+            if (shouldLoop) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                colorStops = arrayOf(
+                                    0f to MaterialTheme.colorScheme.background,
+                                    0.05f to Color.Transparent,
+                                    0.95f to Color.Transparent,
+                                    1f to MaterialTheme.colorScheme.background
+                                )
+                            )
+                        )
                 )
             }
         }
+        Spacer(modifier = Modifier.height(4.dp))
     }
 }
 
 @Composable
-private fun UpNextCard(
+private fun UpNextTinyCard(
     item: MediaItemEntity,
     categoryName: String,
     onClick: () -> Unit,
@@ -726,7 +874,7 @@ private fun UpNextCard(
 ) {
     Card(
         onClick = onClick,
-        modifier = modifier.width(160.dp),
+        modifier = modifier,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
@@ -742,35 +890,29 @@ private fun UpNextCard(
                     SafeRemoteImage(
                         url = item.coverImageUri,
                         contentDescription = item.title,
-                        modifier = Modifier.fillMaxSize()
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        placeholder = { TinyImagePlaceholder() },
+                        errorContent = { TinyImagePlaceholder(failed = true) }
                     )
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = item.title.firstOrNull()?.uppercase() ?: "?",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    TinyImagePlaceholder()
                 }
             }
-            Column(modifier = Modifier.padding(12.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                 Text(
                     text = item.title,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "$categoryName · ${item.currentProgress}/${if (item.totalCount > 0) item.totalCount else "?"}",
+                    text = "$categoryName · ${item.currentProgress}/${if (item.totalCount > 0) item.totalCount else "ongoing"}",
                     style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -779,9 +921,37 @@ private fun UpNextCard(
 }
 
 @Composable
+private fun TinyImagePlaceholder(failed: Boolean = false) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                if (failed) {
+                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = if (failed) Icons.Filled.BrokenImage else Icons.Filled.Image,
+            contentDescription = null,
+            tint = if (failed) {
+                MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            },
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+@Composable
 private fun EmptyState(
     hasSearchOrFilter: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClearFilters: (() -> Unit)? = null
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "empty_state")
     val floatAnim by infiniteTransition.animateFloat(
@@ -836,5 +1006,17 @@ private fun EmptyState(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        if (onClearFilters != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            FilledTonalButton(onClick = onClearFilters) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Clear filters")
+            }
+        }
     }
 }

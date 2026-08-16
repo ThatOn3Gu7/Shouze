@@ -121,9 +121,37 @@ data class ExternalLink(
     val site: String
 )
 
+@Serializable
+private data class AniListErrorEnvelope(
+    val errors: List<AniListError> = emptyList()
+)
+
+@Serializable
+private data class AniListError(
+    val message: String? = null
+)
+
 class AniListApi {
     private val client = OkHttpClient()
     private val json = Json { ignoreUnknownKeys = true }
+
+    private fun httpError(response: okhttp3.Response): IOException {
+        val code = response.code
+        val body = response.body?.string()
+        val apiError = runCatching {
+            body?.let { json.decodeFromString<AniListErrorEnvelope>(it) }
+                ?.errors?.firstOrNull()?.message?.takeIf { it.isNotBlank() }
+        }.getOrNull()
+        if (code == 429) {
+            val retryAfter = response.header("Retry-After")
+            if (!retryAfter.isNullOrBlank()) {
+                return IOException(
+                    apiError ?: "AniList rate limit reached — try again in $retryAfter seconds"
+                )
+            }
+        }
+        return IOException(apiError ?: "HTTP $code")
+    }
 
     suspend fun searchMedia(query: String, type: String = "ANIME"): Result<List<AniListMedia>> = withContext(Dispatchers.IO) {
         try {
@@ -166,7 +194,7 @@ class AniListApi {
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                    return@withContext Result.failure(httpError(response))
                 }
                 val body = response.body?.string()
                     ?: return@withContext Result.failure(IOException("Empty response"))
@@ -210,7 +238,7 @@ class AniListApi {
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                    return@withContext Result.failure(httpError(response))
                 }
                 val body = response.body?.string()
                     ?: return@withContext Result.failure(IOException("Empty response"))
@@ -259,7 +287,7 @@ class AniListApi {
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                    return@withContext Result.failure(httpError(response))
                 }
                 val body = response.body?.string()
                     ?: return@withContext Result.failure(IOException("Empty response"))
@@ -305,7 +333,7 @@ class AniListApi {
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                    return@withContext Result.failure(httpError(response))
                 }
                 val body = response.body?.string()
                     ?: return@withContext Result.failure(IOException("Empty response"))
