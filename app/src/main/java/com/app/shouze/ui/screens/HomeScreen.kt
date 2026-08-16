@@ -1,68 +1,71 @@
 package com.app.shouze.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.*
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.MovieFilter
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.BrokenImage
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.automirrored.rounded.Sort
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.BrokenImage
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.MovieFilter
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
@@ -80,7 +83,7 @@ import kotlinx.coroutines.isActive
 
 @OptIn(
     ExperimentalMaterial3Api::class,
-    androidx.compose.animation.ExperimentalSharedTransitionApi::class,
+    ExperimentalSharedTransitionApi::class,
     ExperimentalFoundationApi::class
 )
 @Composable
@@ -124,14 +127,11 @@ fun HomeScreen(
 
     val listState = rememberLazyListState()
     val density = LocalDensity.current
-    val hideDistancePx = with(density) { 200.dp.toPx() } // Increased distance slightly for a smoother transition 
+    val hideDistancePx = with(density) { 200.dp.toPx() }
     val fabFlingThreshold = 400f
     
-    // Fix 1: Manage scroll state separately from the animation entirely. 
-    // This stops jittering/glitchiness completely.
     var scrollAccumulator by remember { mutableFloatStateOf(0f) }
     
-    // Fix 2: Let Compose handle the smooth transitions automatically based on the accumulator
     val fabProgress by animateFloatAsState(
         targetValue = (scrollAccumulator / hideDistancePx).coerceIn(0f, 1f),
         animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
@@ -150,8 +150,6 @@ fun HomeScreen(
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (source == NestedScrollSource.UserInput && available.y != 0f) {
-                    // available.y < 0 means scrolling DOWN the list. We SUBTRACT to increase the accumulator (move towards hidden)
-                    // available.y > 0 means scrolling UP the list. We ADD it (subtract a positive) to decrease (move towards expanded)
                     scrollAccumulator = (scrollAccumulator - available.y).coerceIn(0f, hideDistancePx)
                 }
                 return Offset.Zero
@@ -159,7 +157,6 @@ fun HomeScreen(
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 if (abs(available.y) > fabFlingThreshold) {
-                    // available.y < 0 in fling means scrolling down fast, hide it fully
                     scrollAccumulator = if (available.y < 0f) hideDistancePx else 0f
                 }
                 return Velocity.Zero
@@ -175,24 +172,27 @@ fun HomeScreen(
                     BottomAppBar(
                         actions = {
                             IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                                Icon(Icons.Rounded.Edit, contentDescription = "Edit")
                             }
                             IconButton(onClick = { onToggleFavorite(sel); selectedItem = null }) {
                                 Icon(
-                                    imageVector = if (sel.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                    imageVector = if (sel.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                                     contentDescription = if (sel.isFavorite) "Unfavorite" else "Favorite",
-                                    tint = if (sel.isFavorite) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                                    tint = if (sel.isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             IconButton(
                                 onClick = { onDeleteItem(sel); selectedItem = null }
                             ) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                Icon(Icons.Rounded.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                             }
                         },
                         floatingActionButton = {
-                            FloatingActionButton(onClick = { selectedItem = null }) {
-                                Icon(Icons.Filled.Close, contentDescription = "Close")
+                            FloatingActionButton(
+                                onClick = { selectedItem = null },
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Close")
                             }
                         }
                     )
@@ -201,26 +201,43 @@ fun HomeScreen(
         },
         topBar = {
             if (isSelectionMode) {
-                TopAppBar(
-                    title = { Text("$selectedCount / ${uiState.items.size}") },
+                CenterAlignedTopAppBar(
+                    title = { 
+                        Text(
+                            text = "$selectedCount / ${uiState.items.size}",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ) 
+                    },
                     navigationIcon = {
                         IconButton(onClick = onClearSelection) {
-                            Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                            Icon(
+                                imageVector = Icons.Rounded.Close, 
+                                contentDescription = "Cancel",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = Color.Transparent
+                    ),
                     actions = {
                         TextButton(onClick = onSelectAll) {
                             Icon(
-                                imageVector = Icons.Filled.DoneAll,
+                                imageVector = Icons.Rounded.DoneAll,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("All")
+                            Text("All", fontWeight = FontWeight.Bold)
                         }
                         Box {
                             IconButton(onClick = { bulkMenuLevel = 0; showBulkMenu = true }) {
-                                Icon(Icons.Filled.MoreVert, contentDescription = "More options")
+                                Icon(
+                                    imageVector = Icons.Rounded.MoreVert, 
+                                    contentDescription = "More options",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
                             }
                             DropdownMenu(
                                 expanded = showBulkMenu,
@@ -230,7 +247,7 @@ fun HomeScreen(
                                     1 -> {
                                         Status.values().forEach { status ->
                                             DropdownMenuItem(
-                                                text = { Text(status.name.replace("_", " ")) },
+                                                text = { Text(status.name.replace("_", " "), fontWeight = FontWeight.Medium) },
                                                 leadingIcon = {
                                                     Icon(
                                                         imageVector = statusBulkIcon(status),
@@ -248,7 +265,7 @@ fun HomeScreen(
                                     2 -> {
                                         uiState.categories.forEach { cat ->
                                             DropdownMenuItem(
-                                                text = { Text(cat.name) },
+                                                text = { Text(cat.name, fontWeight = FontWeight.Medium) },
                                                 onClick = {
                                                     onBulkChangeCategory(cat.id)
                                                     showBulkMenu = false
@@ -259,16 +276,16 @@ fun HomeScreen(
                                     }
                                     else -> {
                                         DropdownMenuItem(
-                                            text = { Text("Change Status") },
+                                            text = { Text("Change Status", fontWeight = FontWeight.Medium) },
                                             leadingIcon = {
-                                                Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                                                Icon(Icons.Rounded.PlayArrow, contentDescription = null)
                                             },
                                             onClick = { bulkMenuLevel = 1 }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Toggle Favorite") },
+                                            text = { Text("Toggle Favorite", fontWeight = FontWeight.Medium) },
                                             leadingIcon = {
-                                                Icon(Icons.Filled.Star, contentDescription = null)
+                                                Icon(Icons.Rounded.Star, contentDescription = null)
                                             },
                                             onClick = {
                                                 onBulkToggleFavorite()
@@ -276,17 +293,17 @@ fun HomeScreen(
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Change Category") },
+                                            text = { Text("Change Category", fontWeight = FontWeight.Medium) },
                                             leadingIcon = {
-                                                Icon(Icons.Filled.MovieFilter, contentDescription = null)
+                                                Icon(Icons.Rounded.MovieFilter, contentDescription = null)
                                             },
                                             onClick = { bulkMenuLevel = 2 }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Delete") },
+                                            text = { Text("Delete", fontWeight = FontWeight.Medium) },
                                             leadingIcon = {
                                                 Icon(
-                                                    Icons.Filled.Delete,
+                                                    Icons.Rounded.Delete,
                                                     contentDescription = null,
                                                     tint = MaterialTheme.colorScheme.error
                                                 )
@@ -304,7 +321,17 @@ fun HomeScreen(
                 )
             } else {
                 TopAppBar(
-                    title = { Text("Shouze") },
+                    title = {
+                        Text(
+                            text = "Shouze",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent
+                    ),
                     actions = {
                         var expanded by remember { mutableStateOf(false) }
                         Box {
@@ -317,13 +344,13 @@ fun HomeScreen(
                                     },
                                     state = rememberTooltipState(),
                                     positionProvider = rememberTooltipPositionProvider(),
-                        focusable = false
+                                    focusable = false
                                 ) {
                                     IconButton(onClick = onToggleFavorites) {
                                         Icon(
-                                            imageVector = if (showFavoritesOnly) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                            imageVector = if (showFavoritesOnly) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                                             contentDescription = if (showFavoritesOnly) "Show all" else "Show favorites",
-                                            tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                                            tint = if (showFavoritesOnly) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
                                         )
                                     }
                                 }
@@ -333,10 +360,14 @@ fun HomeScreen(
                                     },
                                     state = rememberTooltipState(),
                                     positionProvider = rememberTooltipPositionProvider(),
-                        focusable = false
+                                    focusable = false
                                 ) {
                                     IconButton(onClick = { expanded = true }) {
-                                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.Sort, 
+                                            contentDescription = "Sort",
+                                            tint = MaterialTheme.colorScheme.onSurface
+                                        )
                                     }
                                 }
                             }
@@ -345,38 +376,38 @@ fun HomeScreen(
                                 onDismissRequest = { expanded = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Last Updated") },
+                                    text = { Text("Last Updated", fontWeight = FontWeight.Medium) },
                                     onClick = { onSortModeChange(SortMode.LAST_UPDATED); expanded = false },
                                     trailingIcon = {
                                         if (uiState.sortMode == SortMode.LAST_UPDATED) {
-                                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Title (A-Z)") },
+                                    text = { Text("Title (A-Z)", fontWeight = FontWeight.Medium) },
                                     onClick = { onSortModeChange(SortMode.TITLE); expanded = false },
                                     trailingIcon = {
                                         if (uiState.sortMode == SortMode.TITLE) {
-                                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Rating (High-Low)") },
+                                    text = { Text("Rating (High-Low)", fontWeight = FontWeight.Medium) },
                                     onClick = { onSortModeChange(SortMode.RATING_HIGH); expanded = false },
                                     trailingIcon = {
                                         if (uiState.sortMode == SortMode.RATING_HIGH) {
-                                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Progress (Most Complete)") },
+                                    text = { Text("Progress (Most Complete)", fontWeight = FontWeight.Medium) },
                                     onClick = { onSortModeChange(SortMode.PROGRESS); expanded = false },
                                     trailingIcon = {
                                         if (uiState.sortMode == SortMode.PROGRESS) {
-                                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 )
@@ -388,10 +419,14 @@ fun HomeScreen(
                             },
                             state = rememberTooltipState(),
                             positionProvider = rememberTooltipPositionProvider(),
-                        focusable = false
+                            focusable = false
                         ) {
                             IconButton(onClick = onAiringScheduleClick) {
-                                Icon(Icons.Filled.CalendarMonth, contentDescription = "Airing Schedule")
+                                Icon(
+                                    imageVector = Icons.Rounded.CalendarMonth, 
+                                    contentDescription = "Airing Schedule",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
                             }
                         }
                         TooltipBox(
@@ -400,10 +435,14 @@ fun HomeScreen(
                             },
                             state = rememberTooltipState(),
                             positionProvider = rememberTooltipPositionProvider(),
-                        focusable = false
+                            focusable = false
                         ) {
                             IconButton(onClick = onSettingsClick) {
-                                Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                                Icon(
+                                    imageVector = Icons.Rounded.Settings, 
+                                    contentDescription = "Settings",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
                             }
                         }
                     }
@@ -433,7 +472,7 @@ fun HomeScreen(
                     .fillMaxSize()
                     .nestedScroll(fabNestedScrollConnection),
                 state = listState,
-                contentPadding = PaddingValues(vertical = 8.dp)
+                contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 item(key = "search") {
                     OutlinedTextField(
@@ -441,11 +480,21 @@ fun HomeScreen(
                         onValueChange = onSearchQueryChange,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        placeholder = { Text("Search your library...") },
-                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            .padding(horizontal = 24.dp, vertical = 12.dp),
+                        placeholder = { Text("Search your library...", fontWeight = FontWeight.Medium) },
+                        leadingIcon = { 
+                            Icon(
+                                imageVector = Icons.Rounded.Search, 
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface
+                            ) 
+                        },
                         singleLine = true,
-                        shape = MaterialTheme.shapes.large
+                        shape = RoundedCornerShape(28.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        )
                     )
                 }
 
@@ -453,18 +502,19 @@ fun HomeScreen(
                     item(key = "tags") {
                         LazyRow(
                             modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            contentPadding = PaddingValues(horizontal = 24.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             item {
                                 FilterChip(
                                     selected = selectedTag == null,
                                     onClick = { onTagSelected(null) },
-                                    label = { Text("All Tags") },
+                                    label = { Text("All Tags", fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(16.dp),
                                     leadingIcon = if (selectedTag == null) {
                                         {
                                             Icon(
-                                                imageVector = Icons.Filled.Check,
+                                                imageVector = Icons.Rounded.Check,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(18.dp)
                                             )
@@ -476,11 +526,12 @@ fun HomeScreen(
                                 FilterChip(
                                     selected = selectedTag == tag,
                                     onClick = { onTagSelected(tag) },
-                                    label = { Text(tag) },
+                                    label = { Text(tag, fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(16.dp),
                                     leadingIcon = if (selectedTag == tag) {
                                         {
                                             Icon(
-                                                imageVector = Icons.Filled.Check,
+                                                imageVector = Icons.Rounded.Check,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(18.dp)
                                             )
@@ -489,25 +540,26 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
 
                 item(key = "chips") {
                     LazyRow(
                         modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        contentPadding = PaddingValues(horizontal = 24.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         item {
                             FilterChip(
                                 selected = uiState.selectedCategoryId == null,
                                 onClick = { onCategorySelected(null) },
-                                label = { Text("All") },
+                                label = { Text("All", fontWeight = FontWeight.SemiBold) },
+                                shape = RoundedCornerShape(16.dp),
                                 leadingIcon = if (uiState.selectedCategoryId == null) {
                                     {
                                         Icon(
-                                            imageVector = Icons.Filled.Check,
+                                            imageVector = Icons.Rounded.Check,
                                             contentDescription = null,
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -520,11 +572,12 @@ fun HomeScreen(
                             FilterChip(
                                 selected = uiState.selectedCategoryId == category.id,
                                 onClick = { onCategorySelected(category.id) },
-                                label = { Text(category.name) },
+                                label = { Text(category.name, fontWeight = FontWeight.SemiBold) },
+                                shape = RoundedCornerShape(16.dp),
                                 leadingIcon = if (uiState.selectedCategoryId == category.id) {
                                     {
                                         Icon(
-                                            imageVector = Icons.Filled.Check,
+                                            imageVector = Icons.Rounded.Check,
                                             contentDescription = null,
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -533,6 +586,7 @@ fun HomeScreen(
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
 
                 if (uiState.upNextItems.isNotEmpty()) {
@@ -548,23 +602,25 @@ fun HomeScreen(
                 if (uiState.isLoading) {
                     item(key = "loading") {
                         LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 8.dp),
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
 
-            if (uiState.items.isNotEmpty()) {
+                if (uiState.items.isNotEmpty()) {
                     stickyHeader(key = "library_header") {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(MaterialTheme.colorScheme.background)
-                                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                                .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.VideoLibrary,
+                                imageVector = Icons.Rounded.VideoLibrary,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
@@ -572,14 +628,16 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Library",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "${uiState.items.size} ${if (uiState.items.size == 1) "item" else "items"}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -601,7 +659,9 @@ fun HomeScreen(
                             ) {
                                 onClearFilters
                             } else null,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp)
                         )
                     }
                 } else {
@@ -641,27 +701,28 @@ fun HomeScreen(
                 exit = fadeOut() + shrinkVertically(),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 val snackbarColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.inverseSurface
                 val snackbarContent = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.inverseOnSurface
                 Snackbar(
                     containerColor = snackbarColor,
                     contentColor = snackbarContent,
+                    shape = RoundedCornerShape(16.dp),
                     action = {
                         TextButton(onClick = onClearMessage) {
-                            Text("Dismiss", color = snackbarContent)
+                            Text("Dismiss", color = snackbarContent, fontWeight = FontWeight.Bold)
                         }
                     }
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = if (isError) Icons.Filled.ErrorOutline else Icons.Filled.CheckCircle,
+                            imageVector = if (isError) Icons.Rounded.ErrorOutline else Icons.Rounded.CheckCircle,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(message ?: "")
+                        Text(message ?: "", fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -678,18 +739,15 @@ private fun AnimatedFab(
     onClick: () -> Unit
 ) {
     val fabSize = 56.dp
-    // Fix 3: Standardize max width to 140dp so the button isn't excessively huge
     val extendedWidth = 140.dp 
-    val collapsePhase = 0.4f // Phase 1: 0 to 0.4 handles collapsing and text sliding
+    val collapsePhase = 0.4f
     val collapse = (progress / collapsePhase).coerceIn(0f, 1f)
     val translate = ((progress - collapsePhase) / (1f - collapsePhase)).coerceIn(0f, 1f)
     
-    // Fix 4: Smooth out the collapsing effect instead of using a linear change
     val collapseEasing = FastOutSlowInEasing.transform(collapse)
     val width = lerp(extendedWidth, fabSize, collapseEasing)
     
     val hasTarget = restBounds != Rect.Zero && profileTabBounds != Rect.Zero
-    // Fallback translate Y heavily downwards just in case no profile bounds exist
     val targetY = if (hasTarget) (profileTabBounds.center.y - restBounds.center.y) else 250f 
 
     Surface(
@@ -700,11 +758,11 @@ private fun AnimatedFab(
                 val s = 1f - 0.4f * translate
                 scaleX = s
                 scaleY = s
-                alpha = 1f - (translate * 0.3f) // Fade out gently as it scales down
+                alpha = 1f - (translate * 0.3f)
             }
             .width(width)
             .height(fabSize),
-        shape = RoundedCornerShape(16.dp), // Fix 5: Lock standard extended FAB border radius
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         shadowElevation = 6.dp
@@ -715,15 +773,15 @@ private fun AnimatedFab(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Filled.Add,
+                imageVector = Icons.Rounded.Add,
                 contentDescription = "Add item",
                 modifier = Modifier.graphicsLayer { rotationZ = 180f * collapseEasing }
             )
-            // Fix 6: Animate the text translating to the left simultaneously 
             if (collapseEasing < 1f) {
                 Text(
                     text = "Add Media",
                     style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     modifier = Modifier
                         .padding(start = 12.dp)
@@ -738,11 +796,11 @@ private fun AnimatedFab(
 }
 
 private fun statusBulkIcon(status: Status): ImageVector = when (status) {
-    Status.WATCHING -> Icons.Filled.PlayCircle
-    Status.READING -> Icons.Filled.MenuBook
-    Status.COMPLETED -> Icons.Filled.CheckCircle
-    Status.DROPPED -> Icons.Filled.Block
-    Status.PLAN_TO_WATCH -> Icons.Filled.Schedule
+    Status.WATCHING -> Icons.Rounded.PlayCircle
+    Status.READING -> Icons.Rounded.MenuBook
+    Status.COMPLETED -> Icons.Rounded.CheckCircle
+    Status.DROPPED -> Icons.Rounded.Block
+    Status.PLAN_TO_WATCH -> Icons.Rounded.Schedule
 }
 
 private const val MAX_MARQUEE_ITEMS = 12
@@ -756,15 +814,14 @@ private fun UpNextMarquee(
 ) {
     val density = LocalDensity.current
     val marqueeItems = items.take(MAX_MARQUEE_ITEMS)
-    val cardWidth = 96.dp
+    val cardWidth = 104.dp
     val spacing = 12.dp
     val cardWidthPx = with(density) { cardWidth.toPx() }
     val spacingPx = with(density) { spacing.toPx() }
     val setWidthPx = marqueeItems.size * (cardWidthPx + spacingPx)
     val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     
-    // Fix: Account for the padding when calculating if we need to loop
-    val paddingPx = with(density) { 32.dp.toPx() } // 16.dp on each side
+    val paddingPx = with(density) { 48.dp.toPx() }
     val contentWidthWithPadding = setWidthPx - spacingPx + paddingPx
     val shouldLoop = contentWidthWithPadding > screenWidthPx
     
@@ -793,11 +850,11 @@ private fun UpNextMarquee(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                .padding(start = 24.dp, end = 24.dp, bottom = 12.dp, top = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Filled.PlayArrow,
+                imageVector = Icons.Rounded.PlayArrow,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp)
@@ -805,14 +862,16 @@ private fun UpNextMarquee(
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Up Next",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "${items.size} in progress",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -840,8 +899,6 @@ private fun UpNextMarquee(
                     .then(
                         if (shouldLoop) {
                             Modifier
-                                // CRITICAL FIX 1: Allow the Row to render larger than the screen width!
-                                // Without this, Compose aggressively squeezes the items to try and fit them on screen.
                                 .wrapContentWidth(unbounded = true, align = Alignment.Start)
                                 .graphicsLayer { translationX = -offsetPx }
                         } else {
@@ -850,7 +907,7 @@ private fun UpNextMarquee(
                     )
                     .then(
                         if (!shouldLoop) {
-                            Modifier.padding(horizontal = 16.dp)
+                            Modifier.padding(horizontal = 24.dp)
                         } else {
                             Modifier
                         }
@@ -863,7 +920,6 @@ private fun UpNextMarquee(
                             item = item,
                             categoryName = categories.find { it.id == item.categoryId }?.name ?: "Unknown",
                             onClick = { onItemClick(item) },
-                            // CRITICAL FIX 2: Use requiredWidth instead of width so the Layout system absolutely cannot shrink it.
                             modifier = Modifier.requiredWidth(cardWidth)
                         )
                     }
@@ -872,34 +928,31 @@ private fun UpNextMarquee(
             if (shouldLoop) {
                 val bgColor = MaterialTheme.colorScheme.background
                 Row(modifier = Modifier.matchParentSize()) {
-                    // Left shadow fade
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(40.dp) // Adjust width to make the fade thicker/thinner
-                            .background(
-                                androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                    colors = listOf(bgColor, androidx.compose.ui.graphics.Color.Transparent)
-                                )
-                            )
-                    )
-                    // Empty space in the middle to let the cards show
-                    Spacer(modifier = Modifier.weight(1f))
-                    // Right shadow fade
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
                             .width(40.dp)
                             .background(
-                                androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                    colors = listOf(androidx.compose.ui.graphics.Color.Transparent, bgColor)
+                                Brush.horizontalGradient(
+                                    colors = listOf(bgColor, Color.Transparent)
+                                )
+                            )
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(40.dp)
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(Color.Transparent, bgColor)
                                 )
                             )
                     )
                 }
             }
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
@@ -913,10 +966,11 @@ private fun UpNextTinyCard(
     Card(
         onClick = onClick,
         modifier = modifier,
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column {
             Box(
@@ -937,10 +991,11 @@ private fun UpNextTinyCard(
                     TinyImagePlaceholder()
                 }
             }
-            Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                 Text(
                     text = item.title,
                     style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface
@@ -949,9 +1004,10 @@ private fun UpNextTinyCard(
                 Text(
                     text = "$categoryName · ${item.currentProgress}/${if (item.totalCount > 0) item.totalCount else "ongoing"}",
                     style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
                 )
             }
         }
@@ -965,7 +1021,7 @@ private fun TinyImagePlaceholder(failed: Boolean = false) {
             .fillMaxSize()
             .background(
                 if (failed) {
-                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f)
                 } else {
                     MaterialTheme.colorScheme.surfaceContainerHighest
                 }
@@ -973,12 +1029,12 @@ private fun TinyImagePlaceholder(failed: Boolean = false) {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = if (failed) Icons.Filled.BrokenImage else Icons.Filled.Image,
+            imageVector = if (failed) Icons.Rounded.BrokenImage else Icons.Rounded.Image,
             contentDescription = null,
             tint = if (failed) {
                 MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
             } else {
-                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
             },
             modifier = Modifier.size(24.dp)
         )
@@ -1011,20 +1067,18 @@ private fun EmptyState(
             modifier = Modifier.size(120.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Floating background circle
             Box(
                 modifier = Modifier
                     .size(80.dp + (floatAnim * 20).dp)
                     .background(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                         shape = CircleShape
                     )
             )
-            // Icon with subtle bounce
             Icon(
-                imageVector = Icons.Filled.MovieFilter,
+                imageVector = Icons.Rounded.MovieFilter,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f + (floatAnim * 0.2f)),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f + (floatAnim * 0.2f)),
                 modifier = Modifier.size(64.dp)
             )
         }
@@ -1032,6 +1086,7 @@ private fun EmptyState(
         Text(
             text = if (hasSearchOrFilter) "No results found" else "Your library is empty",
             style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -1042,18 +1097,22 @@ private fun EmptyState(
                 "Tap the '+' button to add your first entry"
             },
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
         )
         if (onClearFilters != null) {
-            Spacer(modifier = Modifier.height(16.dp))
-            FilledTonalButton(onClick = onClearFilters) {
+            Spacer(modifier = Modifier.height(20.dp))
+            FilledTonalButton(
+                onClick = onClearFilters,
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+            ) {
                 Icon(
-                    imageVector = Icons.Filled.Close,
+                    imageVector = Icons.Rounded.Close,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Clear filters")
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Clear filters", fontWeight = FontWeight.Bold)
             }
         }
     }
