@@ -44,10 +44,11 @@ jobs:
           if [ -n "${{ secrets.SIGNING_KEY_BASE64 }}" ]; then
             echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > keystore.jks
             ./gradlew assembleRelease assembleDebug \
-              -Pandroid.injected.signing.store.file=keystore.jks \
+              -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/keystore.jks" \
               -Pandroid.injected.signing.store.password="$STORE_PWD" \
               -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
               -Pandroid.injected.signing.key.password="$KEY_PWD"
+            rm -f keystore.jks
           else
             ./gradlew assembleRelease assembleDebug
           fi
