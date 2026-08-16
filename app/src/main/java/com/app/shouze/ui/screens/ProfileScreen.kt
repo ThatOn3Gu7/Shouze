@@ -3,10 +3,8 @@ package com.app.shouze.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -15,16 +13,28 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.app.shouze.ui.components.SafeRemoteImage
-import com.app.shouze.ui.components.rememberTooltipPositionProvider
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import com.app.shouze.R // adjust if your app's package differs
+
+val ProfileHeaderFont = FontFamily(
+    Font(R.font.baloo2_extrabold, FontWeight.ExtraBold)
+)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -59,8 +69,20 @@ fun ProfileScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Profile") }
+            CenterAlignedTopAppBar(
+              title = { 
+                    Text(
+                        "Profile",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontFamily = ProfileHeaderFont,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 0.5.sp
+                    ) 
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.Transparent
+                )
             )
         }
     ) { padding ->
@@ -69,95 +91,88 @@ fun ProfileScreen(
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .size(112.dp)
-                        .clip(CircleShape)
-                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                ) {
-                    if (!profilePictureUri.isNullOrBlank()) {
-                        if (profilePictureUri.startsWith("emoji:")) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = profilePictureUri.removePrefix("emoji:"),
-                                    style = MaterialTheme.typography.displayMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        } else {
-                            SafeRemoteImage(
-                                url = profilePictureUri,
-                                contentDescription = "Profile picture",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                placeholder = { ProfileInitials(username) },
-                                errorContent = { ProfileInitials(username) }
+            
+            // Hero Avatar — tap the picture itself to change it
+            Surface(
+                onClick = { showPictureDialog = true },
+                modifier = Modifier
+                    .padding(bottom = 16.dp)
+                    .size(132.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                tonalElevation = 8.dp,
+                shadowElevation = 4.dp
+            ) {
+                if (!profilePictureUri.isNullOrBlank()) {
+                    if (profilePictureUri.startsWith("emoji:")) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = profilePictureUri.removePrefix("emoji:"),
+                                style = MaterialTheme.typography.displayLarge,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                     } else {
-                        ProfileInitials(username)
+                        SafeRemoteImage(
+                            url = profilePictureUri,
+                            contentDescription = "Profile picture",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            placeholder = { ProfileInitials(username) },
+                            errorContent = { ProfileInitials(username) }
+                        )
                     }
-                }
-                TooltipBox(
-                    tooltip = {
-                        PlainTooltip { Text("Change picture") }
-                    },
-                    state = rememberTooltipState(),
-                    positionProvider = rememberTooltipPositionProvider(),
-                    focusable = false
-                ) {
-                    SmallFloatingActionButton(
-                        onClick = { showPictureDialog = true },
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .offset(x = 4.dp, y = 4.dp)
-                    ) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Change picture")
-                    }
+                } else {
+                    ProfileInitials(username)
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Interactive Username Pill
+            Surface(
+                onClick = { showUsernameDialog = true },
+                shape = MaterialTheme.shapes.extraLarge,
+                color = Color.Transparent,
+                modifier = Modifier.clip(MaterialTheme.shapes.extraLarge)
             ) {
-                Text(
-                    text = username.ifBlank { "No username" },
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                TooltipBox(
-                    tooltip = {
-                        PlainTooltip { Text("Edit username") }
-                    },
-                    state = rememberTooltipState(),
-                    positionProvider = rememberTooltipPositionProvider(),
-                    focusable = false
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    IconButton(onClick = { showUsernameDialog = true }) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Edit username")
-                    }
+                    Text(
+                        text = username.ifBlank { "No username" },
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Rounded.Edit, 
+                        contentDescription = "Edit username",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
+            // Unified Settings-Style Menu Group
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
             ) {
                 Column {
@@ -167,7 +182,10 @@ fun ProfileScreen(
                         subtitle = "View your library insights",
                         onClick = onNavigateToStatistics
                     )
-                    HorizontalDivider()
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                    )
                     ProfileMenuItem(
                         icon = Icons.Filled.Settings,
                         title = "Settings",
@@ -179,10 +197,13 @@ fun ProfileScreen(
         }
     }
 
+    // --- Dialogs ---
+
     if (showUsernameDialog) {
         var text by remember { mutableStateOf(username) }
         AlertDialog(
             onDismissRequest = { showUsernameDialog = false },
+            icon = { Icon(Icons.Rounded.AccountCircle, contentDescription = null) },
             title = { Text("Edit username") },
             text = {
                 OutlinedTextField(
@@ -190,6 +211,7 @@ fun ProfileScreen(
                     onValueChange = { text = it },
                     singleLine = true,
                     placeholder = { Text("Enter a username") },
+                    shape = MaterialTheme.shapes.large,
                     trailingIcon = {
                         IconButton(onClick = { text = randomAnimeUsername() }) {
                             Icon(
@@ -224,42 +246,48 @@ fun ProfileScreen(
                         .verticalScroll(rememberScrollState())
                 ) {
                     Text(
-                        "Pick a default avatar or upload your own — your call!",
+                        "Pick a default avatar or upload your own.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(12.dp))
-                    TabRow(selectedTabIndex = avatarTab) {
+                    Spacer(Modifier.height(16.dp))
+                    ScrollableTabRow(
+                        selectedTabIndex = avatarTab,
+                        containerColor = Color.Transparent,
+                        edgePadding = 8.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         AVATAR_PRESETS.forEachIndexed { index, (name, _) ->
                             Tab(
                                 selected = avatarTab == index,
                                 onClick = { avatarTab = index },
-                                text = { Text(name) }
+                                text = { Text(name, style = MaterialTheme.typography.labelLarge) }
                             )
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(24.dp))
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         AVATAR_PRESETS[avatarTab].second.forEach { emoji ->
                             Surface(
                                 modifier = Modifier
-                                    .size(56.dp)
+                                    .padding(horizontal = 8.dp)
+                                    .size(64.dp)
                                     .clip(CircleShape)
                                     .clickable {
                                         onProfilePictureChange("emoji:$emoji")
                                         showPictureDialog = false
                                     },
-                                color = MaterialTheme.colorScheme.primaryContainer,
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 shape = CircleShape
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
                                         text = emoji,
-                                        style = MaterialTheme.typography.headlineMedium,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        style = MaterialTheme.typography.headlineMedium
                                     )
                                 }
                             }
@@ -267,23 +295,35 @@ fun ProfileScreen(
                     }
                 }
             },
+            // Horizontally laid out buttons at the bottom: From URL -> From Gallery -> Remove
             confirmButton = {
-                TextButton(onClick = {
-                    showPictureDialog = false
-                    galleryLauncher.launch("image/*")
-                }) { Text("From Gallery") }
-            },
-            dismissButton = {
-                Row {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     TextButton(onClick = {
                         showPictureDialog = false
                         showUrlDialog = true
                     }) { Text("From URL") }
+
+                    TextButton(onClick = {
+                        showPictureDialog = false
+                        galleryLauncher.launch("image/*")
+                    }) { Text("From Gallery") }
+
                     if (!profilePictureUri.isNullOrBlank()) {
-                        TextButton(onClick = {
-                            onProfilePictureChange(null)
-                            showPictureDialog = false
-                        }) { Text("Remove") }
+                        TextButton(
+                            onClick = {
+                                onProfilePictureChange(null)
+                                showPictureDialog = false
+                            },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text("Remove")
+                        }
                     }
                 }
             }
@@ -291,16 +331,18 @@ fun ProfileScreen(
     }
 
     if (showUrlDialog) {
-        var url by remember { mutableStateOf(profilePictureUri ?: "") }
+        var url by remember { mutableStateOf(profilePictureUri?.takeIf { !it.startsWith("emoji:") } ?: "") }
         AlertDialog(
             onDismissRequest = { showUrlDialog = false },
+            icon = { Icon(Icons.Rounded.Link, contentDescription = null) },
             title = { Text("Picture from URL") },
             text = {
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
                     singleLine = true,
-                    placeholder = { Text("https://...") }
+                    placeholder = { Text("https://...") },
+                    shape = MaterialTheme.shapes.large
                 )
             },
             confirmButton = {
@@ -321,12 +363,13 @@ private fun ProfileInitials(username: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+            .background(MaterialTheme.colorScheme.primaryContainer),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = username.firstOrNull()?.uppercase() ?: "?",
-            style = MaterialTheme.typography.headlineLarge,
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onPrimaryContainer
         )
     }
@@ -339,35 +382,41 @@ private fun ProfileMenuItem(
     subtitle: String,
     onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+    ListItem(
+        headlineContent = { 
+            Text(
+                text = title, 
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            ) 
+        },
+        supportingContent = { 
             Text(
                 text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.bodyMedium
+            ) 
+        },
+        leadingContent = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
             )
-        }
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        trailingContent = {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        modifier = Modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent
         )
-    }
+    )
 }
 
 private val AVATAR_PRESETS = listOf(
