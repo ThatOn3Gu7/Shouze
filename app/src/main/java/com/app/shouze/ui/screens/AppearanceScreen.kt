@@ -1,17 +1,21 @@
 package com.app.shouze.ui.screens
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.AppSettings
 import com.app.shouze.data.ThemeMode
@@ -27,13 +31,21 @@ fun AppearanceScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Appearance") },
+            CenterAlignedTopAppBar(
+                title = { 
+                    Text(
+                        "Appearance", 
+                        fontWeight = FontWeight.Bold 
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.Transparent
+                )
             )
         }
     ) { padding ->
@@ -41,90 +53,188 @@ fun AppearanceScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Theme", style = MaterialTheme.typography.titleSmall)
-                    Spacer(modifier = Modifier.height(8.dp))
+            
+            // --- Group 1: App Theme ---
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "App Theme",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
                     Column(modifier = Modifier.selectableGroup()) {
-                        ThemeMode.entries.forEach { mode ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .selectable(
-                                        selected = settings.themeMode == mode,
-                                        onClick = { onThemeModeChange(mode) },
-                                        role = Role.RadioButton
-                                    ),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = settings.themeMode == mode,
-                                    onClick = null
+                        ThemeMode.entries.forEachIndexed { index, mode ->
+                            val label = when (mode) {
+                                ThemeMode.SYSTEM -> "System Default"
+                                ThemeMode.LIGHT -> "Light"
+                                ThemeMode.DARK -> "Dark"
+                            }
+                            val icon = when (mode) {
+                                ThemeMode.SYSTEM -> Icons.Rounded.BrightnessAuto
+                                ThemeMode.LIGHT -> Icons.Rounded.LightMode
+                                ThemeMode.DARK -> Icons.Rounded.DarkMode
+                            }
+                            
+                            SettingsRadioItem(
+                                icon = icon,
+                                title = label,
+                                selected = settings.themeMode == mode,
+                                onClick = { onThemeModeChange(mode) }
+                            )
+                            
+                            if (index < ThemeMode.entries.size - 1) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
                                 )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text(text = mode.name.replace("_", " "))
                             }
                         }
                     }
+                }
+            }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+            val isCurrentlyDark = settings.themeMode == ThemeMode.DARK ||
+                    (settings.themeMode == ThemeMode.SYSTEM && isSystemInDarkTheme())
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                            Text("Dynamic Colors")
-                            Text(
-                                text = "Use the accent color from your device's wallpaper (Android 12+).",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
+            // --- Group 2: Colors & Display ---
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Colors & Display",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column {
+                        SettingsSwitchItem(
+                            icon = Icons.Rounded.Palette,
+                            title = "Dynamic Colors",
+                            subtitle = "Use the accent color from your wallpaper (Android 12+)",
                             checked = settings.useDynamicColor,
                             onCheckedChange = onDynamicColorChange
                         )
-                    }
-
-                    val isDark = settings.themeMode == ThemeMode.DARK ||
-                            (settings.themeMode == ThemeMode.SYSTEM && androidx.compose.foundation.isSystemInDarkTheme())
-
-                    if (isDark) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                                Text("AMOLED Black")
-                                Text(
-                                    text = "Use pure black backgrounds for OLED screens. Only available in dark mode.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = settings.amoledBlack,
-                                onCheckedChange = onAmoledBlackChange
-                            )
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "AMOLED Black is available when the theme is set to Dark.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                        )
+                        
+                        SettingsSwitchItem(
+                            icon = Icons.Rounded.Contrast,
+                            title = "AMOLED Black",
+                            subtitle = if (isCurrentlyDark) {
+                                "Use pure black backgrounds for OLED screens"
+                            } else {
+                                "Only available in dark mode"
+                            },
+                            checked = settings.amoledBlack && isCurrentlyDark,
+                            onCheckedChange = onAmoledBlackChange,
+                            enabled = isCurrentlyDark
                         )
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SettingsRadioItem(
+    icon: ImageVector,
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    ListItem(
+        headlineContent = { 
+            Text(
+                text = title, 
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            ) 
+        },
+        leadingContent = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+        },
+        trailingContent = {
+            RadioButton(
+                selected = selected,
+                onClick = null // Handled by the ListItem's clickable modifier
+            )
+        },
+        modifier = Modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent
+        )
+    )
+}
+
+@Composable
+private fun SettingsSwitchItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true
+) {
+    ListItem(
+        headlineContent = { 
+            Text(
+                text = title, 
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            ) 
+        },
+        supportingContent = { 
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium
+            ) 
+        },
+        leadingContent = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                modifier = Modifier.size(24.dp)
+            )
+        },
+        trailingContent = {
+            Switch(
+                checked = checked,
+                onCheckedChange = null, // Handled by ListItem's clickable
+                enabled = enabled
+            )
+        },
+        modifier = Modifier.clickable(
+            enabled = enabled,
+            onClick = { onCheckedChange(!checked) }
+        ),
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent
+        )
+    )
 }
