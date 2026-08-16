@@ -36,7 +36,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-private const val APP_VERSION = "2.5.0"
+private const val APP_VERSION = "3.0.0"
 private const val GITHUB_REPO = "ThatOn3Gu7/Shouze"
 private const val FEEDBACK_EMAIL = "recoveringdotcom@gmail.com"
 
