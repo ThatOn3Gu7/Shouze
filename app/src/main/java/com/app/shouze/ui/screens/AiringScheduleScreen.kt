@@ -1,16 +1,23 @@
 package com.app.shouze.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.remote.AiringSchedule
@@ -49,8 +56,13 @@ fun AiringScheduleScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Airing Schedule") },
+            CenterAlignedTopAppBar(
+                title = { 
+                    Text(
+                        "Airing Schedule",
+                        fontWeight = FontWeight.Bold
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -66,10 +78,13 @@ fun AiringScheduleScreen(
                         focusable = false
                     ) {
                         IconButton(onClick = onRefresh) {
-                            Icon(Icons.Filled.CalendarToday, contentDescription = "Refresh")
+                            Icon(Icons.Rounded.CalendarToday, contentDescription = "Refresh")
                         }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.Transparent
+                )
             )
         }
     ) { padding ->
@@ -84,33 +99,72 @@ fun AiringScheduleScreen(
                 }
             } else if (error != null && schedules.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Failed to load schedule", style = MaterialTheme.typography.titleMedium)
-                        Text(error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = onRefresh) { Text("Retry") }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ErrorOutline, 
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            text = "Failed to load schedule", 
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = error, 
+                            style = MaterialTheme.typography.bodyMedium, 
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 32.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = onRefresh,
+                            shape = MaterialTheme.shapes.large
+                        ) { 
+                            Text("Retry") 
+                        }
                     }
                 }
             } else if (grouped.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No airing anime found", style = MaterialTheme.typography.titleMedium)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.EventBusy,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        )
+                        Text(
+                            text = "No airing anime found", 
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    contentPadding = PaddingValues(bottom = 32.dp)
                 ) {
                     grouped.forEach { (day, daySchedules) ->
                         item {
                             Text(
                                 text = dayNames[day] ?: "Unknown",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                modifier = Modifier.padding(start = 32.dp, top = 24.dp, bottom = 8.dp)
                             )
                         }
                         items(daySchedules, key = { it.id }) { schedule ->
-                            AiringScheduleCard(
+                            PremiumAiringScheduleCard(
                                 schedule = schedule,
                                 onAdd = { onAddToLibrary(schedule) }
                             )
@@ -124,7 +178,7 @@ fun AiringScheduleScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AiringScheduleCard(
+private fun PremiumAiringScheduleCard(
     schedule: AiringSchedule,
     onAdd: () -> Unit,
     modifier: Modifier = Modifier
@@ -138,19 +192,24 @@ private fun AiringScheduleCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 24.dp, vertical = 6.dp),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
+            // Elevated, rounded poster image
+            Surface(
                 modifier = Modifier
-                    .width(60.dp)
-                    .aspectRatio(2f / 3f)
+                    .width(64.dp)
+                    .aspectRatio(2f / 3f),
+                shape = MaterialTheme.shapes.medium,
+                tonalElevation = 4.dp
             ) {
                 if (!schedule.media.coverImage?.large.isNullOrBlank()) {
                     SafeRemoteImage(
@@ -160,7 +219,9 @@ private fun AiringScheduleCard(
                     )
                 } else {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -171,28 +232,51 @@ private fun AiringScheduleCard(
                     }
                 }
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Ep ${schedule.episode} · $time",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (!schedule.media.format.isNullOrBlank()) {
-                    Text(
-                        text = schedule.media.format.replace("_", " "),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                
+                Spacer(modifier = Modifier.height(6.dp))
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Premium Schedule Pill
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Text(
+                            text = "Ep ${schedule.episode} · $time",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    
+                    if (!schedule.media.format.isNullOrBlank()) {
+                        Text(
+                            text = schedule.media.format.replace("_", " "),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
+            
+            Spacer(modifier = Modifier.width(8.dp))
+            
             TooltipBox(
                 tooltip = {
                     PlainTooltip { Text("Add to library") }
@@ -201,8 +285,15 @@ private fun AiringScheduleCard(
                 positionProvider = rememberTooltipPositionProvider(),
                 focusable = false
             ) {
-                IconButton(onClick = onAdd) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add to library")
+                FilledTonalIconButton(
+                    onClick = onAdd,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add, 
+                        contentDescription = "Add to library",
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
