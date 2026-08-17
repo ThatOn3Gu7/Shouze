@@ -404,6 +404,7 @@ class MainActivity : ComponentActivity() {
                             ProfileScreen(
                                 username = settings.username,
                                 profilePictureUri = settings.profilePictureUri,
+                                stats = statsUiState,
                                 onUsernameChange = viewModel::setUsername,
                                 onProfilePictureChange = viewModel::setProfilePicture,
                                 onNavigateToStatistics = { navController.navigate("statistics") },

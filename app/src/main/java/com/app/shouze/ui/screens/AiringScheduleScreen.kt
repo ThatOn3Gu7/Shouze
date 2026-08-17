@@ -9,12 +9,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.EventBusy
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +47,11 @@ fun AiringScheduleScreen(
         }.toSortedMap()
     }
 
+    val todayDayOfWeek = remember { Calendar.getInstance().get(Calendar.DAY_OF_WEEK) }
+    val dateLine = remember {
+        SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date())
+    }
+
     val dayNames = mapOf(
         Calendar.SUNDAY to "Sunday",
         Calendar.MONDAY to "Monday",
@@ -55,10 +66,17 @@ fun AiringScheduleScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { 
-                    Text(
-                        "Airing Schedule",
-                        fontWeight = FontWeight.Bold
-                    ) 
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "Airing Schedule",
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = dateLine,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.Transparent
@@ -134,12 +152,31 @@ fun AiringScheduleScreen(
                 ) {
                     grouped.forEach { (day, daySchedules) ->
                         item {
-                            Text(
-                                text = dayNames[day] ?: "Unknown",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(start = 32.dp, top = 24.dp, bottom = 8.dp)
-                            )
+                            ) {
+                                Text(
+                                    text = dayNames[day] ?: "Unknown",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                if (day == todayDayOfWeek) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = "Today",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                         items(daySchedules, key = { it.id }) { schedule ->
                             PremiumAiringScheduleCard(
@@ -154,6 +191,15 @@ fun AiringScheduleScreen(
     }
 }
 
+private fun formatChipInfo(format: String): Pair<ImageVector, String>? = when (format.uppercase()) {
+    "TV" -> Icons.Rounded.Tv to "TV"
+    "TV_SHORT" -> Icons.Rounded.Timer to "Short"
+    "ONA" -> Icons.Rounded.Public to "ONA"
+    "MOVIE" -> Icons.Rounded.Movie to "Movie"
+    "OVA", "SPECIAL" -> Icons.Rounded.Star to format.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }
+    else -> null
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PremiumAiringScheduleCard(
@@ -161,7 +207,7 @@ private fun PremiumAiringScheduleCard(
     onAdd: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val timeFormat = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
     val time = remember(schedule.airingAt) {
         timeFormat.format(Date(schedule.airingAt * 1000))
     }
@@ -244,11 +290,33 @@ private fun PremiumAiringScheduleCard(
                     }
                     
                     if (!schedule.media.format.isNullOrBlank()) {
-                        Text(
-                            text = schedule.media.format.replace("_", " "),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        val formatInfo = formatChipInfo(schedule.media.format)
+                        if (formatInfo != null) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.padding(start = 8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = formatInfo.first,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = formatInfo.second,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

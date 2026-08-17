@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.app.shouze.ui.StatsUiState
 import com.app.shouze.ui.components.SafeRemoteImage
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -41,6 +42,7 @@ val ProfileHeaderFont = FontFamily(
 fun ProfileScreen(
     username: String,
     profilePictureUri: String?,
+    stats: StatsUiState = StatsUiState(),
     onUsernameChange: (String) -> Unit,
     onProfilePictureChange: (String?) -> Unit,
     onNavigateToStatistics: () -> Unit,
@@ -148,7 +150,7 @@ fun ProfileScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = username.ifBlank { "No username" },
+                        text = username.ifBlank { "Create Profile" },
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -166,6 +168,45 @@ fun ProfileScreen(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+
+            if (stats.totalEntries > 0) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            ProfileStatCell(
+                                value = stats.totalEntries.toString(),
+                                label = "Total",
+                                modifier = Modifier.weight(1f)
+                            )
+                            ProfileStatCell(
+                                value = stats.totalWatching.toString(),
+                                label = "Watching",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            ProfileStatCell(
+                                value = stats.totalCompleted.toString(),
+                                label = "Completed",
+                                modifier = Modifier.weight(1f)
+                            )
+                            ProfileStatCell(
+                                value = "%.1f".format(stats.averageRating),
+                                label = "Avg score",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
             // Unified Settings-Style Menu Group
             Card(
@@ -417,6 +458,31 @@ private fun ProfileMenuItem(
             containerColor = Color.Transparent
         )
     )
+}
+
+@Composable
+private fun ProfileStatCell(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 private val AVATAR_PRESETS = listOf(
