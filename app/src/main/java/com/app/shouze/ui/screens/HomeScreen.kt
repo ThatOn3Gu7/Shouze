@@ -800,7 +800,7 @@ private fun UpNextMarquee(
 ) {
     val density = LocalDensity.current
     val marqueeItems = items.take(MAX_MARQUEE_ITEMS)
-    val cardWidth = 104.dp
+    val cardWidth = 124.dp
     val spacing = 12.dp
     val cardWidthPx = with(density) { cardWidth.toPx() }
     val spacingPx = with(density) { spacing.toPx() }
@@ -956,18 +956,18 @@ private fun UpNextTinyCard(
                     text = item.title,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "$categoryName · ${item.currentProgress}/${if (item.totalCount > 0) item.totalCount else "ongoing"}",
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }

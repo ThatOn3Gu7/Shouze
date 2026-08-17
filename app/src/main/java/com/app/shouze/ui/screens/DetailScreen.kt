@@ -271,11 +271,11 @@ fun DetailScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         OutlinedButton(
                             onClick = { onIncrementProgress(item) },
                             enabled = item.totalCount == 0 || item.currentProgress < item.totalCount,
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
                         ) {
                             Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
@@ -284,7 +284,7 @@ fun DetailScreen(
                         if (item.status != Status.COMPLETED) {
                             Button(
                                 onClick = { onMarkCompleted(item) },
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
                             ) {
                                 Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -368,10 +368,6 @@ fun DetailScreen(
                     if (item.endDate != null) {
                         Spacer(modifier = Modifier.height(10.dp))
                         InfoRow(label = "Finished", value = dateFormat.format(Date(item.endDate)))
-                    }
-                    if (!item.coverImageUri.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        InfoRow(label = "Cover URI", value = item.coverImageUri)
                     }
                 }
 

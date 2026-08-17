@@ -150,7 +150,9 @@ fun ProfileScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = username.ifBlank { "Create Profile" },
+                        text = username.ifBlank {
+                            if (stats.totalEntries > 0) "Edit Profile" else "Create Profile"
+                        },
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,

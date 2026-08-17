@@ -96,7 +96,7 @@ import com.app.shouze.data.local.Status
                     Text(
                         text = buildSubtitle(item, categoryName),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                     )
                     if (item.totalCount > 0) {
                         Spacer(modifier = Modifier.height(10.dp))
