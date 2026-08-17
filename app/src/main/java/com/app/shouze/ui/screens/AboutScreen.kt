@@ -9,6 +9,17 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -277,6 +288,9 @@ fun AboutScreen(
         ModalBottomSheet(
             onDismissRequest = { showUpdateMenu = false },
             containerColor = MaterialTheme.colorScheme.surface,
+            sheetState = rememberModalBottomSheetState(
+                skipPartiallyExpanded = true
+            )
         ) {
             UpdateMenuContent(
                 state = updateState,
@@ -368,87 +382,119 @@ private fun UpdateMenuContent(
         
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Status Card
+        // Status Card with smooth height expansion
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
             )
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = when(state) {
-                            is UpdateState.Checking -> Icons.Default.Sync
-                            is UpdateState.Available -> Icons.Default.NewReleases
-                            is UpdateState.UpToDate -> Icons.Default.CheckCircle
-                            is UpdateState.Error -> Icons.Default.Error
-                            is UpdateState.Idle -> Icons.Default.Info
-                        },
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = when (state) {
-                            is UpdateState.Checking -> "Checking GitHub..."
-                            is UpdateState.Available -> "Version ${state.tag} is available!"
-                            is UpdateState.UpToDate -> "Shouze is up to date."
-                            is UpdateState.Error -> "Failed to check for updates."
-                            is UpdateState.Idle -> "Ready to check."
-                        },
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
-
-                // If an update is available, show Release Notes and Actions
-                if (state is UpdateState.Available) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Text("Release Notes:", style = MaterialTheme.typography.labelLarge)
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 150.dp)
-                            .padding(top = 8.dp),
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ) {
+                // Crossfade status header content smoothly
+                AnimatedContent(
+                    targetState = state,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(300)) + expandVertically()) togetherWith
+                                (fadeOut(animationSpec = tween(200)) + shrinkVertically())
+                    },
+                    label = "status_transition"
+                ) { targetState ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = when(targetState) {
+                                is UpdateState.Checking -> Icons.Default.Sync
+                                is UpdateState.Available -> Icons.Default.NewReleases
+                                is UpdateState.UpToDate -> Icons.Default.CheckCircle
+                                is UpdateState.Error -> Icons.Default.Error
+                                is UpdateState.Idle -> Icons.Default.Info
+                            },
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = state.releaseNotes.ifBlank { "No release notes provided." },
-                            modifier = Modifier
-                                .padding(12.dp)
-                                .verticalScroll(rememberScrollState()),
-                            style = MaterialTheme.typography.bodySmall
+                            text = when (targetState) {
+                                is UpdateState.Checking -> "Checking GitHub..."
+                                is UpdateState.Available -> "Version ${targetState.tag} is available!"
+                                is UpdateState.UpToDate -> "Shouze is up to date."
+                                is UpdateState.Error -> "Failed to check for updates."
+                                is UpdateState.Idle -> "Ready to check."
+                            },
+                            style = MaterialTheme.typography.titleMedium
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { onOpenBrowser(state.htmlUrl) }) {
-                            Text("View on GitHub")
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        if (state.directApkUrl != null) {
-                            Button(onClick = { onDownloadUpdate(state.directApkUrl) }) {
-                                Text("Update Now")
+                }
+                // Animated expand/collapse for release notes section
+                AnimatedVisibility(
+                    visible = state is UpdateState.Available,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    val availableState = state as? UpdateState.Available
+                    if (availableState != null) {
+                        Column {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Text("Release Notes:", style = MaterialTheme.typography.labelLarge)
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 150.dp)
+                                    .padding(top = 8.dp),
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ) {
+                                Text(
+                                    text = availableState.releaseNotes.ifBlank { "No release notes provided." },
+                                    modifier = Modifier
+                                        .padding(12.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                             }
-                        } else {
-                            // Fallback if no APK found in release assets
-                            Button(onClick = { onOpenBrowser(state.htmlUrl) }) {
-                                Text("Download Manually")
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { onOpenBrowser(availableState.htmlUrl) }) {
+                                    Text("View on GitHub")
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                if (availableState.directApkUrl != null) {
+                                    Button(onClick = { onDownloadUpdate(availableState.directApkUrl) }) {
+                                        Text("Update Now")
+                                    }
+                                } else {
+                                    Button(onClick = { onOpenBrowser(availableState.htmlUrl) }) {
+                                        Text("Download Manually")
+                                    }
+                                }
                             }
                         }
                     }
-                } else if (state !is UpdateState.Checking) {
-                    // Show generic check button if not currently checking and no update available
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = onCheckForUpdates,
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text("Check Now")
+                }
+
+                // Animated visibility for Check Now button
+                AnimatedVisibility(
+                    visible = state !is UpdateState.Checking && state !is UpdateState.Available,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = onCheckForUpdates,
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Check Now")
+                        }
                     }
                 }
             }
