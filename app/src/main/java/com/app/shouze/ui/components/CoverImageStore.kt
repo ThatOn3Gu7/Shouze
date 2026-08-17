@@ -6,6 +6,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
 import android.util.LruCache
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -31,6 +33,11 @@ object CoverImageStore {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
 
+    private val imageBitmapCache = object : LruCache<String, ImageBitmap>(MEM_CACHE_BYTES) {
+        override fun sizeOf(key: String, value: ImageBitmap): Int =
+            (value.width * value.height * 4).coerceAtLeast(1)
+    }
+
     private val failedUrls = LinkedHashMap<String, Unit>()
 
     @Volatile
@@ -52,6 +59,9 @@ object CoverImageStore {
     }
 
     fun peek(url: String): Bitmap? = memoryCache.get(url)
+
+    fun imageBitmap(url: String, bitmap: Bitmap): ImageBitmap =
+        imageBitmapCache.get(url) ?: bitmap.asImageBitmap().also { imageBitmapCache.put(url, it) }
 
     fun isFailed(url: String): Boolean = synchronized(failedUrls) { failedUrls.containsKey(url) }
 
