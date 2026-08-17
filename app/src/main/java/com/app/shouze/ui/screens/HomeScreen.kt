@@ -24,7 +24,6 @@ import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.BrokenImage
-import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
@@ -112,7 +111,6 @@ fun HomeScreen(
     selectedTag: String? = null,
     onTagSelected: (String?) -> Unit = {},
     onClearFilters: () -> Unit = {},
-    onAiringScheduleClick: () -> Unit = {},
     profileTabBounds: () -> Rect = { Rect.Zero },
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null
@@ -410,22 +408,6 @@ fun HomeScreen(
                                             Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                         }
                                     }
-                                )
-                            }
-                        }
-                        TooltipBox(
-                            tooltip = {
-                                PlainTooltip { Text("Airing schedule") }
-                            },
-                            state = rememberTooltipState(),
-                            positionProvider = rememberTooltipPositionProvider(),
-                            focusable = false
-                        ) {
-                            IconButton(onClick = onAiringScheduleClick) {
-                                Icon(
-                                    imageVector = Icons.Rounded.CalendarMonth, 
-                                    contentDescription = "Airing Schedule",
-                                    tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
