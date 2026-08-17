@@ -6,9 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material3.*
@@ -32,7 +30,6 @@ fun AiringScheduleScreen(
     schedules: List<AiringSchedule>,
     isLoading: Boolean,
     error: String?,
-    onBack: () -> Unit,
     onRefresh: () -> Unit,
     onAddToLibrary: (AiringSchedule) -> Unit
 ) {
@@ -62,25 +59,6 @@ fun AiringScheduleScreen(
                         "Airing Schedule",
                         fontWeight = FontWeight.Bold
                     ) 
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    TooltipBox(
-                        tooltip = {
-                            PlainTooltip { Text("Refresh schedule") }
-                        },
-                        state = rememberTooltipState(),
-                        positionProvider = rememberTooltipPositionProvider(),
-                        focusable = false
-                    ) {
-                        IconButton(onClick = onRefresh) {
-                            Icon(Icons.Rounded.CalendarToday, contentDescription = "Refresh")
-                        }
-                    }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.Transparent
