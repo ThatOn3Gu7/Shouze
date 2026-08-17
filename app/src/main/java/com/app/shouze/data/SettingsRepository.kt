@@ -62,6 +62,13 @@ class SettingsRepository(context: Context) {
         _settings.value = loadSettings()
     }
 
+    val lastNotifiedVersion: String?
+        get() = prefs.getString("last_notified_version", null)
+
+    fun setLastNotifiedVersion(version: String) {
+        prefs.edit().putString("last_notified_version", version).apply()
+    }
+
     private fun loadSettings(): AppSettings {
         val themeName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name)
             ?: ThemeMode.SYSTEM.name
