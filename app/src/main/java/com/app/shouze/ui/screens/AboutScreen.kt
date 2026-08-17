@@ -111,7 +111,13 @@ fun AboutScreen(
                 return@launch
             }
             
-            updateState = if (isNewerVersion(latest.tag, currentVersionName(context))) {
+            val current = currentVersionName(context)
+            if (current == null) {
+                updateState = UpdateState.UpToDate
+                return@launch
+            }
+            
+            updateState = if (isNewerVersion(latest.tag, current)) {
                 UpdateState.Available(latest.tag, latest.htmlUrl, latest.body, latest.apkUrl)
             } else {
                 UpdateState.UpToDate
