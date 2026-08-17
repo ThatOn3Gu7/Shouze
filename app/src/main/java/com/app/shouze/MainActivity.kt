@@ -12,6 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -25,12 +27,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import com.app.shouze.data.UpdateScheduler
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.ui.MediaViewModel
 import com.app.shouze.ui.screens.*
+import com.app.shouze.ui.components.BottomFillIcon
 import com.app.shouze.ui.components.CoverImageStore
 import com.app.shouze.ui.components.DetailEditDialog
+import com.app.shouze.ui.components.SpinningSearchIcon
 import com.app.shouze.ui.StatsUiState
 private fun NavHostController.navigateToTab(route: String) {
     val start = graph.startDestinationRoute ?: return
@@ -62,6 +71,7 @@ class MainActivity : ComponentActivity() {
             val settings by viewModel.settings.collectAsState()
             val statsUiState by viewModel.statsUiState.collectAsState()
             val searchUiState by viewModel.searchUiState.collectAsState()
+            val searchHistory by viewModel.searchHistory.collectAsState()
             val navController = rememberNavController()
             var editDialogItem by remember { mutableStateOf<MediaItemEntity?>(null) }
             var editDialogOpen by remember { mutableStateOf(false) }
@@ -98,19 +108,19 @@ class MainActivity : ComponentActivity() {
                                         NavigationBarItem(
                                             selected = currentRoute == "home",
                                             onClick = { navController.navigateToTab("home") },
-                                            icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
+                                            icon = { BottomFillIcon(selected = currentRoute == "home", outlinedIcon = Icons.Outlined.Home, filledIcon = Icons.Filled.Home) },
                                             label = { Text("Home") }
                                         )
                                         NavigationBarItem(
                                             selected = currentRoute == "search",
                                             onClick = { navController.navigateToTab("search") },
-                                            icon = { Icon(Icons.Filled.Search, contentDescription = "Search") },
+                                            icon = { SpinningSearchIcon(selected = currentRoute == "search", icon = Icons.Filled.Search) },
                                             label = { Text("Search") }
                                         )
                                         NavigationBarItem(
                                             selected = currentRoute == "profile",
                                             onClick = { navController.navigateToTab("profile") },
-                                            icon = { Icon(Icons.Filled.Person, contentDescription = "Profile") },
+                                            icon = { BottomFillIcon(selected = currentRoute == "profile", outlinedIcon = Icons.Outlined.Person, filledIcon = Icons.Filled.Person) },
                                             label = { Text("Profile") },
                                             modifier = Modifier.onGloballyPositioned {
                                                 profileTabBounds.value = it.boundsInWindow()
@@ -125,7 +135,22 @@ class MainActivity : ComponentActivity() {
                         NavHost(
                             navController = navController,
                             startDestination = if (settings.hasSeenOnboarding) "home" else "onboarding",
-                            modifier = Modifier.padding(innerPadding)
+                            modifier = Modifier.padding(innerPadding),
+                            enterTransition = {
+                                fadeIn(animationSpec = tween(300)) +
+                                    slideInHorizontally(animationSpec = tween(300)) { it }
+                            },
+                            exitTransition = {
+                                fadeOut(animationSpec = tween(120))
+                            },
+                            popEnterTransition = {
+                                fadeIn(animationSpec = tween(300)) +
+                                    slideInHorizontally(animationSpec = tween(300)) { -it }
+                            },
+                            popExitTransition = {
+                                fadeOut(animationSpec = tween(120)) +
+                                    slideOutHorizontally(animationSpec = tween(300)) { it }
+                            }
                         ) {
                         composable("onboarding") {
                             OnboardingScreen(
@@ -167,11 +192,16 @@ class MainActivity : ComponentActivity() {
                         composable("search") {
                             SearchScreen(
                                 uiState = searchUiState,
+                                searchHistory = searchHistory,
+                                onClearSearchHistory = viewModel::clearSearchHistory,
                                 onBack = {
                                     viewModel.clearSearchResults()
                                     navController.popBackStack()
                                 },
-                                onSearch = viewModel::searchAniList,
+                                onSearch = { query ->
+                                    viewModel.recordSearch(query)
+                                    viewModel.searchAniList(query)
+                                },
                                 onTypeChange = viewModel::setSearchType,
                                 onLoadTrending = viewModel::loadTrending,
                                 onSelect = { media ->
@@ -277,7 +307,24 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("categories") {
+                        composable(
+                            "categories",
+                            enterTransition = {
+                                fadeIn(animationSpec = tween(300)) +
+                                    slideInHorizontally(animationSpec = tween(300)) { it }
+                            },
+                            exitTransition = {
+                                fadeOut(animationSpec = tween(120))
+                            },
+                            popEnterTransition = {
+                                fadeIn(animationSpec = tween(300)) +
+                                    slideInHorizontally(animationSpec = tween(300)) { -it }
+                            },
+                            popExitTransition = {
+                                fadeOut(animationSpec = tween(120)) +
+                                    slideOutHorizontally(animationSpec = tween(300)) { it }
+                            }
+                        ) {
                             CategoriesScreen(
                                 categories = uiState.categories,
                                 onBack = { navController.popBackStack() },
