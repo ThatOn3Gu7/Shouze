@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.History
@@ -46,7 +45,6 @@ import com.app.shouze.ui.components.SafeRemoteImage
 @Composable
 fun SearchScreen(
     uiState: AniListSearchUiState,
-    onBack: () -> Unit,
     onSearch: (String) -> Unit,
     onTypeChange: (String) -> Unit,
     onSelect: (AniListMedia) -> Unit,
@@ -79,11 +77,6 @@ fun SearchScreen(
                         "Search AniList",
                         fontWeight = FontWeight.Bold
                     ) 
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.Transparent
