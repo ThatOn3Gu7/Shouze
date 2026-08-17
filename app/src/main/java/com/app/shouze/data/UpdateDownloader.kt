@@ -13,8 +13,10 @@ object UpdateDownloader {
     private const val PREFS = "update_download"
     private const val KEY_ID = "download_id"
     private const val APK_NAME = "shouze-update.apk"
+    private const val MIN_APK_BYTES = 1024L * 1024L
 
     fun enqueue(context: Context, url: String): Boolean = try {
+        File(context.getExternalFilesDir(null), APK_NAME)?.delete()
         val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val request = DownloadManager.Request(Uri.parse(url)).apply {
             setTitle("Shouze update")
@@ -33,7 +35,7 @@ object UpdateDownloader {
 
     fun install(context: Context): Boolean {
         val file = File(context.getExternalFilesDir(null), APK_NAME)
-        if (!file.exists()) return false
+        if (!file.exists() || file.length() < MIN_APK_BYTES) return false
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
@@ -55,8 +57,22 @@ class DownloadReceiver : BroadcastReceiver() {
         val prefs = context.getSharedPreferences("update_download", Context.MODE_PRIVATE)
         if (id != prefs.getLong("download_id", -1L)) return
         val appContext = context.applicationContext
-        if (UpdateDownloader.install(appContext)) {
-            Toast.makeText(appContext, "Installing update...", Toast.LENGTH_LONG).show()
+        val dm = appContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        var successful = false
+        dm.query(DownloadManager.Query().setFilterById(id)).use { cursor ->
+            if (cursor != null && cursor.moveToFirst()) {
+                val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                successful = status == DownloadManager.STATUS_SUCCESSFUL
+            }
+        }
+        if (successful) {
+            if (UpdateDownloader.install(appContext)) {
+                Toast.makeText(appContext, "Installing update...", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(appContext, "Download incomplete, please try again", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            Toast.makeText(appContext, "Update download failed", Toast.LENGTH_LONG).show()
         }
     }
 }
