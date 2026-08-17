@@ -1,6 +1,7 @@
 package com.app.shouze.ui
 
 import android.app.Application
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,8 +10,11 @@ import com.app.shouze.data.ThemeMode
 import com.app.shouze.data.local.*
 import com.app.shouze.data.remote.AniListApi
 import com.app.shouze.data.remote.AniListMedia
+import com.app.shouze.ui.components.CoverImageStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -114,6 +118,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             startLibraryCollection()
+        }
+        viewModelScope.launch {
+            fetchTrendingNow()
+            preloadTrendingCovers()
         }
     }
 
@@ -416,25 +424,77 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadTrending() {
         viewModelScope.launch {
-            if (_searchUiState.value.trending.isNotEmpty()) return@launch
-            _searchUiState.update { it.copy(isTrendingLoading = true, trendingError = null) }
-            val result = aniListApi.getTrending(_searchUiState.value.searchType)
-            result.fold(
-                onSuccess = { media ->
-                    _searchUiState.update { it.copy(trending = media, isTrendingLoading = false) }
-                },
-                onFailure = { e ->
-                    _searchUiState.update {
-                        it.copy(isTrendingLoading = false, trendingError = friendlyError(e))
-                    }
+            fetchTrendingNow()
+        }
+    }
+
+    private suspend fun fetchTrendingNow() {
+        if (_searchUiState.value.trending.isNotEmpty()) return
+        if (_searchUiState.value.isTrendingLoading) return
+        _searchUiState.update { it.copy(isTrendingLoading = true, trendingError = null) }
+        val result = aniListApi.getTrending(_searchUiState.value.searchType)
+        result.fold(
+            onSuccess = { media ->
+                _searchUiState.update { it.copy(trending = media, isTrendingLoading = false) }
+            },
+            onFailure = { e ->
+                _searchUiState.update {
+                    it.copy(isTrendingLoading = false, trendingError = friendlyError(e))
                 }
-            )
+            }
+        )
+    }
+
+    private suspend fun preloadTrendingCovers() {
+        val trending = _searchUiState.value.trending
+        if (trending.isEmpty()) return
+        CoverImageStore.init(getApplication())
+        withContext(Dispatchers.IO) {
+            trending.forEach { media ->
+                val url = media.coverImage?.medium ?: media.coverImage?.large
+                if (!url.isNullOrBlank()) {
+                    val bitmap = CoverImageStore.getOrLoad(url) ?: return@forEach
+                    CoverImageStore.imageBitmap(url, bitmap)
+                }
+            }
         }
     }
 
     fun clearSearchResults() {
         _searchUiState.update { AniListSearchUiState() }
     }
+
+    // --- Search History ---
+
+    private val historyPrefs = getApplication<Application>()
+        .getSharedPreferences(SEARCH_HISTORY_PREFS, Context.MODE_PRIVATE)
+
+    private val _searchHistory = MutableStateFlow(loadSearchHistory())
+    val searchHistory: StateFlow<List<String>> = _searchHistory.asStateFlow()
+
+    fun recordSearch(query: String) {
+        val q = query.trim()
+        if (q.isEmpty()) return
+        val updated = (listOf(q) + _searchHistory.value.filterNot { it.equals(q, ignoreCase = true) })
+            .take(MAX_SEARCH_HISTORY)
+        _searchHistory.value = updated
+        runCatching {
+            historyPrefs.edit().putString(SEARCH_HISTORY_KEY, updated.joinToString("\n")).apply()
+        }
+    }
+
+    fun clearSearchHistory() {
+        _searchHistory.value = emptyList()
+        runCatching { historyPrefs.edit().remove(SEARCH_HISTORY_KEY).apply() }
+    }
+
+    private fun loadSearchHistory(): List<String> =
+        historyPrefs.getString(SEARCH_HISTORY_KEY, null)
+            ?.split("\n")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.take(MAX_SEARCH_HISTORY)
+            ?: emptyList()
 
     // --- Airing Schedule ---
 
@@ -993,3 +1053,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 }
+
+private const val SEARCH_HISTORY_PREFS = "search_history"
+private const val SEARCH_HISTORY_KEY = "history_list"
+private const val MAX_SEARCH_HISTORY = 10
