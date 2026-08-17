@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -99,7 +101,7 @@ class MainActivity : ComponentActivity() {
                     SharedTransitionLayout {
                         val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentRoute = navBackStackEntry?.destination?.route
-                        val showBottomBar = currentRoute in listOf("home", "search", "profile")
+                        val showBottomBar = currentRoute in listOf("home", "airing", "search", "profile")
                         val profileTabBounds = remember { mutableStateOf(Rect.Zero) }
                         Scaffold(
                             bottomBar = {
@@ -110,6 +112,12 @@ class MainActivity : ComponentActivity() {
                                             onClick = { navController.navigateToTab("home") },
                                             icon = { BottomFillIcon(selected = currentRoute == "home", outlinedIcon = Icons.Outlined.Home, filledIcon = Icons.Filled.Home) },
                                             label = { Text("Home") }
+                                        )
+                                        NavigationBarItem(
+                                            selected = currentRoute == "airing",
+                                            onClick = { navController.navigateToTab("airing") },
+                                            icon = { BottomFillIcon(selected = currentRoute == "airing", outlinedIcon = Icons.Outlined.Schedule, filledIcon = Icons.Filled.Schedule) },
+                                            label = { Text("Airing") }
                                         )
                                         NavigationBarItem(
                                             selected = currentRoute == "search",
@@ -194,10 +202,6 @@ class MainActivity : ComponentActivity() {
                                 uiState = searchUiState,
                                 searchHistory = searchHistory,
                                 onClearSearchHistory = viewModel::clearSearchHistory,
-                                onBack = {
-                                    viewModel.clearSearchResults()
-                                    navController.popBackStack()
-                                },
                                 onSearch = { query ->
                                     viewModel.recordSearch(query)
                                     viewModel.searchAniList(query)
@@ -234,7 +238,6 @@ class MainActivity : ComponentActivity() {
                                 onSortModeChange = viewModel::setSortMode,
                                 onToggleFavorites = viewModel::toggleShowFavorites,
                                 onToggleFavorite = { viewModel.toggleFavorite(it.id) },
-                                onAiringScheduleClick = { navController.navigate("airing") },
                                 showFavoritesOnly = uiState.showFavoritesOnly,
                                 onToggleSelection = viewModel::toggleSelection,
                                 onSelectAll = viewModel::selectAllVisible,
@@ -361,7 +364,6 @@ class MainActivity : ComponentActivity() {
                                 schedules = airingState.schedules,
                                 isLoading = airingState.isLoading,
                                 error = airingState.error,
-                                onBack = { navController.popBackStack() },
                                 onRefresh = { viewModel.fetchAiringSchedule() },
                                 onAddToLibrary = { schedule ->
                                     val item = viewModel.createItemFromAiringSchedule(schedule)
