@@ -8,13 +8,16 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+enum class UpdateFrequency { EVERY_LAUNCH, WEEKLY, BI_WEEKLY, NEVER }
+
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val useDynamicColor: Boolean = true,
     val amoledBlack: Boolean = false,
     val hasSeenOnboarding: Boolean = false,
     val username: String = "",
-    val profilePictureUri: String? = null
+    val profilePictureUri: String? = null,
+    val updateFrequency: UpdateFrequency = UpdateFrequency.WEEKLY
 )
 
 class SettingsRepository(context: Context) {
@@ -54,9 +57,16 @@ class SettingsRepository(context: Context) {
         _settings.value = loadSettings()
     }
 
+    fun setUpdateFrequency(frequency: UpdateFrequency) {
+        prefs.edit().putString("update_frequency", frequency.name).apply()
+        _settings.value = loadSettings()
+    }
+
     private fun loadSettings(): AppSettings {
         val themeName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name)
             ?: ThemeMode.SYSTEM.name
+        val frequencyName = prefs.getString("update_frequency", UpdateFrequency.WEEKLY.name)
+            ?: UpdateFrequency.WEEKLY.name
         return AppSettings(
             themeMode = try {
                 ThemeMode.valueOf(themeName)
@@ -67,7 +77,12 @@ class SettingsRepository(context: Context) {
             amoledBlack = prefs.getBoolean("amoled_black", false),
             hasSeenOnboarding = prefs.getBoolean("has_seen_onboarding", false),
             username = prefs.getString("username", "") ?: "",
-            profilePictureUri = prefs.getString("profile_picture_uri", null)
+            profilePictureUri = prefs.getString("profile_picture_uri", null),
+            updateFrequency = try {
+                UpdateFrequency.valueOf(frequencyName)
+            } catch (_: Exception) {
+                UpdateFrequency.WEEKLY
+            }
         )
     }
 }

@@ -1,10 +1,14 @@
 package com.app.shouze.ui.screens
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,10 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.NewReleases
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,51 +30,79 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
+import androidx.core.content.ContextCompat
+import com.app.shouze.data.GITHUB_REPO
+import com.app.shouze.data.SettingsRepository
+import com.app.shouze.data.UpdateDownloader
+import com.app.shouze.data.UpdateFrequency
+import com.app.shouze.data.UpdateScheduler
+import com.app.shouze.data.currentVersionName
+import com.app.shouze.data.fetchLatestRelease
+import com.app.shouze.data.isNewerVersion
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 
 private const val APP_VERSION = "3.0.0"
-private const val GITHUB_REPO = "ThatOn3Gu7/Shouze"
 private const val FEEDBACK_EMAIL = "recoveringdotcom@gmail.com"
 
+// Expanded UpdateState to hold release notes and the direct APK URL
 private sealed interface UpdateState {
     object Idle : UpdateState
     object Checking : UpdateState
     object UpToDate : UpdateState
     object Error : UpdateState
-    data class Available(val tag: String, val url: String) : UpdateState
+    data class Available(
+        val tag: String, 
+        val htmlUrl: String, 
+        val releaseNotes: String, 
+        val directApkUrl: String?
+    ) : UpdateState
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    settingsRepository: SettingsRepository
 ) {
     val context = LocalContext.current
+    val settings by settingsRepository.settings.collectAsState()
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     var showLicenses by remember { mutableStateOf(false) }
     var showAboutDev by remember { mutableStateOf(false) }
+    var showUpdateMenu by remember { mutableStateOf(false) } // State for the new Bottom Sheet
+    
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
     val scope = rememberCoroutineScope()
 
     fun checkForUpdates() {
         scope.launch {
             updateState = UpdateState.Checking
-            val latest = withContext(Dispatchers.IO) { fetchLatestRelease(GITHUB_REPO) }
+            
+            // Artificial delay for UX (Labor Illusion) - prevents instant flashing
+            delay(1200) 
+            
+            val latest = fetchLatestRelease(GITHUB_REPO)
             if (latest == null) {
                 updateState = UpdateState.Error
-                Toast.makeText(context, "Couldn't reach GitHub", Toast.LENGTH_SHORT).show()
                 return@launch
             }
-            val (tag, url) = latest
-            updateState = if (isNewerVersion(tag, APP_VERSION)) {
-                Toast.makeText(context, "Update available: $tag", Toast.LENGTH_LONG).show()
-                UpdateState.Available(tag, url)
+            
+            updateState = if (isNewerVersion(latest.tag, currentVersionName(context))) {
+                UpdateState.Available(latest.tag, latest.htmlUrl, latest.body, latest.apkUrl)
             } else {
-                Toast.makeText(context, "You're on the latest version", Toast.LENGTH_SHORT).show()
                 UpdateState.UpToDate
             }
         }
@@ -104,7 +133,6 @@ fun AboutScreen(
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Refined App icon placeholder
             Surface(
                 modifier = Modifier.size(100.dp),
                 shape = CircleShape,
@@ -141,7 +169,6 @@ fun AboutScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Text pulled out of cards for a cleaner, modern look
             Text(
                 text = "Your personal keeper for anime, manga, and everything you watch. Track your progress, organize by categories, and never lose track of what you're watching or reading.",
                 style = MaterialTheme.typography.bodyLarge,
@@ -151,7 +178,6 @@ fun AboutScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Unified Actions Group (M3 Settings Style)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.extraLarge,
@@ -162,19 +188,12 @@ fun AboutScreen(
                 Column {
                     AboutRow(
                         icon = Icons.Default.NewReleases,
-                        title = "Check for Updates",
-                        subtitle = when (val s = updateState) {
-                            UpdateState.Checking -> "Checking for updates…"
-                            is UpdateState.Available -> "Update available: ${s.tag}"
-                            UpdateState.UpToDate -> "You're on the latest version"
-                            UpdateState.Error -> "Couldn't check — tap to retry"
-                            UpdateState.Idle -> "Tap to check for new versions"
-                        },
-                        onClick = {
-                            when (val s = updateState) {
-                                is UpdateState.Available -> openUrl(context, s.url)
-                                else -> checkForUpdates()
-                            }
+                        title = "Updates & Settings",
+                        subtitle = "Check for updates and manage frequency",
+                        onClick = { 
+                            showUpdateMenu = true 
+                            requestNotificationPermission()
+                            if (updateState == UpdateState.Idle) checkForUpdates()
                         }
                     )
                     HorizontalDivider(
@@ -253,6 +272,34 @@ fun AboutScreen(
         }
     }
 
+    // --- New Update Menu Bottom Sheet ---
+    if (showUpdateMenu) {
+        ModalBottomSheet(
+            onDismissRequest = { showUpdateMenu = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            UpdateMenuContent(
+                state = updateState,
+                onCheckForUpdates = { checkForUpdates() },
+                onDownloadUpdate = { apkUrl ->
+                    requestNotificationPermission()
+                    if (UpdateDownloader.enqueue(context, apkUrl)) {
+                        Toast.makeText(context, "Download started — check your notifications", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Couldn't start the download", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onOpenBrowser = { url -> openUrl(context, url) },
+                frequency = settings.updateFrequency,
+                onFrequencyChange = { frequency ->
+                    requestNotificationPermission()
+                    settingsRepository.setUpdateFrequency(frequency)
+                    UpdateScheduler.apply(context, frequency)
+                }
+            )
+        }
+    }
+
     if (showLicenses) {
         AlertDialog(
             onDismissRequest = { showLicenses = false },
@@ -266,6 +313,7 @@ fun AboutScreen(
                     "OkHttp — Apache-2.0",
                     "kotlinx.serialization — Apache-2.0",
                     "Coil (cover images) — Apache-2.0",
+                    "WorkManager — Apache-2.0",
                     "AniList GraphQL API — data source"
                 )
                 LazyColumn {
@@ -284,9 +332,175 @@ fun AboutScreen(
             }
         )
     }
+    if (showAboutDev) { AboutDevDialog(onDismiss = { showAboutDev = false }) }
+}
 
-    if (showAboutDev) {
-        AboutDevDialog(onDismiss = { showAboutDev = false })
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UpdateMenuContent(
+    state: UpdateState,
+    onCheckForUpdates: () -> Unit,
+    onDownloadUpdate: (String) -> Unit,
+    onOpenBrowser: (String) -> Unit,
+    frequency: UpdateFrequency,
+    onFrequencyChange: (UpdateFrequency) -> Unit
+) {
+    val frequencyLabels = mapOf(
+        UpdateFrequency.EVERY_LAUNCH to "Every Launch",
+        UpdateFrequency.WEEKLY to "Weekly",
+        UpdateFrequency.BI_WEEKLY to "Bi-weekly",
+        UpdateFrequency.NEVER to "Never"
+    )
+    var showFrequencyDropdown by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+            .padding(bottom = 32.dp) // Extra padding for bottom navigation bar
+    ) {
+        Text(
+            text = "App Updates",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Status Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = when(state) {
+                            is UpdateState.Checking -> Icons.Default.Sync
+                            is UpdateState.Available -> Icons.Default.NewReleases
+                            is UpdateState.UpToDate -> Icons.Default.CheckCircle
+                            is UpdateState.Error -> Icons.Default.Error
+                            is UpdateState.Idle -> Icons.Default.Info
+                        },
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = when (state) {
+                            is UpdateState.Checking -> "Checking GitHub..."
+                            is UpdateState.Available -> "Version ${state.tag} is available!"
+                            is UpdateState.UpToDate -> "Shouze is up to date."
+                            is UpdateState.Error -> "Failed to check for updates."
+                            is UpdateState.Idle -> "Ready to check."
+                        },
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+
+                // If an update is available, show Release Notes and Actions
+                if (state is UpdateState.Available) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text("Release Notes:", style = MaterialTheme.typography.labelLarge)
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 150.dp)
+                            .padding(top = 8.dp),
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ) {
+                        Text(
+                            text = state.releaseNotes.ifBlank { "No release notes provided." },
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .verticalScroll(rememberScrollState()),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { onOpenBrowser(state.htmlUrl) }) {
+                            Text("View on GitHub")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        if (state.directApkUrl != null) {
+                            Button(onClick = { onDownloadUpdate(state.directApkUrl) }) {
+                                Text("Update Now")
+                            }
+                        } else {
+                            // Fallback if no APK found in release assets
+                            Button(onClick = { onOpenBrowser(state.htmlUrl) }) {
+                                Text("Download Manually")
+                            }
+                        }
+                    }
+                } else if (state !is UpdateState.Checking) {
+                    // Show generic check button if not currently checking and no update available
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = onCheckForUpdates,
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("Check Now")
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Preferences Section
+        Text(
+            text = "Preferences",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Auto-check frequency dropdown
+        ExposedDropdownMenuBox(
+            expanded = showFrequencyDropdown,
+            onExpandedChange = { showFrequencyDropdown = !showFrequencyDropdown }
+        ) {
+            OutlinedTextField(
+                value = frequencyLabels[frequency] ?: "Weekly",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Auto-check frequency") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showFrequencyDropdown) },
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = showFrequencyDropdown,
+                onDismissRequest = { showFrequencyDropdown = false }
+            ) {
+                UpdateFrequency.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(frequencyLabels[option] ?: option.name) },
+                        onClick = {
+                            showFrequencyDropdown = false
+                            onFrequencyChange(option)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun openUrl(context: Context, url: String) {
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 }
 
@@ -390,54 +604,6 @@ private fun DevLink(label: String, value: String, onClick: () -> Unit) {
     }
 }
 
-private fun openUrl(context: Context, url: String) {
-    runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-    }
-}
-
-private suspend fun fetchLatestRelease(repo: String): Pair<String, String>? =
-    withContext(Dispatchers.IO) {
-        try {
-            val conn = (URL("https://api.github.com/repos/$repo/releases/latest")
-                .openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                setRequestProperty("Accept", "application/vnd.github+json")
-                connectTimeout = 10000
-                readTimeout = 10000
-            }
-            if (conn.responseCode != 200) {
-                conn.disconnect()
-                return@withContext null
-            }
-            val text = conn.inputStream.bufferedReader().readText()
-            conn.disconnect()
-            val json = JSONObject(text)
-            val tag = json.optString("tag_name")
-            val html = json.optString("html_url")
-            if (tag.isBlank()) null else (tag to html)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-private fun isNewerVersion(latest: String, current: String): Boolean {
-    fun parse(v: String): List<Int> =
-        v.trim().trimStart('v', 'V').split('.').map {
-            it.filter { c -> c.isDigit() }.toIntOrNull() ?: 0
-        }
-    val a = parse(latest)
-    val b = parse(current)
-    val n = if (a.size >= b.size) a.size else b.size
-    for (i in 0 until n) {
-        val x = a.getOrElse(i) { 0 }
-        val y = b.getOrElse(i) { 0 }
-        if (x != y) return x > y
-    }
-    return false
-}
-
-// Uses native M3 ListItem for perfect metrics and accessibility
 @Composable
 private fun AboutRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -446,38 +612,11 @@ private fun AboutRow(
     onClick: () -> Unit
 ) {
     ListItem(
-        headlineContent = { 
-            Text(
-                text = title, 
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
-            ) 
-        },
-        supportingContent = { 
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium
-            ) 
-        },
-        leadingContent = {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
-        },
-        trailingContent = {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        },
+        headlineContent = { Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium) },
+        supportingContent = { Text(text = subtitle, style = MaterialTheme.typography.bodyMedium) },
+        leadingContent = { Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) },
+        trailingContent = { Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) },
         modifier = Modifier.clickable(onClick = onClick),
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent // Lets the Card's color show through
-        )
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
     )
 }

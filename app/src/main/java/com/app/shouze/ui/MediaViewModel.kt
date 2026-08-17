@@ -74,6 +74,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val json = Json { ignoreUnknownKeys = true }
 
     val settings = settingsRepo.settings
+    val settingsRepository: SettingsRepository = settingsRepo
 
     private val _selectedCategoryId = MutableStateFlow<String?>(null)
     private val _searchQuery = MutableStateFlow("")

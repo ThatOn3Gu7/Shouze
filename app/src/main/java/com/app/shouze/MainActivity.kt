@@ -25,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.animation.SharedTransitionLayout
+import com.app.shouze.data.UpdateScheduler
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.ui.MediaViewModel
 import com.app.shouze.ui.screens.*
@@ -67,6 +68,10 @@ class MainActivity : ComponentActivity() {
             BackHandler(enabled = editDialogOpen) { editDialogOpen = false }
 
             LaunchedEffect(Unit) {
+                UpdateScheduler.apply(
+                    applicationContext,
+                    viewModel.settingsRepository.settings.value.updateFrequency
+                )
                 shortcutActions.collect { action ->
                     when (action) {
                         "add" -> {
@@ -293,7 +298,8 @@ class MainActivity : ComponentActivity() {
 
                         composable("about") {
                             AboutScreen(
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                settingsRepository = viewModel.settingsRepository
                             )
                         }
 

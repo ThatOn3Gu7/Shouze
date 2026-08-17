@@ -33,7 +33,7 @@ android {
         applicationId = "com.app.shouze"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
+        versionCode = 3
         versionName = "3.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -122,6 +122,9 @@ dependencies {
 
     // OkHttp for AniList API
     implementation(libs.okhttp)
+
+    // WorkManager for background update checks
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Testing
     testImplementation(libs.junit)
