@@ -165,13 +165,33 @@ fun SearchScreen(
                     selected = uiState.searchType == "ANIME",
                     onClick = { onTypeChange("ANIME"); onLoadTrending() },
                     icon = { Icon(Icons.Rounded.PlayCircle, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                    text = { Text("Anime", fontWeight = FontWeight.SemiBold) }
+                    text = {
+                        Text(
+                            "Anime",
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (uiState.searchType == "ANIME") {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            }
+                        )
+                    }
                 )
                 Tab(
                     selected = uiState.searchType == "MANGA",
                     onClick = { onTypeChange("MANGA"); onLoadTrending() },
                     icon = { Icon(Icons.Rounded.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                    text = { Text("Manga", fontWeight = FontWeight.SemiBold) }
+                    text = {
+                        Text(
+                            "Manga",
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (uiState.searchType == "MANGA") {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            }
+                        )
+                    }
                 )
             }
 
