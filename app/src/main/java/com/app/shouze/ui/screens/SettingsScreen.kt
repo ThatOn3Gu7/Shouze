@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/* STREAMING_CHUNK:Configuring screen signature and scaffold... */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -53,7 +52,6 @@ fun SettingsScreen(
         }
     ) { padding ->
         
-        /* STREAMING_CHUNK:Building the primary scrollable layout... */
         Column(
             modifier = Modifier
                 .padding(padding)
@@ -80,7 +78,6 @@ fun SettingsScreen(
                     )
                 ) {
                     Column {
-                        /* STREAMING_CHUNK:Rendering statistics and appearance items... */
                         SettingsItem(
                             title = "Statistics",
                             subtitle = "View your library insights",
@@ -97,7 +94,6 @@ fun SettingsScreen(
                         )
                         SettingsDivider()
                         
-                        /* STREAMING_CHUNK:Rendering categories and backup items... */
                         SettingsItem(
                             title = "Categories",
                             subtitle = "Manage your library categories",
@@ -124,7 +120,6 @@ fun SettingsScreen(
                 }
             }
 
-            /* STREAMING_CHUNK:Building the Info section... */
             // --- Info Section ---
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
@@ -155,7 +150,6 @@ fun SettingsScreen(
     }
 }
 
-/* STREAMING_CHUNK:Defining reusable SettingsDivider component... */
 @Composable
 private fun SettingsDivider() {
     HorizontalDivider(
@@ -164,7 +158,6 @@ private fun SettingsDivider() {
     )
 }
 
-/* STREAMING_CHUNK:Defining native M3 SettingsItem component... */
 @Composable
 private fun SettingsItem(
     title: String,
