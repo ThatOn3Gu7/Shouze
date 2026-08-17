@@ -58,22 +58,30 @@ suspend fun fetchLatestRelease(repo: String = GITHUB_REPO): GitHubRelease? =
     }
 
 fun isNewerVersion(latest: String, current: String): Boolean {
-    fun parse(v: String): List<Int> =
-        v.trim().trimStart('v', 'V').split('.').map {
-            it.filter { c -> c.isDigit() }.toIntOrNull() ?: 0
-        }
-    val a = parse(latest)
-    val b = parse(current)
-    val n = if (a.size >= b.size) a.size else b.size
+    fun split(v: String): Pair<List<Int>, String?> {
+        val cleaned = v.trim().trimStart('v', 'V')
+        val dash = cleaned.indexOf('-')
+        val base = if (dash >= 0) cleaned.substring(0, dash) else cleaned
+        val suffix = if (dash >= 0) cleaned.substring(dash + 1) else null
+        return base.split('.').mapNotNull { it.toIntOrNull() } to suffix
+    }
+    val (a, aSuffix) = split(latest)
+    val (b, bSuffix) = split(current)
+    if (a.isEmpty() || b.isEmpty()) return false
+    val n = maxOf(a.size, b.size)
     for (i in 0 until n) {
         val x = a.getOrElse(i) { 0 }
         val y = b.getOrElse(i) { 0 }
         if (x != y) return x > y
     }
-    return false
+    return when {
+        aSuffix == null && bSuffix == null -> false
+        aSuffix == null -> true
+        else -> false
+    }
 }
 
-fun currentVersionName(context: Context): String =
+fun currentVersionName(context: Context): String? =
     runCatching {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName
-    }.getOrNull() ?: "0"
+    }.getOrNull()
