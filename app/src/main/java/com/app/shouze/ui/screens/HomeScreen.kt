@@ -1,5 +1,6 @@
 package com.app.shouze.ui.screens
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -52,7 +53,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -506,37 +506,17 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             item {
-                                FilterChip(
+                                BouncyFilterChip(
                                     selected = selectedTag == null,
                                     onClick = { onTagSelected(null) },
-                                    label = { Text("All Tags", fontWeight = FontWeight.SemiBold) },
-                                    shape = RoundedCornerShape(16.dp),
-                                    leadingIcon = if (selectedTag == null) {
-                                        {
-                                            Icon(
-                                                imageVector = Icons.Rounded.Check,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    } else null
+                                    label = "All Tags"
                                 )
                             }
                             items(allTags, key = { it }) { tag ->
-                                FilterChip(
+                                BouncyFilterChip(
                                     selected = selectedTag == tag,
                                     onClick = { onTagSelected(tag) },
-                                    label = { Text(tag, fontWeight = FontWeight.SemiBold) },
-                                    shape = RoundedCornerShape(16.dp),
-                                    leadingIcon = if (selectedTag == tag) {
-                                        {
-                                            Icon(
-                                                imageVector = Icons.Rounded.Check,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    } else null
+                                    label = tag
                                 )
                             }
                         }
@@ -551,38 +531,18 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         item {
-                            FilterChip(
+                            BouncyFilterChip(
                                 selected = uiState.selectedCategoryId == null,
                                 onClick = { onCategorySelected(null) },
-                                label = { Text("All", fontWeight = FontWeight.SemiBold) },
-                                shape = RoundedCornerShape(16.dp),
-                                leadingIcon = if (uiState.selectedCategoryId == null) {
-                                    {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                } else null
+                                label = "All"
                             )
                         }
 
                         items(uiState.categories, key = { it.id }) { category ->
-                            FilterChip(
+                            BouncyFilterChip(
                                 selected = uiState.selectedCategoryId == category.id,
                                 onClick = { onCategorySelected(category.id) },
-                                label = { Text(category.name, fontWeight = FontWeight.SemiBold) },
-                                shape = RoundedCornerShape(16.dp),
-                                leadingIcon = if (uiState.selectedCategoryId == category.id) {
-                                    {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                } else null
+                                label = category.name
                             )
                         }
                     }
@@ -633,14 +593,19 @@ fun HomeScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "${uiState.items.size} ${if (uiState.items.size == 1) "item" else "items"}",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            AnimatedContent(
+                                targetState = uiState.items.size,
+                                label = "count_anim"
+                            ) { count ->
+                                Text(
+                                    text = "$count ${if (count == 1) "item" else "items"}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
@@ -662,6 +627,7 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 48.dp)
+                                .animateItem() // Ensures the Empty State fades in gracefully
                         )
                     }
                 } else {
@@ -728,6 +694,44 @@ fun HomeScreen(
             }
         }
     }
+}
+
+// Gives FilterChips a smooth bounce effect when selected
+@Composable
+private fun BouncyFilterChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.06f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "bouncy_chip"
+    )
+
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, fontWeight = FontWeight.SemiBold) },
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        },
+        leadingIcon = if (selected) {
+            {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        } else null
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -923,32 +927,6 @@ private fun UpNextMarquee(
                             modifier = Modifier.requiredWidth(cardWidth)
                         )
                     }
-                }
-            }
-            if (shouldLoop) {
-                val bgColor = MaterialTheme.colorScheme.background
-                Row(modifier = Modifier.matchParentSize()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(40.dp)
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(bgColor, Color.Transparent)
-                                )
-                            )
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(40.dp)
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(Color.Transparent, bgColor)
-                                )
-                            )
-                    )
                 }
             }
         }
