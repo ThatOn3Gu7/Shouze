@@ -1,30 +1,43 @@
 package com.app.shouze.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.app.shouze.data.remote.AniListMedia
 import com.app.shouze.ui.AniListSearchUiState
 import com.app.shouze.ui.components.SafeRemoteImage
@@ -37,12 +50,25 @@ fun SearchScreen(
     onSearch: (String) -> Unit,
     onTypeChange: (String) -> Unit,
     onSelect: (AniListMedia) -> Unit,
-    onLoadTrending: () -> Unit = {}
+    onLoadTrending: () -> Unit = {},
+    searchHistory: List<String> = emptyList(),
+    onClearSearchHistory: () -> Unit = {}
 ) {
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
+    var fieldFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val historyMatches = remember(searchHistory, query) {
+        if (query.isBlank()) emptyList()
+        else searchHistory.filter { it.contains(query.trim(), ignoreCase = true) }
+    }
+
+    var trendingLoadedOnce by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        onLoadTrending()
+        if (!trendingLoadedOnce) {
+            trendingLoadedOnce = true
+            onLoadTrending()
+        }
     }
 
     Scaffold(
@@ -71,30 +97,52 @@ fun SearchScreen(
                 .fillMaxSize()
         ) {
             // --- Search Bar ---
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                placeholder = { Text("Search anime or manga...") },
-                trailingIcon = {
-                    IconButton(onClick = { onSearch(query) }) {
-                        Icon(Icons.Rounded.Search, contentDescription = "Search")
-                    }
-                },
-                singleLine = true,
-                shape = MaterialTheme.shapes.extraLarge, // Premium fully rounded pill shape
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    unfocusedBorderColor = Color.Transparent,
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(
-                    onSearch = { onSearch(query) }
+                    .zIndex(1f)
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp)
+                        .onFocusChanged { fieldFocused = it.isFocused },
+                    placeholder = { Text("Search anime or manga...") },
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            onSearch(query)
+                            focusManager.clearFocus()
+                        }) {
+                            Icon(Icons.Rounded.Search, contentDescription = "Search")
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(28.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(
+                        onSearch = {
+                            onSearch(query)
+                            focusManager.clearFocus()
+                        }
+                    )
                 )
-            )
+                SearchHistoryDropdown(
+                    visible = fieldFocused && historyMatches.isNotEmpty(),
+                    matches = historyMatches,
+                    onSelect = { history ->
+                        query = history
+                        onSearch(history)
+                        focusManager.clearFocus()
+                    },
+                    onClear = onClearSearchHistory
+                )
+            }
 
             // --- Tabs ---
             TabRow(
@@ -368,6 +416,85 @@ private fun PremiumAniListResultCard(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchHistoryDropdown(
+    visible: Boolean,
+    matches: List<String>,
+    onSelect: (String) -> Unit,
+    onClear: () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically(
+            expandFrom = Alignment.Top,
+            animationSpec = tween(200)
+        ) + fadeIn(animationSpec = tween(200)),
+        exit = shrinkVertically(animationSpec = tween(150)) + fadeOut(animationSpec = tween(150))
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(top = 72.dp),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 8.dp
+        ) {
+            Column {
+                matches.forEach { history ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(history) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.History,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = history,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 44.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onClear)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteSweep,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Clear search history",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }
