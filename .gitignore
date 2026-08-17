@@ -25,3 +25,5 @@ captures/
 
 # OS
 .DS_Store
+/diff.md
+/handoff.md

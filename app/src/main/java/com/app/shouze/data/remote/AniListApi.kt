@@ -40,6 +40,7 @@ data class AniListMedia(
     val status: String? = null,
     val genres: List<String>? = null,
     val averageScore: Int? = null,
+    val popularity: Int? = null,
     val format: String? = null
 )
 
@@ -173,6 +174,7 @@ class AniListApi {
                             status
                             genres
                             averageScore
+                            popularity
                             format
                         }
                     }
@@ -267,6 +269,7 @@ class AniListApi {
                             status
                             genres
                             averageScore
+                            popularity
                             format
                         }
                     }
@@ -275,9 +278,6 @@ class AniListApi {
 
             val requestBody = buildJsonObject {
                 put("query", graphqlQuery)
-                putJsonObject("variables") {
-                    put("type", type)
-                }
             }.toString()
 
             val request = Request.Builder()

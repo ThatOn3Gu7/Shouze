@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.Star
@@ -58,6 +61,19 @@ fun SearchScreen(
     val historyMatches = remember(searchHistory, query) {
         if (query.isBlank()) emptyList()
         else searchHistory.filter { it.contains(query.trim(), ignoreCase = true) }
+    }
+
+    var selectedGenre by rememberSaveable { mutableStateOf<String?>(null) }
+    val allGenres = remember(uiState.results, uiState.trending) {
+        (uiState.results + uiState.trending).flatMap { it.genres ?: emptyList() }.distinct().sorted()
+    }
+    val visibleResults = remember(uiState.results, selectedGenre) {
+        if (selectedGenre == null) uiState.results
+        else uiState.results.filter { it.genres?.contains(selectedGenre) == true }
+    }
+    val visibleTrending = remember(uiState.trending, selectedGenre) {
+        if (selectedGenre == null) uiState.trending
+        else uiState.trending.filter { it.genres?.contains(selectedGenre) == true }
     }
 
     var trendingLoadedOnce by rememberSaveable { mutableStateOf(false) }
@@ -148,16 +164,41 @@ fun SearchScreen(
                 Tab(
                     selected = uiState.searchType == "ANIME",
                     onClick = { onTypeChange("ANIME"); onLoadTrending() },
+                    icon = { Icon(Icons.Rounded.PlayCircle, contentDescription = null, modifier = Modifier.size(18.dp)) },
                     text = { Text("Anime", fontWeight = FontWeight.SemiBold) }
                 )
                 Tab(
                     selected = uiState.searchType == "MANGA",
                     onClick = { onTypeChange("MANGA"); onLoadTrending() },
+                    icon = { Icon(Icons.Rounded.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp)) },
                     text = { Text("Manga", fontWeight = FontWeight.SemiBold) }
                 )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+
+            if (allGenres.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = selectedGenre == null,
+                            onClick = { selectedGenre = null },
+                            label = { Text("All") }
+                        )
+                    }
+                    items(allGenres) { genre ->
+                        FilterChip(
+                            selected = selectedGenre == genre,
+                            onClick = { selectedGenre = if (selectedGenre == genre) null else genre },
+                            label = { Text(genre) }
+                        )
+                    }
+                }
+            }
 
             // --- Content States ---
             if (uiState.isLoading) {
@@ -198,7 +239,23 @@ fun SearchScreen(
                     LazyColumn(
                         contentPadding = PaddingValues(bottom = 32.dp)
                     ) {
-                        items(uiState.results, key = { it.id }) { media ->
+                        if (visibleResults.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No results in this genre",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                        items(visibleResults, key = { it.id }) { media ->
                             PremiumAniListResultCard(
                                 media = media,
                                 onClick = { onSelect(media) }
@@ -214,7 +271,7 @@ fun SearchScreen(
                         ) {
                             CircularProgressIndicator()
                         }
-                    } else if (uiState.trending.isNotEmpty()) {
+                    } else if (visibleTrending.isNotEmpty()) {
                         LazyColumn(
                             contentPadding = PaddingValues(bottom = 32.dp)
                         ) {
@@ -226,11 +283,18 @@ fun SearchScreen(
                                     modifier = Modifier.padding(start = 32.dp, top = 16.dp, bottom = 8.dp)
                                 )
                             }
-                            items(uiState.trending, key = { it.id }) { media ->
-                                PremiumAniListResultCard(
-                                    media = media,
-                                    onClick = { onSelect(media) }
-                                )
+                            item {
+                                LazyRow(
+                                    contentPadding = PaddingValues(horizontal = 24.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(visibleTrending, key = { it.id }) { media ->
+                                        TrendingPosterCard(
+                                            media = media,
+                                            onClick = { onSelect(media) }
+                                        )
+                                    }
+                                }
                             }
                         }
                     } else if (uiState.trendingError != null) {
@@ -387,7 +451,7 @@ private fun PremiumAniListResultCard(
                     media.averageScore?.let { score ->
                         Surface(
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.tertiaryContainer
+                            color = scoreContainerColor(score)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -396,7 +460,7 @@ private fun PremiumAniListResultCard(
                                 Icon(
                                     imageVector = Icons.Rounded.Star,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    tint = Color.White,
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -404,10 +468,18 @@ private fun PremiumAniListResultCard(
                                     text = "%.1f".format(score / 10.0),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    color = Color.White
                                 )
                             }
                         }
+                    }
+
+                    media.popularity?.let { votes ->
+                        Text(
+                            text = "\u00b7 ${formatVotes(votes)} votes",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -489,6 +561,100 @@ private fun SearchHistoryDropdown(
                         color = MaterialTheme.colorScheme.error
                     )
                 }
+            }
+        }
+    }
+}
+
+private fun scoreContainerColor(score: Int): Color = when {
+    score >= 75 -> Color(0xFF2E7D32)
+    score >= 60 -> Color(0xFFEF6C00)
+    else -> Color(0xFFC62828)
+}
+
+private fun formatVotes(votes: Int): String =
+    if (votes >= 1000) "%.1fk".format(votes / 1000.0) else votes.toString()
+
+@Composable
+private fun TrendingPosterCard(
+    media: AniListMedia,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val title = media.title.english ?: media.title.romaji ?: "Unknown"
+    Column(modifier = modifier.width(140.dp)) {
+        Card(
+            onClick = onClick,
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(2f / 3f),
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 4.dp
+            ) {
+                val coverUrl = media.coverImage?.large ?: media.coverImage?.medium
+                if (coverUrl != null) {
+                    SafeRemoteImage(
+                        url = coverUrl,
+                        contentDescription = title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = title.firstOrNull()?.uppercase() ?: "?",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            media.averageScore?.let { score ->
+                Icon(
+                    imageVector = Icons.Rounded.Star,
+                    contentDescription = null,
+                    tint = scoreContainerColor(score),
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = "%.1f".format(score / 10.0),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            media.popularity?.let { votes ->
+                Text(
+                    text = "\u00b7 ${formatVotes(votes)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
