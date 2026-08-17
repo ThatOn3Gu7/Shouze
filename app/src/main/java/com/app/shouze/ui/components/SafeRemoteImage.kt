@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -26,6 +27,11 @@ private const val CONTENT_CACHE_BYTES = 12 * 1024 * 1024
 
 private val contentUriCache = object : LruCache<String, Bitmap>(CONTENT_CACHE_BYTES) {
     override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+}
+
+private val contentImageBitmapCache = object : LruCache<String, ImageBitmap>(CONTENT_CACHE_BYTES) {
+    override fun sizeOf(key: String, value: ImageBitmap): Int =
+        (value.width * value.height * 4).coerceAtLeast(1)
 }
 
 private fun decodeSampled(bytes: ByteArray): Bitmap? = try {
@@ -87,7 +93,7 @@ fun SafeRemoteImage(
     }
     when (val current = state) {
         is RemoteImageState.Loaded -> Image(
-            bitmap = current.bitmap.asImageBitmap(),
+            bitmap = CoverImageStore.imageBitmap(url, current.bitmap),
             contentDescription = contentDescription,
             modifier = modifier,
             contentScale = contentScale
@@ -129,7 +135,8 @@ private fun ContentUriImage(
 
     when (val current = state) {
         is RemoteImageState.Loaded -> Image(
-            bitmap = current.bitmap.asImageBitmap(),
+            bitmap = contentImageBitmapCache.get(uriString)
+                ?: current.bitmap.asImageBitmap().also { contentImageBitmapCache.put(uriString, it) },
             contentDescription = contentDescription,
             modifier = modifier,
             contentScale = contentScale
