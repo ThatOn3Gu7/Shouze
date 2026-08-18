@@ -3,6 +3,7 @@ package com.app.shouze.ui
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.shouze.data.SettingsRepository
@@ -711,6 +712,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                         val itemCount = try {
                             json.decodeFromString<BackupPayload>(jsonString).itemCount
                         } catch (_: Exception) { 0 }
+                        val displayName = try {
+                            getApplication<Application>().contentResolver
+                                .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                                ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+                        } catch (_: Exception) {
+                            null
+                        }
                         val output = getApplication<Application>().contentResolver.openOutputStream(uri)
                         if (output == null) {
                             showMessage("Failed to open file for writing", isError = true)
@@ -724,7 +732,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                                 zos.closeEntry()
                             }
                         }
-                        showMessage("Backup saved successfully ($itemCount items)")
+                        showMessage(
+                            if (displayName != null) "Backup \"$displayName\" saved successfully ($itemCount items)"
+                            else "Backup saved successfully ($itemCount items)"
+                        )
                     },
                     onFailure = { e ->
                         showMessage("Export failed: ${e.message}", isError = true)

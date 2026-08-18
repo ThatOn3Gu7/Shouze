@@ -348,7 +348,10 @@ class MainActivity : ComponentActivity() {
                                 onBackup = viewModel::backupToLocalZip,
                                 onRestore = viewModel::restoreFromLocalZip,
                                 onExportCsv = viewModel::exportToCsv,
-                                onImportMalXml = viewModel::importFromMalXml
+                                onImportMalXml = viewModel::importFromMalXml,
+                                syncMessage = uiState.syncMessage,
+                                error = uiState.error,
+                                onClearMessage = viewModel::clearSyncMessage
                             )
                         }
 

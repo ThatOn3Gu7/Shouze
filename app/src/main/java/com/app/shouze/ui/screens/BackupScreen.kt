@@ -3,16 +3,25 @@ package com.app.shouze.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Cancel
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +34,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private enum class SnackbarKind { Success, Error, Info }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackupScreen(
@@ -32,14 +43,40 @@ fun BackupScreen(
     onBackup: (Uri) -> Unit,
     onRestore: (Uri) -> Unit,
     onExportCsv: (Uri) -> Unit = {},
-    onImportMalXml: (Uri) -> Unit = {}
+    onImportMalXml: (Uri) -> Unit = {},
+    syncMessage: String? = null,
+    error: String? = null,
+    onClearMessage: () -> Unit = {}
 ) {
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var pendingMalXmlUri by remember { mutableStateOf<Uri?>(null) }
 
+    var snackbarMessage by remember { mutableStateOf<String?>(null) }
+    var snackbarKind by remember { mutableStateOf(SnackbarKind.Success) }
+
+    LaunchedEffect(error, syncMessage) {
+        when {
+            error != null -> {
+                snackbarMessage = error
+                snackbarKind = SnackbarKind.Error
+            }
+            syncMessage != null -> {
+                snackbarMessage = syncMessage
+                snackbarKind = SnackbarKind.Success
+            }
+        }
+    }
+
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip")
-    ) { uri -> uri?.let(onBackup) }
+    ) { uri ->
+        if (uri != null) {
+            onBackup(uri)
+        } else {
+            snackbarMessage = "Backup cancelled"
+            snackbarKind = SnackbarKind.Info
+        }
+    }
 
     val restoreLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -83,9 +120,13 @@ fun BackupScreen(
             )
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .padding(padding)
+                .fillMaxSize()
+        ) {
+        Column(
+            modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 16.dp),
@@ -170,6 +211,47 @@ fun BackupScreen(
                                 malXmlLauncher.launch(arrayOf("text/xml", "application/xml"))
                             }
                         )
+                    }
+                }
+            }
+        }
+
+            AnimatedVisibility(
+                visible = snackbarMessage != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                val isError = snackbarKind == SnackbarKind.Error
+                val snackbarColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.inverseSurface
+                val snackbarContent = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.inverseOnSurface
+                Snackbar(
+                    containerColor = snackbarColor,
+                    contentColor = snackbarContent,
+                    shape = RoundedCornerShape(16.dp),
+                    action = {
+                        TextButton(onClick = {
+                            snackbarMessage = null
+                            onClearMessage()
+                        }) {
+                            Text("Dismiss", color = snackbarContent, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = when (snackbarKind) {
+                                SnackbarKind.Error -> Icons.Rounded.ErrorOutline
+                                SnackbarKind.Success -> Icons.Rounded.CheckCircle
+                                SnackbarKind.Info -> Icons.Rounded.Cancel
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(snackbarMessage ?: "", fontWeight = FontWeight.Medium)
                     }
                 }
             }
