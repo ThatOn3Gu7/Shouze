@@ -1,5 +1,12 @@
 package com.app.shouze.ui.screens
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.speech.RecognizerIntent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -34,6 +41,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MovieFilter
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -65,6 +73,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -119,6 +128,32 @@ fun HomeScreen(
 ) {
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
+    val context = LocalContext.current
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+            if (!spoken.isNullOrBlank()) {
+                onSearchQueryChange(spoken)
+            }
+        }
+    }
+
+    fun launchVoiceSearch() {
+        try {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to search your library")
+            }
+            voiceLauncher.launch(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, "Voice input isn't available on this device", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     var selectedItem by remember { mutableStateOf<MediaItemEntity?>(null) }
     val isSelectionMode = uiState.isSelectionMode
     val selectedCount = uiState.selectedIds.size
@@ -472,6 +507,15 @@ fun HomeScreen(
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurface
                             ) 
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = ::launchVoiceSearch) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Mic,
+                                    contentDescription = "Voice search",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         },
                         singleLine = true,
                         shape = RoundedCornerShape(28.dp),

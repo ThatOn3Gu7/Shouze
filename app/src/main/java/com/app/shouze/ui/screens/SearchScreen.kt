@@ -1,5 +1,12 @@
 package com.app.shouze.ui.screens
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.speech.RecognizerIntent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -21,6 +28,7 @@ import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SearchOff
@@ -33,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -58,6 +67,34 @@ fun SearchScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var fieldFocused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+            if (!spoken.isNullOrBlank()) {
+                query = spoken
+                onSearch(spoken)
+                focusManager.clearFocus()
+            }
+        }
+    }
+
+    fun launchVoiceSearch() {
+        try {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to search anime or manga")
+            }
+            voiceLauncher.launch(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, "Voice input isn't available on this device", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val historyMatches = remember(searchHistory, query) {
         if (query.isBlank()) emptyList()
         else searchHistory.filter { it.contains(query.trim(), ignoreCase = true) }
@@ -119,12 +156,16 @@ fun SearchScreen(
                         .padding(horizontal = 24.dp, vertical = 8.dp)
                         .onFocusChanged { fieldFocused = it.isFocused },
                     placeholder = { Text("Search anime or manga...") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = "Search",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    },
                     trailingIcon = {
-                        IconButton(onClick = {
-                            onSearch(query)
-                            focusManager.clearFocus()
-                        }) {
-                            Icon(Icons.Rounded.Search, contentDescription = "Search")
+                        IconButton(onClick = ::launchVoiceSearch) {
+                            Icon(Icons.Rounded.Mic, contentDescription = "Voice search")
                         }
                     },
                     singleLine = true,
