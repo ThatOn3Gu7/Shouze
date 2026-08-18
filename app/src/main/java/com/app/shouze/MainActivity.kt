@@ -19,9 +19,6 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -102,7 +99,6 @@ class MainActivity : ComponentActivity() {
                         val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentRoute = navBackStackEntry?.destination?.route
                         val showBottomBar = currentRoute in listOf("home", "airing", "search", "profile")
-                        val profileTabBounds = remember { mutableStateOf(Rect.Zero) }
                         Scaffold(
                             bottomBar = {
                                 if (showBottomBar) {
@@ -129,10 +125,7 @@ class MainActivity : ComponentActivity() {
                                             selected = currentRoute == "profile",
                                             onClick = { navController.navigateToTab("profile") },
                                             icon = { BottomFillIcon(selected = currentRoute == "profile", outlinedIcon = Icons.Outlined.Person, filledIcon = Icons.Filled.Person) },
-                                            label = { Text("Profile") },
-                                            modifier = Modifier.onGloballyPositioned {
-                                                profileTabBounds.value = it.boundsInWindow()
-                                            }
+                                            label = { Text("Profile") }
                                         )
                                     }
                                 }
@@ -250,7 +243,6 @@ class MainActivity : ComponentActivity() {
                                 selectedTag = uiState.selectedTag,
                                 onTagSelected = viewModel::setTagFilter,
                                 onClearFilters = viewModel::clearHomeFilters,
-                                profileTabBounds = { profileTabBounds.value },
                                 sharedTransitionScope = this@SharedTransitionLayout,
                                 animatedVisibilityScope = this@composable
                             )

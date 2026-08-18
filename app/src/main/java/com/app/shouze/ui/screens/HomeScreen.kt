@@ -15,6 +15,7 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.*
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -61,20 +62,21 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
@@ -89,6 +91,7 @@ import com.app.shouze.ui.components.SafeRemoteImage
 import com.app.shouze.ui.components.rememberTooltipPositionProvider
 import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.sin
 import kotlinx.coroutines.isActive
 
 @OptIn(
@@ -122,7 +125,6 @@ fun HomeScreen(
     selectedTag: String? = null,
     onTagSelected: (String?) -> Unit = {},
     onClearFilters: () -> Unit = {},
-    profileTabBounds: () -> Rect = { Rect.Zero },
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
@@ -170,11 +172,10 @@ fun HomeScreen(
     val fabProgress by animateFloatAsState(
         targetValue = (scrollAccumulator / hideDistancePx).coerceIn(0f, 1f),
         animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        visibilityThreshold = 0.005f,
         label = "fabProgress"
     )
     
-    var fabRestBounds by remember { mutableStateOf(Rect.Zero) }
-
     LaunchedEffect(isSelectionMode) {
         if (!isSelectionMode) {
             scrollAccumulator = 0f
@@ -470,16 +471,10 @@ fun HomeScreen(
         },
         floatingActionButton = {
             if (!isSelectionMode) {
-                Box(
-                    modifier = Modifier.onGloballyPositioned { fabRestBounds = it.boundsInWindow() }
-                ) {
-                    AnimatedFab(
-                        progress = fabProgress,
-                        restBounds = fabRestBounds,
-                        profileTabBounds = profileTabBounds(),
-                        onClick = onAddClick
-                    )
-                }
+                AnimatedFab(
+                    progress = fabProgress,
+                    onClick = onAddClick
+                )
             }
         },
         floatingActionButtonPosition = FabPosition.End,
@@ -773,69 +768,91 @@ private fun BouncyFilterChip(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+// Swipe-out "Add Media" FAB: one continuous motion — the pill morphs into a "+" circle
+// while gliding right off-screen and fading; the same motion reverses when scrolling up.
 private fun AnimatedFab(
     progress: Float,
-    restBounds: Rect,
-    profileTabBounds: Rect,
     onClick: () -> Unit
 ) {
     val fabSize = 56.dp
-    val extendedWidth = 140.dp 
-    val collapsePhase = 0.4f
-    val collapse = (progress / collapsePhase).coerceIn(0f, 1f)
-    val translate = ((progress - collapsePhase) / (1f - collapsePhase)).coerceIn(0f, 1f)
-    
-    val collapseEasing = FastOutSlowInEasing.transform(collapse)
-    val width = lerp(extendedWidth, fabSize, collapseEasing)
-    
-    val hasTarget = restBounds != Rect.Zero && profileTabBounds != Rect.Zero
-    val targetY = if (hasTarget) (profileTabBounds.center.y - restBounds.center.y) else 250f 
+    val extendedWidth = 140.dp
+    val swipeDistance = 420.dp
+
+    val collapse = (progress / 0.6f).coerceIn(0f, 1f)
+    val exit = ((progress - 0.35f) / 0.65f).coerceIn(0f, 1f)
+
+    val collapseE = EmphasizedDecelerate.transform(collapse)
+    val exitE = StandardEasing.transform(exit)
+
+    val width = lerp(extendedWidth, fabSize, collapseE)
+    val corner = lerp(16.dp, fabSize / 2, collapseE)
+    val alpha = 1f - exitE
+
+    val haptics = LocalHapticFeedback.current
+    val hidden = exit >= 0.99f
+    var wasHidden by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(hidden) {
+        if (wasHidden != null && wasHidden != hidden) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
+        wasHidden = hidden
+    }
 
     Surface(
         onClick = onClick,
+        enabled = alpha > 0.5f,
         modifier = Modifier
             .graphicsLayer {
-                translationY = targetY * translate
-                val s = 1f - 0.4f * translate
+                translationX = swipeDistance.toPx() * exitE
+                val s = 1f - 0.3f * exitE
                 scaleX = s
                 scaleY = s
-                alpha = 1f - (translate * 0.3f)
+                this.alpha = alpha
             }
             .width(width)
-            .height(fabSize),
-        shape = RoundedCornerShape(20.dp),
+            .height(fabSize)
+            .semantics { contentDescription = "Add media" },
+        shape = RoundedCornerShape(corner),
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         shadowElevation = 6.dp
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Rounded.Add,
-                contentDescription = "Add item",
-                modifier = Modifier.graphicsLayer { rotationZ = 180f * collapseEasing }
-            )
-            if (collapseEasing < 1f) {
+            Box(Modifier.size(fabSize), contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Rounded.Add,
+                    contentDescription = null,
+                    modifier = Modifier.graphicsLayer {
+                        rotationZ = 90f * collapseE
+                        val pulse = 1f + 0.12f * sin(collapseE * Math.PI).toFloat()
+                        scaleX = pulse
+                        scaleY = pulse
+                    }
+                )
+            }
+            if (collapse < 0.98f) {
                 Text(
                     text = "Add Media",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Clip,
                     modifier = Modifier
-                        .padding(start = 12.dp)
-                        .alpha(1f - collapseEasing)
-                        .graphicsLayer {
-                            translationX = -30f * collapseEasing 
-                        }
+                        .padding(end = 20.dp)
+                        .alpha(1f - collapseE)
+                        .graphicsLayer { translationX = -24f * collapseE }
                 )
             }
         }
     }
 }
 
+private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+private val StandardEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 private fun statusBulkIcon(status: Status): ImageVector = when (status) {
     Status.WATCHING -> Icons.Rounded.PlayCircle
     Status.READING -> Icons.Rounded.MenuBook
