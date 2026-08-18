@@ -14,12 +14,12 @@ import androidx.compose.material.icons.automirrored.rounded.StarHalf
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BrokenImage
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -69,7 +69,7 @@ fun DetailScreen(
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = { 
                     Text(
                         text = "Details", 
@@ -88,7 +88,7 @@ fun DetailScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
                 ),
                 actions = {
@@ -124,7 +124,7 @@ fun DetailScreen(
                     ) {
                         IconButton(onClick = onEdit) {
                             Icon(
-                                imageVector = Icons.Rounded.Edit, 
+                                imageVector = Icons.Outlined.Edit, 
                                 contentDescription = "Edit",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
@@ -144,7 +144,7 @@ fun DetailScreen(
                             showDeleteConfirm = true
                         }) {
                             Icon(
-                                imageVector = Icons.Rounded.Delete, 
+                                imageVector = Icons.Outlined.Delete, 
                                 contentDescription = "Delete", 
                                 tint = MaterialTheme.colorScheme.error
                             )
@@ -160,9 +160,9 @@ fun DetailScreen(
                     ) {
                         IconButton(onClick = onWhereToWatch) {
                             Icon(
-                                imageVector = Icons.Rounded.PlayArrow,
+                                imageVector = Icons.Outlined.PlayArrow,
                                 contentDescription = "Where to Watch",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = Color(0xFF00BCD4)
                             )
                         }
                     }
