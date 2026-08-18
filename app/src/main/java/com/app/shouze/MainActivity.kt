@@ -279,8 +279,14 @@ class MainActivity : ComponentActivity() {
                                 onIncrementProgress = { viewModel.incrementProgress(item.id) },
                                 onMarkCompleted = { viewModel.markCompleted(item.id) },
                                 onWhereToWatch = {
+                                        val searchType = category?.name?.let { name ->
+                                            if (name.contains("novel", ignoreCase = true) ||
+                                                name.contains("book", ignoreCase = true) ||
+                                                name.contains("manga", ignoreCase = true)
+                                            ) "MANGA" else "ANIME"
+                                        } ?: "ANIME"
                                         val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
-                                        navController.navigate("streaming/${'$'}encodedTitle")
+                                        navController.navigate("streaming/$encodedTitle/$searchType")
                                     },
                                     sharedTransitionScope = this@SharedTransitionLayout,
                                     animatedVisibilityScope = this@composable
@@ -372,10 +378,11 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("streaming/{title}") { backStackEntry ->
+                        composable("streaming/{title}/{type}") { backStackEntry ->
                             val title = backStackEntry.arguments?.getString("title")?.let {
                                 java.net.URLDecoder.decode(it, "UTF-8")
                             } ?: ""
+                            val searchType = backStackEntry.arguments?.getString("type") ?: "ANIME"
                             val streamingState by viewModel.streamingUiState.collectAsState()
 
                             StreamingLinksScreen(
@@ -385,7 +392,7 @@ class MainActivity : ComponentActivity() {
                                 isLoading = streamingState.isLoading,
                                 error = streamingState.error,
                                 onBack = { navController.popBackStack() },
-                                onLoad = { viewModel.loadStreamingForTitle(title) }
+                                onLoad = { viewModel.loadStreamingForTitle(title, searchType) }
                             )
                         }
 

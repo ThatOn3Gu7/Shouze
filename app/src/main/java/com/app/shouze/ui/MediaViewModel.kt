@@ -532,13 +532,16 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Where to Watch / Streaming ---
 
-    fun loadStreamingForTitle(title: String) {
+    fun loadStreamingForTitle(title: String, type: String = "ANIME") {
         viewModelScope.launch {
             _streamingUiState.update { it.copy(isLoading = true, error = null, title = title) }
-            val searchResult = aniListApi.searchMedia(title)
+            val searchResult = aniListApi.searchMedia(title, type)
             searchResult.fold(
                 onSuccess = { mediaList ->
-                    val match = mediaList.firstOrNull()
+                    val match = mediaList.firstOrNull { candidate ->
+                        val candidateTitle = candidate.title.english ?: candidate.title.romaji ?: ""
+                        candidateTitle.equals(title, ignoreCase = true)
+                    } ?: mediaList.firstOrNull()
                     if (match != null) {
                         val streamResult = aniListApi.getStreamingEpisodes(match.id)
                         streamResult.fold(
