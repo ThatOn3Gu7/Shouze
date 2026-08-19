@@ -53,7 +53,7 @@ import com.app.shouze.data.isNewerVersion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val APP_VERSION = "3.0.0"
+private const val APP_VERSION = "6.5.0"
 private const val FEEDBACK_EMAIL = "recoveringdotcom@gmail.com"
 
 // Expanded UpdateState to hold release notes and the direct APK URL
@@ -96,6 +96,7 @@ fun AboutScreen(
     var showUpdateMenu by remember { mutableStateOf(false) } // State for the new Bottom Sheet
     
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
+    var checkButtonLabel by remember { mutableStateOf("Check Now") }
     val scope = rememberCoroutineScope()
 
     fun checkForUpdates() {
@@ -108,18 +109,21 @@ fun AboutScreen(
             val latest = fetchLatestRelease(GITHUB_REPO)
             if (latest == null) {
                 updateState = UpdateState.Error
+                checkButtonLabel = "Retry"
                 return@launch
             }
             
             val current = currentVersionName(context)
             if (current == null) {
                 updateState = UpdateState.UpToDate
+                checkButtonLabel = "Check Again"
                 return@launch
             }
             
             updateState = if (isNewerVersion(latest.tag, current)) {
                 UpdateState.Available(latest.tag, latest.htmlUrl, latest.body, latest.apkUrl)
             } else {
+                checkButtonLabel = "Check Again"
                 UpdateState.UpToDate
             }
         }
@@ -300,6 +304,7 @@ fun AboutScreen(
         ) {
             UpdateMenuContent(
                 state = updateState,
+                checkLabel = checkButtonLabel,
                 onCheckForUpdates = { checkForUpdates() },
                 onDownloadUpdate = { apkUrl ->
                     requestNotificationPermission()
@@ -359,6 +364,7 @@ fun AboutScreen(
 @Composable
 private fun UpdateMenuContent(
     state: UpdateState,
+    checkLabel: String,
     onCheckForUpdates: () -> Unit,
     onDownloadUpdate: (String) -> Unit,
     onOpenBrowser: (String) -> Unit,
@@ -422,7 +428,11 @@ private fun UpdateMenuContent(
                                 is UpdateState.Idle -> Icons.Default.Info
                             },
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = if (targetState is UpdateState.Error) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            }
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
@@ -433,7 +443,12 @@ private fun UpdateMenuContent(
                                 is UpdateState.Error -> "Failed to check for updates."
                                 is UpdateState.Idle -> "Ready to check."
                             },
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (targetState is UpdateState.Error) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                Color.Unspecified
+                            }
                         )
                     }
                 }
@@ -487,7 +502,7 @@ private fun UpdateMenuContent(
                     }
                 }
 
-                // Animated visibility for Check Now button
+                // Animated visibility for Check Now / Retry / Check Again button
                 AnimatedVisibility(
                     visible = state !is UpdateState.Checking && state !is UpdateState.Available,
                     enter = fadeIn(),
@@ -499,7 +514,7 @@ private fun UpdateMenuContent(
                             onClick = onCheckForUpdates,
                             modifier = Modifier.align(Alignment.End)
                         ) {
-                            Text("Check Now")
+                            Text(checkLabel)
                         }
                     }
                 }
@@ -603,7 +618,7 @@ private fun AboutDevDialog(onDismiss: () -> Unit) {
                     DevLink("GitHub", "ThatOn3Gu7") {
                         openUrl(context, "https://github.com/ThatOn3Gu7")
                     }
-                    DevLink("Email", "socialzoneop") {
+                    DevLink("Email", "socialzoneop@gmail.com") {
                         openUrl(context, "mailto:socialzoneop@gmail.com")
                     }
                     DevLink("Instagram", "@thaton3gu7") {
