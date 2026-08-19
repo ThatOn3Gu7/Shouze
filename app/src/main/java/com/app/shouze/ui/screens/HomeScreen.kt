@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.speech.RecognizerIntent
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -160,6 +161,12 @@ fun HomeScreen(
     val selectedCount = uiState.selectedIds.size
     var showBulkMenu by remember { mutableStateOf(false) }
     var bulkMenuLevel by remember { mutableIntStateOf(0) }
+
+    BackHandler(enabled = isSelectionMode && showBulkMenu) {
+        showBulkMenu = false
+        bulkMenuLevel = 0
+    }
+    BackHandler(enabled = isSelectionMode) { onClearSelection() }
 
     val listState = rememberLazyListState()
     val density = LocalDensity.current
