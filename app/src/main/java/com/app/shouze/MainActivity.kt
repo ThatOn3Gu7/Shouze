@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
@@ -25,7 +26,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -52,7 +53,6 @@ private fun NavHostController.navigateToTab(route: String) {
 class MainActivity : ComponentActivity() {
     private val shortcutActions = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
 
-    @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -74,6 +74,11 @@ class MainActivity : ComponentActivity() {
             val navController = rememberNavController()
             var editDialogItem by remember { mutableStateOf<MediaItemEntity?>(null) }
             var editDialogOpen by remember { mutableStateOf(false) }
+            var detailItem by remember { mutableStateOf<MediaItemEntity?>(null) }
+            val detailOpenId = remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(detailItem) {
+                if (detailItem != null) detailOpenId.value = detailItem!!.id
+            }
             BackHandler(enabled = editDialogOpen) { editDialogOpen = false }
 
             LaunchedEffect(Unit) {
@@ -95,10 +100,9 @@ class MainActivity : ComponentActivity() {
 
             com.app.shouze.ui.theme.MediaTrackerTheme(settings = settings) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    SharedTransitionLayout {
-                        val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentRoute = navBackStackEntry?.destination?.route
-                        val showBottomBar = currentRoute in listOf("home", "airing", "search", "profile")
+                        val showBottomBar = currentRoute in listOf("home", "airing", "search", "profile") && detailItem == null
                         Scaffold(
                             bottomBar = {
                                 if (showBottomBar) {
@@ -171,7 +175,7 @@ class MainActivity : ComponentActivity() {
                                 stats = statsUiState,
                                 onBack = { navController.popBackStack() },
                                 onItemClick = { item ->
-                                    navController.navigate("detail/${item.id}")
+                                    detailItem = item
                                 }
                             )
                         }
@@ -215,7 +219,7 @@ class MainActivity : ComponentActivity() {
                                     editDialogOpen = true
                                 },
                                 onItemClick = { item ->
-                                    navController.navigate("detail/${item.id}")
+                                    detailItem = item
                                 },
                                 onEditItem = { item ->
                                     editDialogItem = item
@@ -242,48 +246,8 @@ class MainActivity : ComponentActivity() {
                                 allTags = uiState.allTags,
                                 selectedTag = uiState.selectedTag,
                                 onTagSelected = viewModel::setTagFilter,
-                                onClearFilters = viewModel::clearHomeFilters,
-                                sharedTransitionScope = this@SharedTransitionLayout,
-                                animatedVisibilityScope = this@composable
+                                onClearFilters = viewModel::clearHomeFilters
                             )
-                        }
-
-                        composable("detail/{itemId}") { backStackEntry ->
-                            val itemId = backStackEntry.arguments?.getString("itemId")
-                            val item = uiState.allItems.find { it.id == itemId }
-
-                            if (item != null) {
-                                val category = uiState.categories.find { it.id == item.categoryId }
-                                DetailScreen(
-                                    item = item,
-                                    category = category,
-                                    onBack = { navController.popBackStack() },
-                                    onEdit = {
-                                        editDialogItem = item
-                                        editDialogOpen = true
-                                    },
-                                    onDelete = {
-                                        viewModel.deleteItem(item.id)
-                                        navController.popBackStack()
-                                    },
-                                onToggleFavorite = { viewModel.toggleFavorite(item.id) },
-                                onIncrementRewatch = { viewModel.incrementRewatch(item.id) },
-                                onIncrementProgress = { viewModel.incrementProgress(item.id) },
-                                onMarkCompleted = { viewModel.markCompleted(item.id) },
-                                onWhereToWatch = {
-                                        val searchType = category?.name?.let { name ->
-                                            if (name.contains("novel", ignoreCase = true) ||
-                                                name.contains("book", ignoreCase = true) ||
-                                                name.contains("manga", ignoreCase = true)
-                                            ) "MANGA" else "ANIME"
-                                        } ?: "ANIME"
-                                        val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
-                                        navController.navigate("streaming/$encodedTitle/$searchType")
-                                    },
-                                    sharedTransitionScope = this@SharedTransitionLayout,
-                                    animatedVisibilityScope = this@composable
-                                )
-                            }
                         }
 
                         composable("settings") {
@@ -414,7 +378,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
-                    }
                     if (editDialogOpen) {
                         DetailEditDialog(
                             item = editDialogItem,
@@ -425,6 +388,50 @@ class MainActivity : ComponentActivity() {
                                 editDialogOpen = false
                             }
                         )
+                    }
+                    AnimatedVisibility(
+                        visible = detailItem != null,
+                        enter = fadeIn(animationSpec = tween(250)),
+                        exit = fadeOut(animationSpec = tween(200))
+                    ) {
+                        val detailId = detailOpenId.value
+                        if (detailId != null) {
+                            val currentItem = uiState.allItems.find { it.id == detailId }
+                            if (currentItem != null) {
+                                val category = uiState.categories.find { it.id == currentItem.categoryId }
+                                BackHandler(enabled = !editDialogOpen) { detailItem = null }
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    DetailScreen(
+                                        item = currentItem,
+                                        category = category,
+                                        onBack = { detailItem = null },
+                                        onEdit = {
+                                            editDialogItem = currentItem
+                                            editDialogOpen = true
+                                        },
+                                        onDelete = {
+                                            viewModel.deleteItem(currentItem.id)
+                                            detailItem = null
+                                        },
+                                        onToggleFavorite = { viewModel.toggleFavorite(currentItem.id) },
+                                        onIncrementRewatch = { viewModel.incrementRewatch(currentItem.id) },
+                                        onIncrementProgress = { viewModel.incrementProgress(currentItem.id) },
+                                        onMarkCompleted = { viewModel.markCompleted(currentItem.id) },
+                                        onWhereToWatch = {
+                                            detailItem = null
+                                            val searchType = category?.name?.let { name ->
+                                                if (name.contains("novel", ignoreCase = true) ||
+                                                    name.contains("book", ignoreCase = true) ||
+                                                    name.contains("manga", ignoreCase = true)
+                                                ) "MANGA" else "ANIME"
+                                            } ?: "ANIME"
+                                            val encodedTitle = java.net.URLEncoder.encode(currentItem.title, "UTF-8")
+                                            navController.navigate("streaming/$encodedTitle/$searchType")
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
              }

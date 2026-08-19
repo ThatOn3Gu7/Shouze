@@ -1,8 +1,5 @@
 package com.app.shouze.ui.screens
 
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -41,7 +38,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DetailScreen(
     item: MediaItemEntity,
@@ -53,9 +50,7 @@ fun DetailScreen(
     onIncrementRewatch: () -> Unit = {},
     onIncrementProgress: (MediaItemEntity) -> Unit = {},
     onMarkCompleted: (MediaItemEntity) -> Unit = {},
-    onWhereToWatch: () -> Unit = {},
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedVisibilityScope: AnimatedVisibilityScope? = null
+    onWhereToWatch: () -> Unit = {}
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -180,10 +175,7 @@ fun DetailScreen(
                 coverUri = item.coverImageUri,
                 title = item.title,
                 categoryName = category?.name ?: "Unknown",
-                status = item.status,
-                sharedTransitionScope = sharedTransitionScope,
-                animatedVisibilityScope = animatedVisibilityScope,
-                sharedElementKey = "cover-${item.id}"
+                status = item.status
             )
 
             Column(
@@ -436,16 +428,12 @@ private fun BannerPlaceholder(failed: Boolean = false) {
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun CoverBanner(
     coverUri: String?,
     title: String,
     categoryName: String,
     status: Status,
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedVisibilityScope: AnimatedVisibilityScope? = null,
-    sharedElementKey: String? = null,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -455,22 +443,11 @@ private fun CoverBanner(
             .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
     ) {
         if (!coverUri.isNullOrBlank()) {
-            val imageModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null && sharedElementKey != null) {
-                with(sharedTransitionScope) {
-                    Modifier.fillMaxSize().sharedBounds(
-                        rememberSharedContentState(key = sharedElementKey),
-                        animatedVisibilityScope = animatedVisibilityScope,
-                        boundsTransform = { _, _ -> androidx.compose.animation.core.tween(400) }
-                    )
-                }
-            } else {
-                Modifier.fillMaxSize()
-            }
             SafeRemoteImage(
                 url = coverUri,
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
-                modifier = imageModifier,
+                modifier = Modifier.fillMaxSize(),
                 placeholder = { BannerPlaceholder() },
                 errorContent = { BannerPlaceholder(failed = true) }
             )

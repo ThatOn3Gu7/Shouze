@@ -1,8 +1,5 @@
 package com.app.shouze.ui.components
 
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -27,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
   fun MediaCardItem(
     item: MediaItemEntity,
@@ -36,8 +33,6 @@ import com.app.shouze.data.local.Status
     onLongClick: (() -> Unit)? = null,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier
 ) {
     val view = androidx.compose.ui.platform.LocalView.current
@@ -66,22 +61,10 @@ import com.app.shouze.data.local.Status
                 modifier = Modifier.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val sharedKey = "cover-${item.id}"
-                val thumbnailModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
-                    with(sharedTransitionScope) {
-                        Modifier.width(68.dp).sharedBounds(
-                            rememberSharedContentState(key = sharedKey),
-                            animatedVisibilityScope = animatedVisibilityScope,
-                            boundsTransform = { _, _ -> androidx.compose.animation.core.tween(400) }
-                        )
-                    }
-                } else {
-                    Modifier.width(68.dp)
-                }
                 PosterThumbnail(
                     coverUri = item.coverImageUri,
                     title = item.title,
-                    modifier = thumbnailModifier
+                    modifier = Modifier.width(68.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {

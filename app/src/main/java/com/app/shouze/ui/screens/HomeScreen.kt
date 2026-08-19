@@ -9,9 +9,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.*
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -96,7 +93,6 @@ import kotlinx.coroutines.isActive
 
 @OptIn(
     ExperimentalMaterial3Api::class,
-    ExperimentalSharedTransitionApi::class,
     ExperimentalFoundationApi::class
 )
 @Composable
@@ -124,9 +120,7 @@ fun HomeScreen(
     allTags: List<String> = emptyList(),
     selectedTag: String? = null,
     onTagSelected: (String?) -> Unit = {},
-    onClearFilters: () -> Unit = {},
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedVisibilityScope: AnimatedVisibilityScope? = null
+    onClearFilters: () -> Unit = {}
 ) {
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
@@ -676,8 +670,6 @@ fun HomeScreen(
                             },
                             isSelected = item.id in uiState.selectedIds,
                             isSelectionMode = isSelectionMode,
-                            sharedTransitionScope = sharedTransitionScope,
-                            animatedVisibilityScope = animatedVisibilityScope,
                             modifier = Modifier.animateItem()
                         )
                     }
