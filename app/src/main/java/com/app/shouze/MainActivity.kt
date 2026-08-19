@@ -372,6 +372,14 @@ class MainActivity : ComponentActivity() {
                                 onAddToLibrary = { schedule ->
                                     val item = viewModel.createItemFromAiringSchedule(schedule)
                                     viewModel.addOrUpdate(item)
+                                    val addedTitle = schedule.media.title.english
+                                        ?: schedule.media.title.romaji
+                                        ?: "Unknown"
+                                    android.widget.Toast.makeText(
+                                        applicationContext,
+                                        "Added \"$addedTitle\" to your library",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             )
                         }
