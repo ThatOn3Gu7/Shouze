@@ -50,6 +50,9 @@ private fun NavHostController.navigateToTab(route: String) {
     }
 }
 
+private val TAB_ROUTES = listOf("home", "airing", "search", "profile")
+private fun tabIndex(route: String?): Int = TAB_ROUTES.indexOf(route)
+
 class MainActivity : ComponentActivity() {
     private val shortcutActions = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
 
@@ -142,19 +145,55 @@ class MainActivity : ComponentActivity() {
                             startDestination = if (settings.hasSeenOnboarding) "home" else "onboarding",
                             modifier = Modifier.padding(innerPadding),
                             enterTransition = {
-                                fadeIn(animationSpec = tween(300)) +
-                                    slideInHorizontally(animationSpec = tween(300)) { it }
+                                val fromIdx = tabIndex(initialState.destination.route)
+                                val toIdx = tabIndex(targetState.destination.route)
+                                if (fromIdx != -1 && toIdx != -1) {
+                                    if (toIdx > fromIdx) {
+                                        fadeIn(animationSpec = tween(300)) +
+                                            slideInHorizontally(animationSpec = tween(300)) { it }
+                                    } else {
+                                        fadeIn(animationSpec = tween(300)) +
+                                            slideInHorizontally(animationSpec = tween(300)) { -it }
+                                    }
+                                } else {
+                                    fadeIn(animationSpec = tween(300)) +
+                                        slideInHorizontally(animationSpec = tween(300)) { it }
+                                }
                             },
                             exitTransition = {
-                                fadeOut(animationSpec = tween(120))
+                                val fromIdx = tabIndex(initialState.destination.route)
+                                val toIdx = tabIndex(targetState.destination.route)
+                                if (fromIdx != -1 && toIdx != -1) {
+                                    if (toIdx > fromIdx) {
+                                        fadeOut(animationSpec = tween(120)) +
+                                            slideOutHorizontally(animationSpec = tween(300)) { -it }
+                                    } else {
+                                        fadeOut(animationSpec = tween(120)) +
+                                            slideOutHorizontally(animationSpec = tween(300)) { it }
+                                    }
+                                } else {
+                                    fadeOut(animationSpec = tween(120))
+                                }
                             },
                             popEnterTransition = {
                                 fadeIn(animationSpec = tween(300)) +
                                     slideInHorizontally(animationSpec = tween(300)) { -it }
                             },
                             popExitTransition = {
-                                fadeOut(animationSpec = tween(120)) +
-                                    slideOutHorizontally(animationSpec = tween(300)) { it }
+                                val fromIdx = tabIndex(initialState.destination.route)
+                                val toIdx = tabIndex(targetState.destination.route)
+                                if (fromIdx != -1 && toIdx != -1) {
+                                    if (toIdx > fromIdx) {
+                                        fadeOut(animationSpec = tween(120)) +
+                                            slideOutHorizontally(animationSpec = tween(300)) { -it }
+                                    } else {
+                                        fadeOut(animationSpec = tween(120)) +
+                                            slideOutHorizontally(animationSpec = tween(300)) { it }
+                                    }
+                                } else {
+                                    fadeOut(animationSpec = tween(120)) +
+                                        slideOutHorizontally(animationSpec = tween(300)) { it }
+                                }
                             }
                         ) {
                         composable("onboarding") {

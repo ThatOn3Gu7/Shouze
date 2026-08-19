@@ -23,6 +23,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -59,6 +61,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -89,6 +92,7 @@ import com.app.shouze.ui.components.rememberTooltipPositionProvider
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.sin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 @OptIn(
@@ -567,8 +571,8 @@ fun HomeScreen(
                 }
 
                 if (uiState.upNextItems.isNotEmpty()) {
-                    item(key = "upnext") {
-                        UpNextMarquee(
+                    item(key = "continuewatching") {
+                        ContinueWatchingCarousel(
                             items = uiState.upNextItems,
                             categories = uiState.categories,
                             onItemClick = onItemClick
@@ -853,45 +857,26 @@ private fun statusBulkIcon(status: Status): ImageVector = when (status) {
     Status.PLAN_TO_WATCH -> Icons.Rounded.Schedule
 }
 
-private const val MAX_MARQUEE_ITEMS = 12
+private const val CAROUSEL_AUTO_ADVANCE_MS = 4000L
 
 @Composable
-private fun UpNextMarquee(
+private fun ContinueWatchingCarousel(
     items: List<MediaItemEntity>,
     categories: List<com.app.shouze.data.local.CategoryEntity>,
     onItemClick: (MediaItemEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val density = LocalDensity.current
-    val marqueeItems = items.take(MAX_MARQUEE_ITEMS)
-    val cardWidth = 124.dp
-    val spacing = 12.dp
-    val cardWidthPx = with(density) { cardWidth.toPx() }
-    val spacingPx = with(density) { spacing.toPx() }
-    val setWidthPx = marqueeItems.size * (cardWidthPx + spacingPx)
-    val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
-    
-    val paddingPx = with(density) { 48.dp.toPx() }
-    val contentWidthWithPadding = setWidthPx - spacingPx + paddingPx
-    val shouldLoop = contentWidthWithPadding > screenWidthPx
-    
-    val repeats = if (shouldLoop) {
-        maxOf(2, ceil(screenWidthPx / setWidthPx).toInt() + 1)
-    } else 1
-
-    var offsetPx by rememberSaveable(marqueeItems.size) { mutableFloatStateOf(0f) }
-    var pressed by remember { mutableStateOf(false) }
-
-    LaunchedEffect(marqueeItems.size, setWidthPx, shouldLoop) {
-        if (!shouldLoop) return@LaunchedEffect
-        val speedPxPerSecond = with(density) { 55.dp.toPx() }
-        var lastNanos = withFrameNanos { it }
+    val loopable = items.size > 1
+    val pagerState = rememberPagerState(pageCount = { if (loopable) Int.MAX_VALUE else items.size })
+    LaunchedEffect(loopable) {
+        if (loopable) pagerState.scrollToPage(Int.MAX_VALUE / 2)
+    }
+    LaunchedEffect(pagerState, loopable) {
+        if (!loopable) return@LaunchedEffect
         while (isActive) {
-            val now = withFrameNanos { it }
-            val dtSeconds = ((now - lastNanos).coerceIn(0L, 100_000_000L)) / 1e9f
-            lastNanos = now
-            if (!pressed) {
-                offsetPx = (offsetPx + dtSeconds * speedPxPerSecond) % setWidthPx
+            delay(CAROUSEL_AUTO_ADVANCE_MS)
+            if (!pagerState.isScrollInProgress) {
+                pagerState.animateScrollToPage(pagerState.currentPage + 1)
             }
         }
     }
@@ -911,7 +896,7 @@ private fun UpNextMarquee(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Up Next",
+                text = "Continue watching",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -926,62 +911,25 @@ private fun UpNextMarquee(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clipToBounds()
-                .then(
-                    if (shouldLoop) {
-                        Modifier.pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    pressed = awaitPointerEvent().changes.any { it.pressed }
-                                }
-                            }
-                        }
-                    } else {
-                        Modifier
-                    }
-                )
-        ) {
-            Row(
-                modifier = Modifier
-                    .then(
-                        if (shouldLoop) {
-                            Modifier
-                                .wrapContentWidth(unbounded = true, align = Alignment.Start)
-                                .graphicsLayer { translationX = -offsetPx }
-                        } else {
-                            Modifier
-                        }
-                    )
-                    .then(
-                        if (!shouldLoop) {
-                            Modifier.padding(horizontal = 24.dp)
-                        } else {
-                            Modifier
-                        }
-                    ),
-                horizontalArrangement = Arrangement.spacedBy(spacing)
-            ) {
-                repeat(repeats) {
-                    marqueeItems.forEach { item ->
-                        UpNextTinyCard(
-                            item = item,
-                            categoryName = categories.find { it.id == item.categoryId }?.name ?: "Unknown",
-                            onClick = { onItemClick(item) },
-                            modifier = Modifier.requiredWidth(cardWidth)
-                        )
-                    }
-                }
-            }
+        HorizontalPager(
+            state = pagerState,
+            contentPadding = PaddingValues(start = 24.dp, end = 64.dp),
+            pageSpacing = 12.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) { page ->
+            val item = items[page % items.size]
+            ContinueWatchingCard(
+                item = item,
+                categoryName = categories.find { it.id == item.categoryId }?.name ?: "Unknown",
+                onClick = { onItemClick(item) }
+            )
         }
         Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
 @Composable
-private fun UpNextTinyCard(
+private fun ContinueWatchingCard(
     item: MediaItemEntity,
     categoryName: String,
     onClick: () -> Unit,
@@ -996,33 +944,41 @@ private fun UpNextTinyCard(
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column {
+        Box(modifier = Modifier.aspectRatio(16f / 9f)) {
+            if (!item.coverImageUri.isNullOrBlank()) {
+                SafeRemoteImage(
+                    url = item.coverImageUri,
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    placeholder = { TinyImagePlaceholder() },
+                    errorContent = { TinyImagePlaceholder(failed = true) }
+                )
+            } else {
+                TinyImagePlaceholder()
+            }
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2f / 3f)
-            ) {
-                if (!item.coverImageUri.isNullOrBlank()) {
-                    SafeRemoteImage(
-                        url = item.coverImageUri,
-                        contentDescription = item.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                        placeholder = { TinyImagePlaceholder() },
-                        errorContent = { TinyImagePlaceholder(failed = true) }
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.5f to Color.Transparent,
+                            1f to Color.Black.copy(alpha = 0.7f)
+                        )
                     )
-                } else {
-                    TinyImagePlaceholder()
-                }
-            }
-            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
+            ) {
                 Text(
                     text = item.title,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -1031,7 +987,17 @@ private fun UpNextTinyCard(
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                val fraction = if (item.totalCount > 0) {
+                    (item.currentProgress.toFloat() / item.totalCount).coerceIn(0f, 1f)
+                } else 0f
+                LinearProgressIndicator(
+                    progress = { fraction },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = Color.White.copy(alpha = 0.3f)
                 )
             }
         }
