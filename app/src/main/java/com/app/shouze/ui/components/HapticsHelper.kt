@@ -10,7 +10,10 @@ import android.view.View
 object HapticsHelper {
     fun performSelectionHaptic(view: View) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            view.performHapticFeedback(HapticFeedbackConstants.GESTURE_START)
+            view.performHapticFeedback(
+                HapticFeedbackConstants.GESTURE_START,
+                HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+            )
         } else {
             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }
@@ -18,7 +21,10 @@ object HapticsHelper {
 
     fun performConfirmHaptic(view: View) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+            view.performHapticFeedback(
+                HapticFeedbackConstants.CONFIRM,
+                HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+            )
         } else {
             view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         }
@@ -26,7 +32,10 @@ object HapticsHelper {
 
     fun performDeleteHaptic(view: View) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            view.performHapticFeedback(HapticFeedbackConstants.REJECT)
+            view.performHapticFeedback(
+                HapticFeedbackConstants.REJECT,
+                HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+            )
         } else {
             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }

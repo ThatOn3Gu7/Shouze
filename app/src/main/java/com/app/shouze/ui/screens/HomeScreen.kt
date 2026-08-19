@@ -65,7 +65,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -74,7 +73,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -154,7 +152,9 @@ fun HomeScreen(
         }
     }
 
-    var selectedItem by remember { mutableStateOf<MediaItemEntity?>(null) }
+    var deletePending by remember { mutableStateOf<MediaItemEntity?>(null) }
+    var confirmBulkDelete by remember { mutableStateOf(false) }
+    val hapticView = androidx.compose.ui.platform.LocalView.current
     val isSelectionMode = uiState.isSelectionMode
     val selectedCount = uiState.selectedIds.size
     var showBulkMenu by remember { mutableStateOf(false) }
@@ -199,40 +199,6 @@ fun HomeScreen(
     }
 
     Scaffold(
-        bottomBar = {
-            if (!isSelectionMode) {
-                val sel = selectedItem
-                if (sel != null) {
-                    BottomAppBar(
-                        actions = {
-                            IconButton(onClick = { onEditItem(sel); selectedItem = null }) {
-                                Icon(Icons.Rounded.Edit, contentDescription = "Edit")
-                            }
-                            IconButton(onClick = { onToggleFavorite(sel); selectedItem = null }) {
-                                Icon(
-                                    imageVector = if (sel.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                                    contentDescription = if (sel.isFavorite) "Unfavorite" else "Favorite",
-                                    tint = if (sel.isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            IconButton(
-                                onClick = { onDeleteItem(sel); selectedItem = null }
-                            ) {
-                                Icon(Icons.Rounded.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
-                            }
-                        },
-                        floatingActionButton = {
-                            FloatingActionButton(
-                                onClick = { selectedItem = null },
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Close")
-                            }
-                        }
-                    )
-                }
-            }
-        },
         topBar = {
             if (isSelectionMode) {
                 CenterAlignedTopAppBar(
@@ -244,7 +210,10 @@ fun HomeScreen(
                         ) 
                     },
                     navigationIcon = {
-                        IconButton(onClick = onClearSelection) {
+                        IconButton(onClick = {
+                            com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(hapticView)
+                            onClearSelection()
+                        }) {
                             Icon(
                                 imageVector = Icons.Rounded.Close, 
                                 contentDescription = "Cancel",
@@ -256,7 +225,10 @@ fun HomeScreen(
                         containerColor = Color.Transparent
                     ),
                     actions = {
-                        TextButton(onClick = onSelectAll) {
+                        TextButton(onClick = {
+                            com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(hapticView)
+                            onSelectAll()
+                        }) {
                             Icon(
                                 imageVector = Icons.Rounded.DoneAll,
                                 contentDescription = null,
@@ -289,6 +261,7 @@ fun HomeScreen(
                                                     )
                                                 },
                                                 onClick = {
+                                                    com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(hapticView)
                                                     onBulkChangeStatus(status)
                                                     showBulkMenu = false
                                                     bulkMenuLevel = 0
@@ -301,6 +274,7 @@ fun HomeScreen(
                                             DropdownMenuItem(
                                                 text = { Text(cat.name, fontWeight = FontWeight.Medium) },
                                                 onClick = {
+                                                    com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(hapticView)
                                                     onBulkChangeCategory(cat.id)
                                                     showBulkMenu = false
                                                     bulkMenuLevel = 0
@@ -314,7 +288,10 @@ fun HomeScreen(
                                             leadingIcon = {
                                                 Icon(Icons.Rounded.PlayArrow, contentDescription = null)
                                             },
-                                            onClick = { bulkMenuLevel = 1 }
+                                            onClick = {
+                                                com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(hapticView)
+                                                bulkMenuLevel = 1
+                                            }
                                         )
                                         DropdownMenuItem(
                                             text = { Text("Toggle Favorite", fontWeight = FontWeight.Medium) },
@@ -322,6 +299,7 @@ fun HomeScreen(
                                                 Icon(Icons.Rounded.Star, contentDescription = null)
                                             },
                                             onClick = {
+                                                com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(hapticView)
                                                 onBulkToggleFavorite()
                                                 showBulkMenu = false
                                             }
@@ -331,7 +309,10 @@ fun HomeScreen(
                                             leadingIcon = {
                                                 Icon(Icons.Rounded.MovieFilter, contentDescription = null)
                                             },
-                                            onClick = { bulkMenuLevel = 2 }
+                                            onClick = {
+                                                com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(hapticView)
+                                                bulkMenuLevel = 2
+                                            }
                                         )
                                         DropdownMenuItem(
                                             text = { Text("Delete", fontWeight = FontWeight.Medium) },
@@ -343,8 +324,10 @@ fun HomeScreen(
                                                 )
                                             },
                                             onClick = {
-                                                onBulkDelete()
+                                                com.app.shouze.ui.components.HapticsHelper.performDeleteHaptic(hapticView)
                                                 showBulkMenu = false
+                                                bulkMenuLevel = 0
+                                                confirmBulkDelete = true
                                             }
                                         )
                                     }
@@ -713,6 +696,87 @@ fun HomeScreen(
             }
         }
     }
+
+    val pending = deletePending
+    if (pending != null) {
+        AlertDialog(
+            onDismissRequest = { deletePending = null },
+            title = {
+                Text(
+                    text = "Delete item?",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Text(
+                    text = "This will permanently remove '${pending.title}' from your library.",
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        com.app.shouze.ui.components.HapticsHelper.performDeleteHaptic(hapticView)
+                        onDeleteItem(pending)
+                        deletePending = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text("Delete", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletePending = null }) {
+                    Text("Cancel", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    if (confirmBulkDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmBulkDelete = false },
+            title = {
+                Text(
+                    text = "Delete items?",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Text(
+                    text = "This will permanently remove ${uiState.selectedIds.size} item(s) from your library.",
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        com.app.shouze.ui.components.HapticsHelper.performDeleteHaptic(hapticView)
+                        onBulkDelete()
+                        confirmBulkDelete = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text("Delete", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmBulkDelete = false }) {
+                    Text("Cancel", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
 }
 
 // Gives FilterChips a smooth bounce effect when selected
@@ -784,12 +848,12 @@ private fun AnimatedFab(
     val corner = lerp(16.dp, fabSize / 2, collapseE)
     val alpha = 1f - exitE
 
-    val haptics = LocalHapticFeedback.current
+    val viewForHaptic = androidx.compose.ui.platform.LocalView.current
     val hidden = exit >= 0.99f
     var wasHidden by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(hidden) {
         if (wasHidden != null && wasHidden != hidden) {
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(viewForHaptic)
         }
         wasHidden = hidden
     }
