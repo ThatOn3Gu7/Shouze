@@ -24,7 +24,7 @@ object UpdateScheduler {
                 workManager.cancelUniqueWork(UNIQUE_WORK)
                 workManager.enqueueUniqueWork(
                     UNIQUE_WORK,
-                    ExistingWorkPolicy.REPLACE,
+                    ExistingWorkPolicy.KEEP,
                     OneTimeWorkRequestBuilder<UpdateCheckWorker>()
                         .setConstraints(networkConstraint)
                         .build()

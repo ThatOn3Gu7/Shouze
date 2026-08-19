@@ -19,7 +19,7 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : CoroutineW
 
     override suspend fun doWork(): Result {
         val current = currentVersionName(applicationContext) ?: return Result.success()
-        val latest = fetchLatestRelease() ?: return Result.retry()
+        val latest = fetchLatestRelease() ?: return Result.failure()
         if (!isNewerVersion(latest.tag, current)) return Result.success()
         val settings = SettingsRepository(applicationContext)
         if (latest.tag == settings.lastNotifiedVersion) return Result.success()
@@ -45,9 +45,11 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : CoroutineW
         val context = applicationContext
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "App updates", NotificationManager.IMPORTANCE_DEFAULT)
-            )
+            if (nm.getNotificationChannel(CHANNEL_ID) == null) {
+                nm.createNotificationChannel(
+                    NotificationChannel(CHANNEL_ID, "App updates", NotificationManager.IMPORTANCE_DEFAULT)
+                )
+            }
         }
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(release.htmlUrl))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

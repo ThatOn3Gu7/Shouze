@@ -154,7 +154,6 @@ fun HomeScreen(
         }
     }
 
-    var deletePending by remember { mutableStateOf<MediaItemEntity?>(null) }
     var confirmBulkDelete by remember { mutableStateOf(false) }
     val hapticView = androidx.compose.ui.platform.LocalView.current
     val isSelectionMode = uiState.isSelectionMode
@@ -266,7 +265,7 @@ fun HomeScreen(
                                             },
                                             onClick = { bulkMenuLevel = 0 }
                                         )
-                                        Status.values().forEach { status ->
+                                        Status.entries.forEach { status ->
                                             DropdownMenuItem(
                                                 text = { Text(status.name.replace("_", " "), fontWeight = FontWeight.Medium) },
                                                 leadingIcon = {
@@ -725,47 +724,6 @@ fun HomeScreen(
                 }
             }
         }
-    }
-
-    val pending = deletePending
-    if (pending != null) {
-        AlertDialog(
-            onDismissRequest = { deletePending = null },
-            title = {
-                Text(
-                    text = "Delete item?",
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            },
-            text = {
-                Text(
-                    text = "This will permanently remove '${pending.title}' from your library.",
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        com.app.shouze.ui.components.HapticsHelper.performDeleteHaptic(hapticView)
-                        onDeleteItem(pending)
-                        deletePending = null
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                ) {
-                    Text("Delete", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { deletePending = null }) {
-                    Text("Cancel", fontWeight = FontWeight.Bold)
-                }
-            }
-        )
     }
 
     if (confirmBulkDelete) {

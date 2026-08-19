@@ -49,7 +49,7 @@ class DataSyncController(private val db: AppDatabase) {
 
     private val json = Json {
         ignoreUnknownKeys = true
-        prettyPrint = false
+        prettyPrint = true
     }
 
     suspend fun exportToJson(): Result<String> {

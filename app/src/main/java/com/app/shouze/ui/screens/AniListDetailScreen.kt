@@ -202,7 +202,6 @@ fun AniListDetailScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             val coverUrl = media.coverImage?.large
-                ?: media.coverImage?.large
                 ?: media.coverImage?.medium
 
             // Use coverUrl as banner fallback (bannerImage may not be available)

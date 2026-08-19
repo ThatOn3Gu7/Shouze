@@ -223,7 +223,10 @@ class MainActivity : ComponentActivity() {
                             if (media != null) {
                                 AniListDetailScreen(
                                     media = media,
-                                    onBack = { navController.popBackStack() },
+                                    onBack = {
+                                        viewModel.clearSelectedAniListMedia()
+                                        navController.popBackStack()
+                                    },
                                     onAdd = { m, status ->
                                         viewModel.addOrUpdate(
                                             viewModel.createItemFromAniList(m, status)
@@ -332,7 +335,7 @@ class MainActivity : ComponentActivity() {
                             CategoriesScreen(
                                 categories = uiState.categories,
                                 onBack = { navController.popBackStack() },
-                                onAddCategory = viewModel::addCategory,
+                                onAddCategory = { name, color -> viewModel.addCategory(name, color) },
                                 onDeleteCategory = viewModel::deleteCategory
                             )
                         }

@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.CategoryEntity
 import com.app.shouze.data.local.MediaItemEntity
+import com.app.shouze.data.local.Status
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,7 +118,7 @@ fun ShareListScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "${items.count { it.status.name == "COMPLETED" }} completed",
+                        text = "${items.count { it.status == Status.COMPLETED }} completed",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)

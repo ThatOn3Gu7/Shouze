@@ -54,7 +54,7 @@ fun ProfileScreen(
 
     val context = LocalContext.current
     val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
+        contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri ->
             uri?.let {
                 try {
@@ -352,7 +352,7 @@ fun ProfileScreen(
 
                     TextButton(onClick = {
                         showPictureDialog = false
-                        galleryLauncher.launch("image/*")
+                        galleryLauncher.launch(arrayOf("image/*"))
                     }) { Text("From Gallery") }
 
                     if (!profilePictureUri.isNullOrBlank()) {

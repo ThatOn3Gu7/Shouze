@@ -107,8 +107,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val _streamingUiState = MutableStateFlow(StreamingUiState())
     val streamingUiState: StateFlow<StreamingUiState> = _streamingUiState.asStateFlow()
 
-    private var pendingPreFill: MediaItemEntity? = null
-
     val statsUiState: StateFlow<StatsUiState> = combine(
         dao.getAllItems(),
         categoryDao.getAll()
@@ -122,7 +120,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             fetchTrendingNow()
-            preloadTrendingCovers()
         }
     }
 
@@ -257,9 +254,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(selectedIds = emptySet(), isSelectionMode = false) }
     }
 
-    fun addCategory(name: String) {
+    fun addCategory(name: String, colorHex: String? = null) {
         viewModelScope.launch {
-            categoryDao.insert(CategoryEntity(name = name.trim()))
+            categoryDao.insert(CategoryEntity(name = name.trim(), colorHex = colorHex))
         }
     }
 
@@ -437,6 +434,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         result.fold(
             onSuccess = { media ->
                 _searchUiState.update { it.copy(trending = media, isTrendingLoading = false) }
+                preloadTrendingCovers()
             },
             onFailure = { e ->
                 _searchUiState.update {
@@ -611,21 +609,15 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setPendingPreFill(item: MediaItemEntity?) {
-        pendingPreFill = item
-    }
-
-    fun consumePendingPreFill(): MediaItemEntity? {
-        val item = pendingPreFill
-        pendingPreFill = null
-        return item
-    }
-
     var selectedAniListMedia: AniListMedia? = null
         private set
 
     fun selectAniListMedia(media: AniListMedia) {
         selectedAniListMedia = media
+    }
+
+    fun clearSelectedAniListMedia() {
+        selectedAniListMedia = null
     }
 
     fun createItemFromAniList(
@@ -803,18 +795,18 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 csv.appendLine("id,title,categoryId,status,currentProgress,totalCount,currentVolume,rating,coverImageUri,genres,tags,notes,rewatchCount,startDate,endDate,lastUpdated")
                 items.forEach { item ->
                     val row = listOf(
-                        item.id,
-                        "\"${item.title.replace("\"", "\"\"")}\"",
-                        item.categoryId,
-                        item.status.name,
+                        item.id.sanitizeCsv(),
+                        item.title.sanitizeCsv(),
+                        item.categoryId.sanitizeCsv(),
+                        item.status.name.sanitizeCsv(),
                         item.currentProgress,
                         item.totalCount,
                         item.currentVolume ?: "",
                         item.rating,
-                        item.coverImageUri ?: "",
-                        "\"${item.genres.joinToString(", ")}\"",
-                        "\"${item.tags.joinToString(", ")}\"",
-                        "\"${item.notes.replace("\"", "\"\"").replace("\n", " ")}\"",
+                        item.coverImageUri?.sanitizeCsv() ?: "",
+                        item.genres.joinToString(", ").sanitizeCsv(),
+                        item.tags.joinToString(", ").sanitizeCsv(),
+                        item.notes.replace("\n", " ").sanitizeCsv(),
                         item.rewatchCount,
                         item.startDate ?: "",
                         item.endDate ?: "",
@@ -842,7 +834,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     it.bufferedReader().readText()
                 } ?: return@launch showMessage("Failed to read XML file", isError = true)
 
-                val items = parseMalXml(xml)
+                val items = withContext(Dispatchers.Default) { parseMalXml(xml) }
                 if (items.isEmpty()) {
                     showMessage("No valid entries found in XML", isError = true)
                     return@launch
@@ -1071,3 +1063,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 private const val SEARCH_HISTORY_PREFS = "search_history"
 private const val SEARCH_HISTORY_KEY = "history_list"
 private const val MAX_SEARCH_HISTORY = 10
+
+private fun String.sanitizeCsv(): String {
+    val sanitized = this.replace("\"", "\"\"")
+    return if (sanitized.startsWith("=") || sanitized.startsWith("+") || sanitized.startsWith("-") || sanitized.startsWith("@") || sanitized.startsWith("\t") || sanitized.startsWith("\r")) {
+        "'$sanitized"
+    } else {
+        "\"$sanitized\""
+    }
+}

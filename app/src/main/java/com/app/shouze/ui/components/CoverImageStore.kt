@@ -10,10 +10,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Request
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import java.security.MessageDigest
 
 object CoverImageStore {
@@ -40,14 +39,14 @@ object CoverImageStore {
 
     private val failedUrls = LinkedHashMap<String, Unit>()
 
+    private val lock = Any()
     @Volatile
     private var initialized = false
     private var diskDir: File? = null
     private var statusPrefs: SharedPreferences? = null
 
     fun init(context: Context) {
-        if (initialized) return
-        synchronized(this) {
+        synchronized(lock) {
             if (initialized) return
             val dir = File(context.filesDir, "cover_cache")
             dir.mkdirs()
@@ -147,23 +146,17 @@ object CoverImageStore {
 
     private suspend fun fetchBytes(url: String): ByteArray? = withContext(Dispatchers.IO) {
         try {
-            val connection = URL(url).openConnection() as? HttpURLConnection ?: return@withContext null
-            connection.connectTimeout = CONNECT_TIMEOUT_MS
-            connection.readTimeout = READ_TIMEOUT_MS
-            connection.setRequestProperty("User-Agent", "Shouze/1.2")
-            try {
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                    null
-                } else {
-                    connection.inputStream.use { input ->
-                        ByteArrayOutputStream().use { output ->
-                            input.copyTo(output)
-                            if (output.size() > MAX_DOWNLOAD_BYTES) null else output.toByteArray()
-                        }
-                    }
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Shouze/1.2")
+                .build()
+            com.app.shouze.data.remote.NetworkModule.okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body ?: return@withContext null
+                ByteArrayOutputStream().use { output ->
+                    body.byteStream().copyTo(output)
+                    if (output.size() > MAX_DOWNLOAD_BYTES) null else output.toByteArray()
                 }
-            } finally {
-                runCatching { connection.disconnect() }
             }
         } catch (t: Throwable) {
             null

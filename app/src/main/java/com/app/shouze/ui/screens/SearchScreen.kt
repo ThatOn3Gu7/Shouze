@@ -113,7 +113,7 @@ fun SearchScreen(
         else uiState.trending.filter { it.genres?.contains(selectedGenre) == true }
     }
 
-    var trendingLoadedOnce by rememberSaveable { mutableStateOf(false) }
+    var trendingLoadedOnce by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         if (!trendingLoadedOnce) {

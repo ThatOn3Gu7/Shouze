@@ -133,7 +133,7 @@ private data class AniListError(
 )
 
 class AniListApi {
-    private val client = OkHttpClient()
+    private val client = NetworkModule.okHttpClient
     private val json = Json { ignoreUnknownKeys = true }
 
     private fun httpError(response: okhttp3.Response): IOException {

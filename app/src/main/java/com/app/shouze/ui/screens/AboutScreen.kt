@@ -57,7 +57,6 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val APP_VERSION = "6.5.0"
 private const val FEEDBACK_EMAIL = "recoveringdotcom@gmail.com"
 
 // Expanded UpdateState to hold release notes and the direct APK URL
@@ -211,8 +210,9 @@ fun AboutScreen(
 
             Spacer(modifier = Modifier.height(4.dp))
 
+            val versionName = currentVersionName(context) ?: "Unknown"
             Text(
-                text = "Version $APP_VERSION",
+                text = "Version $versionName",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -399,7 +399,6 @@ fun AboutScreen(
                     "Room (SQLite) — Apache-2.0",
                     "OkHttp — Apache-2.0",
                     "kotlinx.serialization — Apache-2.0",
-                    "Coil (cover images) — Apache-2.0",
                     "WorkManager — Apache-2.0",
                     "AniList GraphQL API — data source"
                 )

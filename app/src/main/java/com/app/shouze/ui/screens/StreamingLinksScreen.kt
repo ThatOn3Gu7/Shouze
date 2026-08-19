@@ -33,7 +33,7 @@ fun StreamingLinksScreen(
 ) {
     val context = LocalContext.current
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(title) {
         onLoad()
     }
 

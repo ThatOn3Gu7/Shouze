@@ -48,7 +48,7 @@ private val CATEGORY_COLOR_PALETTE = listOf(
 fun CategoriesScreen(
     categories: List<CategoryEntity>,
     onBack: () -> Unit,
-    onAddCategory: (String) -> Unit,
+    onAddCategory: (String, String) -> Unit,
     onDeleteCategory: (String) -> Unit
 ) {
     var newCategoryName by remember { mutableStateOf("") }
@@ -150,7 +150,7 @@ fun CategoriesScreen(
                                         onClick = {
                                             val trimmed = newCategoryName.trim()
                                             if (trimmed.isNotBlank()) {
-                                                onAddCategory(trimmed)
+                                                onAddCategory(trimmed, selectedColorHex)
                                                 newCategoryName = ""
                                             }
                                         }
@@ -223,7 +223,7 @@ fun CategoriesScreen(
                             onClick = {
                                 val trimmed = newCategoryName.trim()
                                 if (trimmed.isNotBlank()) {
-                                    onAddCategory(trimmed)
+                                    onAddCategory(trimmed, selectedColorHex)
                                     newCategoryName = ""
                                 }
                             },
