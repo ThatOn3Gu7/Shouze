@@ -51,6 +51,9 @@ import com.app.shouze.data.currentVersionName
 import com.app.shouze.data.fetchLatestRelease
 import com.app.shouze.data.isNewerVersion
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -128,6 +131,31 @@ fun AboutScreen(
                 UpdateState.UpToDate
             }
         }
+    }
+
+    // Fetch installation info and version code
+    val packageInfo = remember {
+        runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0)
+        }.getOrNull()
+    }
+
+    val installDateStr = remember(packageInfo) {
+        packageInfo?.firstInstallTime?.let { time ->
+            if (time > 0) {
+                SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(time))
+            } else "Unknown"
+        } ?: "Unknown"
+    }
+
+    val versionCodeStr = remember(packageInfo) {
+        packageInfo?.let { info ->
+            if (Build.VERSION.SDK_INT >= 28) {
+                info.longVersionCode.toString()
+            } else {
+                info.versionCode.toString()
+            }
+        } ?: "?"
     }
 
     Scaffold(
@@ -208,6 +236,7 @@ fun AboutScreen(
                 )
             ) {
                 Column {
+                    // --- Existing rows ---
                     AboutRow(
                         icon = Icons.Default.NewReleases,
                         title = "Updates & Settings",
@@ -266,6 +295,16 @@ fun AboutScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
                     )
                     AboutRow(
+                        icon = Icons.Default.Code,
+                        title = "GitHub Repository",
+                        subtitle = "View source code",
+                        onClick = { openUrl(context, "https://github.com/$GITHUB_REPO") }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                    )
+                    AboutRow(
                         icon = Icons.Default.Person,
                         title = "About the Developer",
                         subtitle = "Story, projects & how to connect",
@@ -280,6 +319,28 @@ fun AboutScreen(
                         title = "Licenses",
                         subtitle = "Open-source libraries used",
                         onClick = { showLicenses = true }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                    )
+                    AboutRow(
+                        icon = Icons.Default.DateRange,
+                        title = "Installed Date",
+                        subtitle = installDateStr,
+                        onClick = {},
+                        showArrow = false
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                    )
+                    AboutRow(
+                        icon = Icons.Default.Tag,
+                        title = "Version code",
+                        subtitle = versionCodeStr,
+                        onClick = {},
+                        showArrow = false
                     )
                 }
             }
@@ -737,13 +798,18 @@ private fun AboutRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    showArrow: Boolean = true
 ) {
     ListItem(
         headlineContent = { Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium) },
         supportingContent = { Text(text = subtitle, style = MaterialTheme.typography.bodyMedium) },
         leadingContent = { Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) },
-        trailingContent = { Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+        trailingContent = {
+            if (showArrow) {
+                Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
         modifier = Modifier.clickable(onClick = onClick),
         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
     )
