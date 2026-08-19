@@ -28,6 +28,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Block
@@ -251,6 +252,13 @@ fun HomeScreen(
                             ) {
                                 when (bulkMenuLevel) {
                                     1 -> {
+                                        DropdownMenuItem(
+                                            text = { Text("Back", fontWeight = FontWeight.Bold) },
+                                            leadingIcon = {
+                                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
+                                            },
+                                            onClick = { bulkMenuLevel = 0 }
+                                        )
                                         Status.values().forEach { status ->
                                             DropdownMenuItem(
                                                 text = { Text(status.name.replace("_", " "), fontWeight = FontWeight.Medium) },
@@ -270,6 +278,13 @@ fun HomeScreen(
                                         }
                                     }
                                     2 -> {
+                                        DropdownMenuItem(
+                                            text = { Text("Back", fontWeight = FontWeight.Bold) },
+                                            leadingIcon = {
+                                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
+                                            },
+                                            onClick = { bulkMenuLevel = 0 }
+                                        )
                                         uiState.categories.forEach { cat ->
                                             DropdownMenuItem(
                                                 text = { Text(cat.name, fontWeight = FontWeight.Medium) },
@@ -849,13 +864,13 @@ private fun AnimatedFab(
     val alpha = 1f - exitE
 
     val viewForHaptic = androidx.compose.ui.platform.LocalView.current
-    val hidden = exit >= 0.99f
-    var wasHidden by remember { mutableStateOf<Boolean?>(null) }
-    LaunchedEffect(hidden) {
-        if (wasHidden != null && wasHidden != hidden) {
+    val exiting = exit > 0f
+    var wasExiting by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(exiting) {
+        if (wasExiting != null && wasExiting != exiting) {
             com.app.shouze.ui.components.HapticsHelper.performConfirmHaptic(viewForHaptic)
         }
-        wasHidden = hidden
+        wasExiting = exiting
     }
 
     Surface(
