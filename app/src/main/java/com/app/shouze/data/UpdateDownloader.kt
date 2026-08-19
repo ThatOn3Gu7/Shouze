@@ -48,6 +48,13 @@ object UpdateDownloader {
             false
         }
     }
+fun findApkFiles(context: Context): List<File> {
+        val dir = context.getExternalFilesDir(null) ?: return emptyList()
+        return dir.listFiles { f -> f.isFile && f.extension.equals("apk", ignoreCase = true) }
+            ?.toList() ?: emptyList()
+    }
+
+    fun deleteApkFiles(files: List<File>): Int = files.count { it.delete() }
 }
 
 class DownloadReceiver : BroadcastReceiver() {

@@ -50,6 +50,7 @@ import com.app.shouze.data.UpdateScheduler
 import com.app.shouze.data.currentVersionName
 import com.app.shouze.data.fetchLatestRelease
 import com.app.shouze.data.isNewerVersion
+import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -379,6 +380,20 @@ private fun UpdateMenuContent(
     )
     var showFrequencyDropdown by remember { mutableStateOf(false) }
 
+    val appContext = LocalContext.current.applicationContext
+    var apkFilesToClean by remember { mutableStateOf<List<File>>(emptyList()) }
+    var showCleanupConfirm by remember { mutableStateOf(false) }
+
+    fun promptApkCleanup() {
+        val found = UpdateDownloader.findApkFiles(appContext)
+        if (found.isEmpty()) {
+            Toast.makeText(appContext, "No APK files to clean up", Toast.LENGTH_SHORT).show()
+        } else {
+            apkFilesToClean = found
+            showCleanupConfirm = true
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -510,11 +525,17 @@ private fun UpdateMenuContent(
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = onCheckForUpdates,
-                            modifier = Modifier.align(Alignment.End)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(checkLabel)
+                            TextButton(onClick = { promptApkCleanup() }) {
+                                Text("Clean up downloaded APKs")
+                            }
+                            Button(onClick = onCheckForUpdates) {
+                                Text(checkLabel)
+                            }
                         }
                     }
                 }
@@ -563,6 +584,46 @@ private fun UpdateMenuContent(
             }
         }
     }
+
+    if (showCleanupConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCleanupConfirm = false },
+            title = { Text("Clean up APK files?") },
+            text = {
+                val totalBytes = apkFilesToClean.sumOf { it.length() }
+                Column {
+                    Text("Found ${apkFilesToClean.size} APK file(s) totaling ${formatBytes(totalBytes)}:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    apkFilesToClean.forEach { file ->
+                        Text("• ${file.name}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val deleted = UpdateDownloader.deleteApkFiles(apkFilesToClean)
+                    showCleanupConfirm = false
+                    Toast.makeText(
+                        appContext,
+                        if (deleted == apkFilesToClean.size) "Deleted $deleted APK file(s)"
+                        else "Deleted $deleted of ${apkFilesToClean.size} APK file(s)",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCleanupConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1024L * 1024L -> String.format("%.1f MB", bytes / (1024f * 1024f))
+    bytes >= 1024L -> String.format("%.1f KB", bytes / 1024f)
+    else -> "$bytes B"
 }
 
 private fun openUrl(context: Context, url: String) {
