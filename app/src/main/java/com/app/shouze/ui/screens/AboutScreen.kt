@@ -400,7 +400,13 @@ fun AboutScreen(
                     "OkHttp — Apache-2.0",
                     "kotlinx.serialization — Apache-2.0",
                     "WorkManager — Apache-2.0",
-                    "AniList GraphQL API — data source"
+                    "AniList GraphQL API — data source",
+                    "DiceBear — MIT (Artwork by Lisa Wischofsky, CC BY 4.0)",
+                    "RoboHash — MIT (Robot/Monster/Cat avatars)",
+                    "Pravatar — Free to use (Portrait photos)",
+                    "Random User Generator — Open-source (Random photos)",
+                    "Jikan (MyAnimeList) — Open-source REST API",
+                    "waifu.im — Open-source anime image archive"
                 )
                 LazyColumn {
                     items(licenses.size) { index ->
