@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.CategoryEntity
 import com.app.shouze.ui.components.rememberTooltipPositionProvider
+import com.app.shouze.ui.components.AnimatedPageEntrance
 
 private val CATEGORY_COLOR_PALETTE = listOf(
     "#E57373", // Red
@@ -78,13 +79,12 @@ fun CategoriesScreen(
             )
         }
     ) { padding ->
-        Column(
+        AnimatedPageEntrance(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
 
             Card(

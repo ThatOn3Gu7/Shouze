@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.remote.ExternalLink
 import com.app.shouze.data.remote.StreamingEpisode
+import com.app.shouze.ui.components.AnimatedPageEntrance
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,7 +63,7 @@ fun StreamingLinksScreen(
             )
         }
     ) { padding ->
-        Column(
+        AnimatedPageEntrance(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()

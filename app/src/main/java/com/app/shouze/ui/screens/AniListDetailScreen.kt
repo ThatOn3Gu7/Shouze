@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.Status
 import com.app.shouze.data.remote.AniListMedia
 import com.app.shouze.ui.components.SafeRemoteImage
+import com.app.shouze.ui.components.EmphasizedDecelerate
 
 /**
  * Helper data class for Status UI configuration
@@ -86,6 +87,17 @@ fun AniListDetailScreen(
     val context = LocalContext.current
     var showStatusBottomSheet by remember { mutableStateOf(false) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
+
+    val heroScale by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(600, easing = EmphasizedDecelerate),
+        label = "heroScale"
+    )
+    val contentAlpha by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(500, delayMillis = 100, easing = EmphasizedDecelerate),
+        label = "contentAlpha"
+    )
 
     // Safe title resolution prioritize English -> Romaji -> Native
     val mainTitle = media.title.english?.ifBlank { null }
@@ -211,6 +223,10 @@ fun AniListDetailScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(280.dp)
+                    .graphicsLayer {
+                        scaleX = heroScale
+                        scaleY = heroScale
+                    }
             ) {
                 // Blurred Ambient Background Banner
                 if (!bannerUrl.isNullOrBlank()) {
@@ -340,7 +356,8 @@ fun AniListDetailScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = 20.dp)
+                    .graphicsLayer { alpha = contentAlpha },
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(

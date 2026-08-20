@@ -34,6 +34,7 @@ import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
 import com.app.shouze.ui.components.SafeRemoteImage
 import com.app.shouze.ui.components.rememberTooltipPositionProvider
+import com.app.shouze.ui.components.EmphasizedDecelerate
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -61,6 +62,22 @@ fun DetailScreen(
             name.contains("manga", ignoreCase = true)
     } ?: false
     val progressUnit = if (isLiterature) "Chapter" else "Episode"
+
+    val bannerScale by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(500, easing = EmphasizedDecelerate),
+        label = "bannerScale"
+    )
+    val contentAlpha by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(400, delayMillis = 150, easing = EmphasizedDecelerate),
+        label = "contentAlpha"
+    )
+    val contentOffset by animateFloatAsState(
+        targetValue = 0f,
+        animationSpec = tween(400, delayMillis = 150, easing = EmphasizedDecelerate),
+        label = "contentOffset"
+    )
 
     Scaffold(
         topBar = {
@@ -171,15 +188,22 @@ fun DetailScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            CoverBanner(
-                coverUri = item.coverImageUri,
-                title = item.title,
-                categoryName = category?.name ?: "Unknown",
-                status = item.status
-            )
+            Box(modifier = Modifier.graphicsLayer { scaleX = bannerScale; scaleY = bannerScale }) {
+                CoverBanner(
+                    coverUri = item.coverImageUri,
+                    title = item.title,
+                    categoryName = category?.name ?: "Unknown",
+                    status = item.status
+                )
+            }
 
             Column(
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+                modifier = Modifier
+                    .padding(horizontal = 24.dp, vertical = 20.dp)
+                    .graphicsLayer {
+                        alpha = contentAlpha
+                        translationY = contentOffset * 20f
+                    },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

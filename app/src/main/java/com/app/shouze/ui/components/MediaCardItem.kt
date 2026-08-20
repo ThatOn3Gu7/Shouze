@@ -1,5 +1,6 @@
 package com.app.shouze.ui.components
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -12,11 +13,12 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -26,7 +28,7 @@ import com.app.shouze.data.local.Status
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-  fun MediaCardItem(
+fun MediaCardItem(
     item: MediaItemEntity,
     categoryName: String,
     onClick: () -> Unit,
@@ -36,9 +38,23 @@ import com.app.shouze.data.local.Status
     modifier: Modifier = Modifier
 ) {
     val view = androidx.compose.ui.platform.LocalView.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
+        label = "pressScale"
+    )
+
     Card(
         modifier = modifier
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick,
                 onLongClick = {
                     com.app.shouze.ui.components.HapticsHelper.performSelectionHaptic(view)

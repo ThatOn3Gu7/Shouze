@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.app.shouze.data.AppSettings
 import com.app.shouze.data.ThemeMode
+import com.app.shouze.ui.components.AnimatedPageEntrance
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,13 +50,12 @@ fun AppearanceScreen(
             )
         }
     ) { padding ->
-        Column(
+        AnimatedPageEntrance(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             
             // --- Group 1: App Theme ---

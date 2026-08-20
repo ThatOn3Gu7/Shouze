@@ -56,6 +56,7 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.app.shouze.ui.components.AnimatedPageEntrance
 
 private const val FEEDBACK_EMAIL = "recoveringdotcom@gmail.com"
 
@@ -174,13 +175,12 @@ fun AboutScreen(
             )
         }
     ) { padding ->
-        Column(
+        AnimatedPageEntrance(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             Surface(
                 modifier = Modifier.size(100.dp),

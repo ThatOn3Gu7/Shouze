@@ -31,7 +31,8 @@ import com.app.shouze.ui.StatsUiState
 import com.app.shouze.ui.components.SafeRemoteImage
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import com.app.shouze.R // adjust if your app's package differs
+import com.app.shouze.R
+import com.app.shouze.ui.components.AnimatedPageEntrance
 
 val ProfileHeaderFont = FontFamily(
     Font(R.font.baloo2_extrabold, FontWeight.ExtraBold)
@@ -88,13 +89,12 @@ fun ProfileScreen(
             )
         }
     ) { padding ->
-        Column(
+        AnimatedPageEntrance(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             
             // Hero Avatar — tap the picture itself to change it

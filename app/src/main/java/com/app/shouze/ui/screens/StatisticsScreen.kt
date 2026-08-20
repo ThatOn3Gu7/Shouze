@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.ui.StatsUiState
 import com.app.shouze.ui.components.*
+import com.app.shouze.ui.components.BentoStaggeredEntrance
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -218,29 +219,31 @@ private fun BentoOverviewGrid(stats: StatsUiState) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Big Hero Stat (Entries)
-            BentoCard(
-                modifier = Modifier
-                    .weight(1f)
-                    .aspectRatio(1f), // Perfectly square
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceBetween
+            BentoStaggeredEntrance(index = 0) {
+                BentoCard(
+                    modifier = Modifier
+                        .weight(1f)
+                        .aspectRatio(1f),
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ) {
-                    Icon(Icons.Rounded.CollectionsBookmark, contentDescription = null, modifier = Modifier.size(32.dp))
-                    Column {
-                        Text(
-                            text = "${stats.totalEntries}",
-                            style = MaterialTheme.typography.displayMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Total Entries",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                        )
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Icon(Icons.Rounded.CollectionsBookmark, contentDescription = null, modifier = Modifier.size(32.dp))
+                        Column {
+                            Text(
+                                text = "${stats.totalEntries}",
+                                style = MaterialTheme.typography.displayMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Total Entries",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
                     }
                 }
             }
@@ -253,60 +256,64 @@ private fun BentoOverviewGrid(stats: StatsUiState) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Avg Rating
-                BentoCard(modifier = Modifier.weight(1f)) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "%.1f".format(stats.averageRating),
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Avg Rating",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                BentoStaggeredEntrance(index = 1) {
+                    BentoCard(modifier = Modifier.weight(1f)) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "%.1f".format(stats.averageRating),
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Avg Rating",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Rounded.Star,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.size(32.dp)
                             )
                         }
-                        Icon(
-                            imageVector = Icons.Rounded.Star,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.size(32.dp)
-                        )
                     }
                 }
 
                 // Completion Rate
-                BentoCard(modifier = Modifier.weight(1f)) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "${(stats.completionRate * 100).toInt()}%",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Completed",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                BentoStaggeredEntrance(index = 2) {
+                    BentoCard(modifier = Modifier.weight(1f)) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "${(stats.completionRate * 100).toInt()}%",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Completed",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(32.dp)
                             )
                         }
-                        Icon(
-                            imageVector = Icons.Rounded.CheckCircle,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(32.dp)
-                        )
                     }
                 }
             }
@@ -318,60 +325,64 @@ private fun BentoOverviewGrid(stats: StatsUiState) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Favorites (Square)
-            BentoCard(
-                modifier = Modifier
-                    .weight(0.4f)
-                    .aspectRatio(1f)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+            BentoStaggeredEntrance(index = 3) {
+                BentoCard(
+                    modifier = Modifier
+                        .weight(0.4f)
+                        .aspectRatio(1f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Favorite,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(28.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "${stats.totalFavorites}",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Favorites",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Favorite,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "${stats.totalFavorites}",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Favorites",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
             // Total Consumed (Wide)
-            BentoCard(
-                modifier = Modifier
-                    .weight(0.6f)
-                    .aspectRatio(1.5f), // Wide rectangle
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceBetween
+            BentoStaggeredEntrance(index = 4) {
+                BentoCard(
+                    modifier = Modifier
+                        .weight(0.6f)
+                        .aspectRatio(1.5f),
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                 ) {
-                    Icon(Icons.Rounded.Visibility, contentDescription = null, modifier = Modifier.size(28.dp))
-                    Column {
-                        Text(
-                            text = "${stats.totalProgressConsumed}",
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Episodes & Chapters",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                        )
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Icon(Icons.Rounded.Visibility, contentDescription = null, modifier = Modifier.size(28.dp))
+                        Column {
+                            Text(
+                                text = "${stats.totalProgressConsumed}",
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Episodes & Chapters",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
                     }
                 }
             }

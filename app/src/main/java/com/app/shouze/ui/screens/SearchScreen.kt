@@ -7,7 +7,7 @@ import android.speech.RecognizerIntent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -52,6 +52,9 @@ import androidx.compose.ui.zIndex
 import com.app.shouze.data.remote.AniListMedia
 import com.app.shouze.ui.AniListSearchUiState
 import com.app.shouze.ui.components.SafeRemoteImage
+import com.app.shouze.ui.components.staggeredItem
+import com.app.shouze.ui.components.EmphasizedDecelerate
+import com.app.shouze.ui.components.EmphasizedAccelerate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -317,9 +320,11 @@ fun SearchScreen(
                             }
                         }
                         items(visibleResults, key = { it.id }) { media ->
+                            val index = visibleResults.indexOf(media)
                             PremiumAniListResultCard(
                                 media = media,
-                                onClick = { onSelect(media) }
+                                onClick = { onSelect(media) },
+                                modifier = Modifier.staggeredItem(index = index, totalItems = visibleResults.size)
                             )
                         }
                     }
@@ -415,7 +420,8 @@ private fun PremiumAniListResultCard(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 6.dp),
+            .padding(horizontal = 24.dp, vertical = 6.dp)
+            .animateContentSize(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)

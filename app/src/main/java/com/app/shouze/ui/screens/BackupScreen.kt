@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.app.shouze.ui.components.AnimatedPageEntrance
 
 private enum class SnackbarKind { Success, Error, Info }
 
@@ -125,12 +126,11 @@ fun BackupScreen(
                 .padding(padding)
                 .fillMaxSize()
         ) {
-        Column(
+        AnimatedPageEntrance(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             
             // --- Group 1: Native Backup & Restore ---

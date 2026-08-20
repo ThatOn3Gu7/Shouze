@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import com.app.shouze.data.remote.AiringSchedule
 import com.app.shouze.ui.components.SafeRemoteImage
 import com.app.shouze.ui.components.rememberTooltipPositionProvider
+import com.app.shouze.ui.components.staggeredItem
+import com.app.shouze.ui.components.AnimatedPageEntrance
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -179,9 +181,11 @@ fun AiringScheduleScreen(
                             }
                         }
                         items(daySchedules, key = { it.id }) { schedule ->
+                            val index = daySchedules.indexOf(schedule)
                             PremiumAiringScheduleCard(
                                 schedule = schedule,
-                                onAdd = { onAddToLibrary(schedule) }
+                                onAdd = { onAddToLibrary(schedule) },
+                                modifier = Modifier.staggeredItem(index = index, totalItems = daySchedules.size)
                             )
                         }
                     }

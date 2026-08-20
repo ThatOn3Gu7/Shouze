@@ -26,12 +26,16 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import com.app.shouze.ui.components.fadeSlideInFromBottom
+import com.app.shouze.ui.components.fadeSlideOutToBottom
+import com.app.shouze.ui.components.fadeSlideInFromRight
+import com.app.shouze.ui.components.fadeSlideOutToRight
+import com.app.shouze.ui.components.fadeSlideInFromLeft
+import com.app.shouze.ui.components.fadeSlideOutToLeft
+import com.app.shouze.ui.components.fadeThroughEnter
+import com.app.shouze.ui.components.fadeThroughExit
 import com.app.shouze.data.UpdateScheduler
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.ui.MediaViewModel
@@ -140,24 +144,45 @@ class MainActivity : ComponentActivity() {
                             contentWindowInsets = WindowInsets(0, 0, 0, 0),
                             containerColor = MaterialTheme.colorScheme.background
                         ) { innerPadding ->
+                        val isOnboarding = !settings.hasSeenOnboarding
+
+                        // Onboarding overlay with graceful M3 exit transition
+                        AnimatedVisibility(
+                            visible = isOnboarding,
+                            enter = fadeIn(animationSpec = tween(600)) + scaleIn(
+                                initialScale = 0.92f,
+                                animationSpec = tween(600, easing = EmphasizedDecelerate)
+                            ),
+                            exit = fadeOut(animationSpec = tween(400, easing = EmphasizedAccelerate)) + scaleOut(
+                                targetScale = 1.08f,
+                                animationSpec = tween(400, easing = EmphasizedAccelerate)
+                            )
+                        ) {
+                            OnboardingScreen(
+                                onGetStarted = {
+                                    viewModel.setHasSeenOnboarding(true)
+                                },
+                                onNotNow = { finish() }
+                            )
+                        }
+
                         NavHost(
                             navController = navController,
-                            startDestination = if (settings.hasSeenOnboarding) "home" else "onboarding",
+                            startDestination = "home",
                             modifier = Modifier.padding(innerPadding),
                             enterTransition = {
                                 val fromIdx = tabIndex(initialState.destination.route)
                                 val toIdx = tabIndex(targetState.destination.route)
                                 if (fromIdx != -1 && toIdx != -1) {
                                     if (toIdx > fromIdx) {
-                                        fadeIn(animationSpec = tween(300)) +
-                                            slideInHorizontally(animationSpec = tween(300)) { it }
+                                        fadeIn(animationSpec = tween(350, easing = EmphasizedDecelerate)) +
+                                            slideInHorizontally(animationSpec = tween(350, easing = EmphasizedDecelerate)) { it }
                                     } else {
-                                        fadeIn(animationSpec = tween(300)) +
-                                            slideInHorizontally(animationSpec = tween(300)) { -it }
+                                        fadeIn(animationSpec = tween(350, easing = EmphasizedDecelerate)) +
+                                            slideInHorizontally(animationSpec = tween(350, easing = EmphasizedDecelerate)) { -it }
                                     }
                                 } else {
-                                    fadeIn(animationSpec = tween(300)) +
-                                        slideInHorizontally(animationSpec = tween(300)) { it }
+                                    fadeSlideInFromRight()(this)
                                 }
                             },
                             exitTransition = {
@@ -165,51 +190,31 @@ class MainActivity : ComponentActivity() {
                                 val toIdx = tabIndex(targetState.destination.route)
                                 if (fromIdx != -1 && toIdx != -1) {
                                     if (toIdx > fromIdx) {
-                                        fadeOut(animationSpec = tween(120)) +
-                                            slideOutHorizontally(animationSpec = tween(300)) { -it }
+                                        fadeOut(animationSpec = tween(200, easing = EmphasizedAccelerate)) +
+                                            slideOutHorizontally(animationSpec = tween(350, easing = EmphasizedAccelerate)) { -it }
                                     } else {
-                                        fadeOut(animationSpec = tween(120)) +
-                                            slideOutHorizontally(animationSpec = tween(300)) { it }
+                                        fadeOut(animationSpec = tween(200, easing = EmphasizedAccelerate)) +
+                                            slideOutHorizontally(animationSpec = tween(350, easing = EmphasizedAccelerate)) { it }
                                     }
                                 } else {
-                                    fadeOut(animationSpec = tween(120))
+                                    fadeSlideOutToRight()(this)
                                 }
                             },
                             popEnterTransition = {
-                                fadeIn(animationSpec = tween(300)) +
-                                    slideInHorizontally(animationSpec = tween(300)) { -it }
+                                fadeIn(animationSpec = tween(350, easing = EmphasizedDecelerate)) +
+                                    slideInHorizontally(animationSpec = tween(350, easing = EmphasizedDecelerate)) { -it }
                             },
                             popExitTransition = {
-                                val fromIdx = tabIndex(initialState.destination.route)
-                                val toIdx = tabIndex(targetState.destination.route)
-                                if (fromIdx != -1 && toIdx != -1) {
-                                    if (toIdx > fromIdx) {
-                                        fadeOut(animationSpec = tween(120)) +
-                                            slideOutHorizontally(animationSpec = tween(300)) { -it }
-                                    } else {
-                                        fadeOut(animationSpec = tween(120)) +
-                                            slideOutHorizontally(animationSpec = tween(300)) { it }
-                                    }
-                                } else {
-                                    fadeOut(animationSpec = tween(120)) +
-                                        slideOutHorizontally(animationSpec = tween(300)) { it }
-                                }
+                                fadeOut(animationSpec = tween(200, easing = EmphasizedAccelerate)) +
+                                    slideOutHorizontally(animationSpec = tween(350, easing = EmphasizedAccelerate)) { it }
                             }
                         ) {
-                        composable("onboarding") {
-                            OnboardingScreen(
-                                onGetStarted = {
-                                    viewModel.setHasSeenOnboarding(true)
-                                    navController.navigate("home") {
-                                        popUpTo("onboarding") { inclusive = true }
-                                    }
-                                },
-                                onNotNow = {
-                                    finish()
-                                }
-                            )
-                        }
-                        composable("statistics") {
+                        composable("statistics",
+                            enterTransition = fadeSlideInFromRight(),
+                            exitTransition = fadeSlideOutToRight(),
+                            popEnterTransition = fadeSlideInFromLeft(),
+                            popExitTransition = fadeSlideOutToLeft()
+                        ) {
                             StatisticsScreen(
                                 stats = statsUiState,
                                 onBack = { navController.popBackStack() },
@@ -218,7 +223,12 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                        composable("anidetail") {
+                        composable("anidetail",
+                            enterTransition = fadeSlideInFromBottom(delay = 50),
+                            exitTransition = fadeSlideOutToBottom(),
+                            popEnterTransition = fadeSlideInFromBottom(),
+                            popExitTransition = fadeSlideOutToBottom()
+                        ) {
                             val media = viewModel.selectedAniListMedia
                             if (media != null) {
                                 AniListDetailScreen(
@@ -292,7 +302,12 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("settings") {
+                        composable("settings",
+                            enterTransition = fadeSlideInFromRight(),
+                            exitTransition = fadeSlideOutToRight(),
+                            popEnterTransition = fadeSlideInFromLeft(),
+                            popExitTransition = fadeSlideOutToLeft()
+                        ) {
                             SettingsScreen(
                                 onBack = { navController.popBackStack() },
                                 onNavigateToAppearance = { navController.navigate("appearance") },
@@ -304,7 +319,12 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("appearance") {
+                        composable("appearance",
+                            enterTransition = fadeSlideInFromRight(),
+                            exitTransition = fadeSlideOutToRight(),
+                            popEnterTransition = fadeSlideInFromLeft(),
+                            popExitTransition = fadeSlideOutToLeft()
+                        ) {
                             AppearanceScreen(
                                 settings = settings,
                                 onBack = { navController.popBackStack() },
@@ -316,21 +336,10 @@ class MainActivity : ComponentActivity() {
 
                         composable(
                             "categories",
-                            enterTransition = {
-                                fadeIn(animationSpec = tween(300)) +
-                                    slideInHorizontally(animationSpec = tween(300)) { it }
-                            },
-                            exitTransition = {
-                                fadeOut(animationSpec = tween(120))
-                            },
-                            popEnterTransition = {
-                                fadeIn(animationSpec = tween(300)) +
-                                    slideInHorizontally(animationSpec = tween(300)) { -it }
-                            },
-                            popExitTransition = {
-                                fadeOut(animationSpec = tween(120)) +
-                                    slideOutHorizontally(animationSpec = tween(300)) { it }
-                            }
+                            enterTransition = fadeSlideInFromRight(),
+                            exitTransition = fadeSlideOutToRight(),
+                            popEnterTransition = fadeSlideInFromLeft(),
+                            popExitTransition = fadeSlideOutToLeft()
                         ) {
                             CategoriesScreen(
                                 categories = uiState.categories,
@@ -340,7 +349,12 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("backup") {
+                        composable("backup",
+                            enterTransition = fadeSlideInFromRight(),
+                            exitTransition = fadeSlideOutToRight(),
+                            popEnterTransition = fadeSlideInFromLeft(),
+                            popExitTransition = fadeSlideOutToLeft()
+                        ) {
                             BackupScreen(
                                 onBack = { navController.popBackStack() },
                                 onBackup = viewModel::backupToLocalZip,
@@ -353,7 +367,12 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("about") {
+                        composable("about",
+                            enterTransition = fadeSlideInFromRight(),
+                            exitTransition = fadeSlideOutToRight(),
+                            popEnterTransition = fadeSlideInFromLeft(),
+                            popExitTransition = fadeSlideOutToLeft()
+                        ) {
                             AboutScreen(
                                 onBack = { navController.popBackStack() },
                                 settingsRepository = viewModel.settingsRepository
@@ -387,7 +406,12 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("streaming/{title}/{type}") { backStackEntry ->
+                        composable("streaming/{title}/{type}",
+                            enterTransition = fadeSlideInFromBottom(delay = 50),
+                            exitTransition = fadeSlideOutToBottom(),
+                            popEnterTransition = fadeSlideInFromBottom(),
+                            popExitTransition = fadeSlideOutToBottom()
+                        ) { backStackEntry ->
                             val title = backStackEntry.arguments?.getString("title")?.let {
                                 java.net.URLDecoder.decode(it, "UTF-8")
                             } ?: ""
@@ -405,7 +429,12 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("share") {
+                        composable("share",
+                            enterTransition = fadeSlideInFromRight(),
+                            exitTransition = fadeSlideOutToRight(),
+                            popEnterTransition = fadeSlideInFromLeft(),
+                            popExitTransition = fadeSlideOutToLeft()
+                        ) {
                             ShareListScreen(
                                 items = uiState.allItems,
                                 categories = uiState.categories,
@@ -441,8 +470,12 @@ class MainActivity : ComponentActivity() {
                     }
                     AnimatedVisibility(
                         visible = detailItem != null,
-                        enter = fadeIn(animationSpec = tween(250)),
-                        exit = fadeOut(animationSpec = tween(200))
+                        enter = fadeIn(animationSpec = tween(300, easing = EmphasizedDecelerate)) +
+                                slideInVertically(animationSpec = tween(400, easing = EmphasizedDecelerate)) { it / 4 } +
+                                scaleIn(initialScale = 0.96f, animationSpec = tween(400, easing = EmphasizedDecelerate)),
+                        exit = fadeOut(animationSpec = tween(250, easing = EmphasizedAccelerate)) +
+                                slideOutVertically(animationSpec = tween(300, easing = EmphasizedAccelerate)) { it / 4 } +
+                                scaleOut(targetScale = 0.96f, animationSpec = tween(300, easing = EmphasizedAccelerate))
                     ) {
                         val detailId = detailOpenId.value
                         if (detailId != null) {

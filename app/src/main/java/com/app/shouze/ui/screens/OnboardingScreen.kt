@@ -11,13 +11,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.app.shouze.R
+import com.app.shouze.ui.components.EmphasizedDecelerate
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -26,73 +31,68 @@ fun OnboardingScreen(
     onGetStarted: () -> Unit,
     onNotNow: () -> Unit
 ) {
-    // State to trigger the staggered entrance animations
     var isVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         isVisible = true
     }
 
-    // --- Entrance Animation States ---
-    // Logo Animations
+    // ── Orchestrated Entrance with Spring Physics ──
     val logoAlpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(800, easing = FastOutSlowInEasing),
+        animationSpec = tween(700, easing = EmphasizedDecelerate),
         label = "logoAlpha"
     )
     val logoScale by animateFloatAsState(
-        targetValue = if (isVisible) 1f else 0.8f,
-        animationSpec = tween(800, easing = FastOutSlowInEasing),
+        targetValue = if (isVisible) 1f else 0.6f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 300f),
         label = "logoScale"
     )
 
-    // Title Animations
     val titleAlpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(800, delayMillis = 150, easing = FastOutSlowInEasing),
+        animationSpec = tween(700, delayMillis = 120, easing = EmphasizedDecelerate),
         label = "titleAlpha"
     )
-    val titleOffset by animateDpAsState(
-        targetValue = if (isVisible) 0.dp else 30.dp,
-        animationSpec = tween(800, delayMillis = 150, easing = FastOutSlowInEasing),
+    val titleOffset by animateFloatAsState(
+        targetValue = if (isVisible) 0f else 40f,
+        animationSpec = tween(700, delayMillis = 120, easing = EmphasizedDecelerate),
         label = "titleOffset"
     )
 
-    // Subtitle Animations
     val subAlpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(800, delayMillis = 300, easing = FastOutSlowInEasing),
+        animationSpec = tween(700, delayMillis = 240, easing = EmphasizedDecelerate),
         label = "subAlpha"
     )
-    val subOffset by animateDpAsState(
-        targetValue = if (isVisible) 0.dp else 30.dp,
-        animationSpec = tween(800, delayMillis = 300, easing = FastOutSlowInEasing),
+    val subOffset by animateFloatAsState(
+        targetValue = if (isVisible) 0f else 30f,
+        animationSpec = tween(700, delayMillis = 240, easing = EmphasizedDecelerate),
         label = "subOffset"
     )
 
-    // Buttons Animations
     val btnAlpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(800, delayMillis = 450, easing = FastOutSlowInEasing),
+        animationSpec = tween(600, delayMillis = 400, easing = EmphasizedDecelerate),
         label = "btnAlpha"
     )
-    val btnOffset by animateDpAsState(
-        targetValue = if (isVisible) 0.dp else 30.dp,
-        animationSpec = tween(800, delayMillis = 450, easing = FastOutSlowInEasing),
+    val btnOffset by animateFloatAsState(
+        targetValue = if (isVisible) 0f else 24f,
+        animationSpec = tween(600, delayMillis = 400, easing = EmphasizedDecelerate),
         label = "btnOffset"
     )
 
-    // --- Background Ambient Animations ---
+    // ── Ambient Background ──
     val infiniteTransition = rememberInfiniteTransition(label = "bg_gradient")
     val color1 by infiniteTransition.animateColor(
         initialValue = MaterialTheme.colorScheme.primary,
-        targetValue = MaterialTheme.colorScheme.primaryContainer,
-        animationSpec = infiniteRepeatable(tween(4000), RepeatMode.Reverse),
+        targetValue = MaterialTheme.colorScheme.tertiary,
+        animationSpec = infiniteRepeatable(tween(6000), RepeatMode.Reverse),
         label = "color1"
     )
     val color2 by infiniteTransition.animateColor(
-        initialValue = MaterialTheme.colorScheme.tertiaryContainer,
-        targetValue = MaterialTheme.colorScheme.primary,
-        animationSpec = infiniteRepeatable(tween(5000), RepeatMode.Reverse),
+        initialValue = MaterialTheme.colorScheme.secondary,
+        targetValue = MaterialTheme.colorScheme.primaryContainer,
+        animationSpec = infiniteRepeatable(tween(8000), RepeatMode.Reverse),
         label = "color2"
     )
 
@@ -101,48 +101,90 @@ fun OnboardingScreen(
             .fillMaxSize()
             .background(Brush.verticalGradient(listOf(color1, color2)))
     ) {
-        // Fluid Overlapping Waves in the Background
+        // Animated mesh-like waves
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(300.dp)
+                .height(320.dp)
         ) {
             val waveColor = MaterialTheme.colorScheme.onPrimary
             AnimatedWave(
                 modifier = Modifier.fillMaxSize(),
-                color = waveColor.copy(alpha = 0.1f),
-                speed = 4000,
-                amplitudeScale = 0.8f
-            )
-            AnimatedWave(
-                modifier = Modifier.fillMaxSize().offset(y = 20.dp),
-                color = waveColor.copy(alpha = 0.15f),
+                color = waveColor.copy(alpha = 0.08f),
                 speed = 5000,
-                amplitudeScale = 1f,
-                direction = -1f // Moves in the opposite direction
+                amplitudeScale = 0.9f
             )
             AnimatedWave(
-                modifier = Modifier.fillMaxSize().offset(y = 40.dp),
-                color = waveColor.copy(alpha = 0.2f),
-                speed = 6000,
-                amplitudeScale = 1.2f
+                modifier = Modifier.fillMaxSize().offset(y = 24.dp),
+                color = waveColor.copy(alpha = 0.12f),
+                speed = 6500,
+                amplitudeScale = 1.1f,
+                direction = -1f
+            )
+            AnimatedWave(
+                modifier = Modifier.fillMaxSize().offset(y = 48.dp),
+                color = waveColor.copy(alpha = 0.18f),
+                speed = 8000,
+                amplitudeScale = 1.3f
             )
         }
 
-        // Main Content
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 48.dp, top = 64.dp),
+                .padding(horizontal = 28.dp)
+                .padding(bottom = 52.dp, top = 72.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.weight(1f))
 
-            FloatingLogo(alpha = logoAlpha, scale = logoScale)
+            // Logo with glassmorphism container
+            Box(
+                modifier = Modifier
+                    .graphicsLayer {
+                        alpha = logoAlpha
+                        scaleX = logoScale
+                        scaleY = logoScale
+                    }
+                    .size(140.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f),
+                                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.10f)
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                // Pulsing inner glow
+                val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(
+                    initialValue = 0.85f,
+                    targetValue = 1.15f,
+                    animationSpec = infiniteRepeatable(
+                        tween(2000, easing = EaseInOutSine),
+                        RepeatMode.Reverse
+                    ),
+                    label = "pulse"
+                )
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f))
+                        .graphicsLayer { scaleX = pulse; scaleY = pulse }
+                )
+                Text(
+                    text = "守",
+                    style = MaterialTheme.typography.displayLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
             Text(
                 text = "Welcome to Shouze",
@@ -152,20 +194,20 @@ fun OnboardingScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.graphicsLayer {
                     alpha = titleAlpha
-                    translationY = titleOffset.toPx()
+                    translationY = titleOffset
                 }
             )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             Text(
-                text = "Your personal keeper for anime, manga, and everything you watch.",
+                text = "Your personal keeper for anime, manga, and everything you watch. Track progress, organize by categories, and never lose track.",
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.graphicsLayer {
                     alpha = subAlpha
-                    translationY = subOffset.toPx()
+                    translationY = subOffset
                 }
             )
 
@@ -175,78 +217,40 @@ fun OnboardingScreen(
                 onClick = onGetStarted,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(58.dp)
                     .graphicsLayer {
                         alpha = btnAlpha
-                        translationY = btnOffset.toPx()
+                        translationY = btnOffset
                     },
                 shape = MaterialTheme.shapes.extraLarge,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.onPrimary,
                     contentColor = MaterialTheme.colorScheme.primary
+                ),
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = 4.dp,
+                    pressedElevation = 8.dp
                 )
             ) {
-                Text("Get Started", style = MaterialTheme.typography.titleMedium)
+                Text("Get Started", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             TextButton(
                 onClick = onNotNow,
                 modifier = Modifier.graphicsLayer {
                     alpha = btnAlpha
-                    translationY = btnOffset.toPx()
+                    translationY = btnOffset
                 }
             ) {
                 Text(
                     text = "Not Now",
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+                    style = MaterialTheme.typography.titleSmall
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun FloatingLogo(alpha: Float, scale: Float) {
-    val infiniteTransition = rememberInfiniteTransition(label = "float")
-    val offsetY by infiniteTransition.animateFloat(
-        initialValue = -15f,
-        targetValue = 15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "logo_float"
-    )
-
-    // A glassy, floating placeholder orb
-    Box(
-        modifier = Modifier
-            .graphicsLayer {
-                this.alpha = alpha
-                this.scaleX = scale
-                this.scaleY = scale
-                this.translationY = offsetY.dp.toPx()
-            }
-            .size(120.dp)
-            .clip(CircleShape)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
-                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f)
-                    )
-                )
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(70.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onPrimary)
-        )
     }
 }
 
@@ -273,14 +277,13 @@ private fun AnimatedWave(
         val path = Path()
         val w = size.width
         val h = size.height
-        val amplitude = h * 0.15f * amplitudeScale
-        val frequency = (1.5f * 2f * PI.toFloat()) / w 
+        val amplitude = h * 0.12f * amplitudeScale
+        val frequency = (2f * PI.toFloat()) / w
 
-        path.moveTo(0f, amplitude)
+        path.moveTo(0f, h * 0.3f)
 
         for (x in 0..w.toInt()) {
-            val currentPhase = phase * direction
-            val y = amplitude * sin(frequency * x + currentPhase) + amplitude
+            val y = amplitude * sin(frequency * x + phase * direction) + h * 0.3f
             path.lineTo(x.toFloat(), y)
         }
 
@@ -289,26 +292,5 @@ private fun AnimatedWave(
         path.close()
 
         drawPath(path, color = color)
-    }
-}
-
-// Left intact just in case you need it elsewhere!
-@Composable
-private fun AnimePlaceholderPage(page: Int, modifier: Modifier = Modifier) {
-    val gradients = listOf(
-        Brush.verticalGradient(listOf(Color(0xFF1B5E20), Color(0xFF2E7D32))),
-        Brush.verticalGradient(listOf(Color(0xFF0D47A1), Color(0xFF1976D2))),
-        Brush.verticalGradient(listOf(Color(0xFFB71C1C), Color(0xFFC62828)))
-    )
-
-    Box(
-        modifier = modifier.background(gradients[page % gradients.size]),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "Anime Image ${page + 1}",
-            style = MaterialTheme.typography.headlineMedium,
-            color = Color.White.copy(alpha = 0.4f)
-        )
     }
 }

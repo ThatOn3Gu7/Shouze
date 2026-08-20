@@ -8,14 +8,15 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import com.app.shouze.ui.components.staggeredItem
+import com.app.shouze.ui.components.EmphasizedDecelerate
+import com.app.shouze.ui.components.EmphasizedAccelerate
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -660,7 +661,7 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 48.dp)
-                                .animateItem() // Ensures the Empty State fades in gracefully
+                                .animateItem()
                         )
                     }
                 } else {
@@ -669,6 +670,7 @@ fun HomeScreen(
                         key = { it.id }
                     ) { item ->
                         val categoryName = uiState.categories.find { it.id == item.categoryId }?.name ?: "Unknown"
+                        val index = uiState.items.indexOf(item)
                         MediaCardItem(
                             item = item,
                             categoryName = categoryName,
@@ -686,7 +688,9 @@ fun HomeScreen(
                             },
                             isSelected = item.id in uiState.selectedIds,
                             isSelectionMode = isSelectionMode,
-                            modifier = Modifier.animateItem()
+                            modifier = Modifier
+                                .animateItem()
+                                .staggeredItem(index = index, totalItems = uiState.items.size)
                         )
                     }
                 }
@@ -923,11 +927,12 @@ private fun ContinueWatchingCarousel(
     LaunchedEffect(loopable) {
         if (loopable) pagerState.scrollToPage(Int.MAX_VALUE / 2)
     }
+    var isUserInteracting by remember { mutableStateOf(false) }
     LaunchedEffect(pagerState, loopable) {
         if (!loopable) return@LaunchedEffect
         while (isActive) {
             delay(CAROUSEL_AUTO_ADVANCE_MS)
-            if (!pagerState.isScrollInProgress) {
+            if (!pagerState.isScrollInProgress && !isUserInteracting) {
                 pagerState.animateScrollToPage(pagerState.currentPage + 1)
             }
         }
@@ -967,7 +972,16 @@ private fun ContinueWatchingCarousel(
             state = pagerState,
             contentPadding = PaddingValues(start = 24.dp, end = 64.dp),
             pageSpacing = 12.dp,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            isUserInteracting = event.changes.any { it.pressed }
+                        }
+                    }
+                }
         ) { page ->
             val item = items[page % items.size]
             ContinueWatchingCard(
@@ -1094,10 +1108,19 @@ private fun EmptyState(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = EaseInOutSine),
+            animation = tween(2500, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse
         ),
         label = "float"
+    )
+    val rotationAnim by infiniteTransition.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "tilt"
     )
 
     Column(
@@ -1106,28 +1129,40 @@ private fun EmptyState(
         verticalArrangement = Arrangement.Center
     ) {
         Box(
-            modifier = Modifier.size(120.dp),
+            modifier = Modifier.size(140.dp),
             contentAlignment = Alignment.Center
         ) {
+            // Outer pulsing ring
             Box(
                 modifier = Modifier
-                    .size(80.dp + (floatAnim * 20).dp)
+                    .size(100.dp + (floatAnim * 24).dp)
                     .background(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+                        shape = CircleShape
+                    )
+            )
+            // Inner glow
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
                         shape = CircleShape
                     )
             )
             Icon(
                 imageVector = Icons.Rounded.MovieFilter,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f + (floatAnim * 0.2f)),
-                modifier = Modifier.size(64.dp)
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .size(56.dp)
+                    .graphicsLayer { rotationZ = rotationAnim }
             )
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(28.dp))
         Text(
             text = if (hasSearchOrFilter) "No results found" else "Your library is empty",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -1140,13 +1175,14 @@ private fun EmptyState(
             },
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center
         )
         if (onClearFilters != null) {
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             FilledTonalButton(
                 onClick = onClearFilters,
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                contentPadding = PaddingValues(horizontal = 28.dp, vertical = 14.dp)
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Close,
