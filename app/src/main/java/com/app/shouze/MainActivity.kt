@@ -28,6 +28,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import com.app.shouze.ui.components.EmphasizedDecelerate
+import com.app.shouze.ui.components.EmphasizedAccelerate
 import com.app.shouze.ui.components.fadeSlideInFromBottom
 import com.app.shouze.ui.components.fadeSlideOutToBottom
 import com.app.shouze.ui.components.fadeSlideInFromRight
