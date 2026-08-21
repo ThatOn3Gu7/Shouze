@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.shouze.data.SettingsRepository
@@ -609,15 +610,14 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    var selectedAniListMedia: AniListMedia? = null
-        private set
+    val selectedAniListMedia = mutableStateOf<AniListMedia?>(null)
 
     fun selectAniListMedia(media: AniListMedia) {
-        selectedAniListMedia = media
+        selectedAniListMedia.value = media
     }
 
     fun clearSelectedAniListMedia() {
-        selectedAniListMedia = null
+        selectedAniListMedia.value = null
     }
 
     fun createItemFromAniList(

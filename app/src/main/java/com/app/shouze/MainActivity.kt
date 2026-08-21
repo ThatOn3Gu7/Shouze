@@ -13,7 +13,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -155,7 +157,7 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
-                    val showBottomBar = currentRoute in TAB_ROUTES && detailItem == null
+                    val showBottomBar = currentRoute in TAB_ROUTES && detailItem == null && viewModel.selectedAniListMedia.value == null
 
                     var airingSpinTrigger by remember { mutableIntStateOf(0) }
                     var searchShakeTrigger by remember { mutableIntStateOf(0) }
@@ -318,27 +320,6 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
 
-                                composable("anidetail") {
-                                    val media = viewModel.selectedAniListMedia
-                                    if (media != null) {
-                                        AniListDetailScreen(
-                                            media = media,
-                                            onBack = {
-                                                navController.popBackStack()
-                                            },
-                                            onAdd = { m, status ->
-                                                viewModel.addOrUpdate(
-                                                    viewModel.createItemFromAniList(m, status)
-                                                )
-                                            }
-                                        )
-                                    } else {
-                                        LaunchedEffect(Unit) {
-                                            navController.popBackStack()
-                                        }
-                                    }
-                                }
-
                                 composable("search") {
                                     SearchScreen(
                                         uiState = searchUiState,
@@ -352,7 +333,6 @@ class MainActivity : ComponentActivity() {
                                         onLoadTrending = viewModel::loadTrending,
                                         onSelect = { media ->
                                             viewModel.selectAniListMedia(media)
-                                            navController.navigate("anidetail")
                                         }
                                     )
                                 }
@@ -549,6 +529,37 @@ class MainActivity : ComponentActivity() {
                                         editDialogOpen = false
                                     }
                                 )
+                            }
+
+                            AnimatedVisibility(
+                                modifier = Modifier.fillMaxSize(),
+                                visible = viewModel.selectedAniListMedia.value != null,
+                                enter = slideInVertically(
+                                    initialOffsetY = { fullHeight -> fullHeight },
+                                    animationSpec = tween(280)
+                                ) + fadeIn(animationSpec = tween(280)),
+                                exit = slideOutVertically(
+                                    targetOffsetY = { fullHeight -> fullHeight },
+                                    animationSpec = tween(280)
+                                ) + fadeOut(animationSpec = tween(280))
+                            ) {
+                                val aniSelected by viewModel.selectedAniListMedia
+                                var aniLastMedia by remember { mutableStateOf(viewModel.selectedAniListMedia.value) }
+                                if (aniSelected != null) aniLastMedia = aniSelected
+                                BackHandler(enabled = true) {
+                                    viewModel.clearSelectedAniListMedia()
+                                }
+                                aniLastMedia?.let { media ->
+                                    AniListDetailScreen(
+                                        media = media,
+                                        onBack = { viewModel.clearSelectedAniListMedia() },
+                                        onAdd = { m, status ->
+                                            viewModel.addOrUpdate(
+                                                viewModel.createItemFromAniList(m, status)
+                                            )
+                                        }
+                                    )
+                                }
                             }
 
                             AnimatedVisibility(
