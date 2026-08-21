@@ -1,8 +1,6 @@
 package com.app.shouze.ui.screens
 
-import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -13,13 +11,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlin.math.PI
-import kotlin.math.sin
 
 @Composable
 fun OnboardingScreen(
@@ -81,55 +76,18 @@ fun OnboardingScreen(
         label = "btnOffset"
     )
 
-    // --- Background Ambient Animations ---
-    val infiniteTransition = rememberInfiniteTransition(label = "bg_gradient")
-    val color1 by infiniteTransition.animateColor(
-        initialValue = MaterialTheme.colorScheme.primary,
-        targetValue = MaterialTheme.colorScheme.primaryContainer,
-        animationSpec = infiniteRepeatable(tween(4000), RepeatMode.Reverse),
-        label = "color1"
-    )
-    val color2 by infiniteTransition.animateColor(
-        initialValue = MaterialTheme.colorScheme.tertiaryContainer,
-        targetValue = MaterialTheme.colorScheme.primary,
-        animationSpec = infiniteRepeatable(tween(5000), RepeatMode.Reverse),
-        label = "color2"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(color1, color2)))
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                )
+            )
     ) {
-        // Fluid Overlapping Waves in the Background
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(300.dp)
-        ) {
-            val waveColor = MaterialTheme.colorScheme.onPrimary
-            AnimatedWave(
-                modifier = Modifier.fillMaxSize(),
-                color = waveColor.copy(alpha = 0.1f),
-                speed = 4000,
-                amplitudeScale = 0.8f
-            )
-            AnimatedWave(
-                modifier = Modifier.fillMaxSize().offset(y = 20.dp),
-                color = waveColor.copy(alpha = 0.15f),
-                speed = 5000,
-                amplitudeScale = 1f,
-                direction = -1f // Moves in the opposite direction
-            )
-            AnimatedWave(
-                modifier = Modifier.fillMaxSize().offset(y = 40.dp),
-                color = waveColor.copy(alpha = 0.2f),
-                speed = 6000,
-                amplitudeScale = 1.2f
-            )
-        }
-
         // Main Content
         Column(
             modifier = Modifier
@@ -155,9 +113,9 @@ fun OnboardingScreen(
                     translationY = titleOffset.toPx()
                 }
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Text(
                 text = "Your personal keeper for anime, manga, and everything you watch.",
                 style = MaterialTheme.typography.bodyLarge,
@@ -188,9 +146,9 @@ fun OnboardingScreen(
             ) {
                 Text("Get Started", style = MaterialTheme.typography.titleMedium)
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             TextButton(
                 onClick = onNotNow,
                 modifier = Modifier.graphicsLayer {
@@ -250,48 +208,6 @@ private fun FloatingLogo(alpha: Float, scale: Float) {
     }
 }
 
-@Composable
-private fun AnimatedWave(
-    modifier: Modifier = Modifier,
-    color: Color,
-    speed: Int = 5000,
-    amplitudeScale: Float = 1f,
-    direction: Float = 1f
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "wave")
-    val phase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI.toFloat()),
-        animationSpec = infiniteRepeatable(
-            animation = tween(speed, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
-    )
-
-    Canvas(modifier = modifier) {
-        val path = Path()
-        val w = size.width
-        val h = size.height
-        val amplitude = h * 0.15f * amplitudeScale
-        val frequency = (1.5f * 2f * PI.toFloat()) / w 
-
-        path.moveTo(0f, amplitude)
-
-        for (x in 0..w.toInt()) {
-            val currentPhase = phase * direction
-            val y = amplitude * sin(frequency * x + currentPhase) + amplitude
-            path.lineTo(x.toFloat(), y)
-        }
-
-        path.lineTo(w, h)
-        path.lineTo(0f, h)
-        path.close()
-
-        drawPath(path, color = color)
-    }
-}
-
 // Left intact just in case you need it elsewhere!
 @Composable
 private fun AnimePlaceholderPage(page: Int, modifier: Modifier = Modifier) {
@@ -312,3 +228,4 @@ private fun AnimePlaceholderPage(page: Int, modifier: Modifier = Modifier) {
         )
     }
 }
+
