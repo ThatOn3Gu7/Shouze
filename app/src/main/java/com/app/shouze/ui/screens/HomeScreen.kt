@@ -549,10 +549,11 @@ fun HomeScreen(
                                 )
                             }
                             items(allTags, key = { it }) { tag ->
+                                val count = uiState.allItems.count { item -> tag in item.tags }
                                 BouncyFilterChip(
                                     selected = selectedTag == tag,
                                     onClick = { onTagSelected(tag) },
-                                    label = tag
+                                    label = "$tag ($count)"
                                 )
                             }
                         }
@@ -567,18 +568,20 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         item {
+                            val allCount = uiState.allItems.size
                             BouncyFilterChip(
                                 selected = uiState.selectedCategoryId == null,
                                 onClick = { onCategorySelected(null) },
-                                label = "All"
+                                label = "All ($allCount)"
                             )
                         }
 
                         items(uiState.categories, key = { it.id }) { category ->
+                            val count = uiState.allItems.count { item -> item.categoryId == category.id }
                             BouncyFilterChip(
                                 selected = uiState.selectedCategoryId == category.id,
                                 onClick = { onCategorySelected(category.id) },
-                                label = category.name
+                                label = "${category.name} ($count)"
                             )
                         }
                     }
