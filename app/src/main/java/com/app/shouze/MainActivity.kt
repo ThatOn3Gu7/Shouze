@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -152,37 +153,81 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                 ) {
-                                    NavigationBarItem(
-                                        selected = currentRoute == "home",
-                                        onClick = { navController.navigateToTab("home") },
-                                        icon = { BottomFillIcon(selected = currentRoute == "home", outlinedIcon = Icons.Outlined.Home, filledIcon = Icons.Filled.Home) },
-                                        label = { Text("Home") }
-                                    )
-                                    NavigationBarItem(
-                                        selected = currentRoute == "airing",
-                                        onClick = {
-                                            navController.navigateToTab("airing")
-                                        },
-                                        icon = {
-                                            SpinningAiringTabIcon(
-                                                selected = currentRoute == "airing",
-                                                spinTrigger = airingSpinTrigger
-                                            )
-                                        },
-                                        label = { Text("Airing") }
-                                    )
-                                    NavigationBarItem(
-                                        selected = currentRoute == "search",
-                                        onClick = { navController.navigateToTab("search") },
-                                        icon = { SpinningSearchIcon(selected = currentRoute == "search", icon = Icons.Filled.Search) },
-                                        label = { Text("Search") }
-                                    )
-                                    NavigationBarItem(
-                                        selected = currentRoute == "settings",
-                                        onClick = { navController.navigateToTab("settings") },
-                                        icon = { SpinningSettingsTabIcon(selected = currentRoute == "settings") },
-                                        label = { Text("Settings") }
-                                    )
+                                  NavigationBarItem(
+                                      selected = currentRoute == "home",
+                                      onClick = { navController.navigateToTab("home") },
+                                      icon = {
+                                          androidx.compose.foundation.layout.Column(
+                                              horizontalAlignment = Alignment.CenterHorizontally
+                                          ) {
+                                              BottomFillIcon(selected = currentRoute == "home", outlinedIcon = Icons.Outlined.Home, filledIcon = Icons.Filled.Home)
+                                              AnimatedVisibility(
+                                                  visible = currentRoute == "home",
+                                                  enter = androidx.compose.animation.expandVertically(animationSpec = tween(200), expandFrom = Alignment.Top) + fadeIn(animationSpec = tween(200)) + androidx.compose.animation.slideInVertically(animationSpec = tween(200)) { it },
+                                                  exit = androidx.compose.animation.shrinkVertically(animationSpec = tween(200), shrinkTowards = Alignment.Top) + fadeOut(animationSpec = tween(200)) + androidx.compose.animation.slideOutVertically(animationSpec = tween(200)) { it }
+                                              ) {
+                                                  Text("Home", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 2.dp))
+                                              }
+                                          }
+                                      }
+                                  )
+                                  NavigationBarItem(
+                                      selected = currentRoute == "airing",
+                                      onClick = { navController.navigateToTab("airing") },
+                                      icon = {
+                                          androidx.compose.foundation.layout.Column(
+                                              horizontalAlignment = Alignment.CenterHorizontally
+                                          ) {
+                                              SpinningAiringTabIcon(
+                                                  selected = currentRoute == "airing",
+                                                  spinTrigger = airingSpinTrigger
+                                              )
+                                              AnimatedVisibility(
+                                                  visible = currentRoute == "airing",
+                                                  enter = androidx.compose.animation.expandVertically(animationSpec = tween(200), expandFrom = Alignment.Top) + fadeIn(animationSpec = tween(200)) + androidx.compose.animation.slideInVertically(animationSpec = tween(200)) { it },
+                                                  exit = androidx.compose.animation.shrinkVertically(animationSpec = tween(200), shrinkTowards = Alignment.Top) + fadeOut(animationSpec = tween(200)) + androidx.compose.animation.slideOutVertically(animationSpec = tween(200)) { it }
+                                              ) {
+                                                  Text("Airing", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 2.dp))
+                                              }
+                                          }
+                                      }
+                                  )
+                                  NavigationBarItem(
+                                      selected = currentRoute == "search",
+                                      onClick = { navController.navigateToTab("search") },
+                                      icon = {
+                                          androidx.compose.foundation.layout.Column(
+                                              horizontalAlignment = Alignment.CenterHorizontally
+                                          ) {
+                                              SpinningSearchIcon(selected = currentRoute == "search", icon = Icons.Filled.Search)
+                                              AnimatedVisibility(
+                                                  visible = currentRoute == "search",
+                                                  enter = androidx.compose.animation.expandVertically(animationSpec = tween(200), expandFrom = Alignment.Top) + fadeIn(animationSpec = tween(200)) + androidx.compose.animation.slideInVertically(animationSpec = tween(200)) { it },
+                                                  exit = androidx.compose.animation.shrinkVertically(animationSpec = tween(200), shrinkTowards = Alignment.Top) + fadeOut(animationSpec = tween(200)) + androidx.compose.animation.slideOutVertically(animationSpec = tween(200)) { it }
+                                              ) {
+                                                  Text("Search", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 2.dp))
+                                              }
+                                          }
+                                      }
+                                  )
+                                  NavigationBarItem(
+                                      selected = currentRoute == "settings",
+                                      onClick = { navController.navigateToTab("settings") },
+                                      icon = {
+                                          androidx.compose.foundation.layout.Column(
+                                              horizontalAlignment = Alignment.CenterHorizontally
+                                          ) {
+                                              SpinningSettingsTabIcon(selected = currentRoute == "settings")
+                                              AnimatedVisibility(
+                                                  visible = currentRoute == "settings",
+                                                  enter = androidx.compose.animation.expandVertically(animationSpec = tween(200), expandFrom = Alignment.Top) + fadeIn(animationSpec = tween(200)) + androidx.compose.animation.slideInVertically(animationSpec = tween(200)) { it },
+                                                  exit = androidx.compose.animation.shrinkVertically(animationSpec = tween(200), shrinkTowards = Alignment.Top) + fadeOut(animationSpec = tween(200)) + androidx.compose.animation.slideOutVertically(animationSpec = tween(200)) { it }
+                                              ) {
+                                                  Text("Settings", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 2.dp))
+                                              }
+                                          }
+                                      }
+                                  )
                                 }
                             },
                             contentWindowInsets = WindowInsets(0, 0, 0, 0),
