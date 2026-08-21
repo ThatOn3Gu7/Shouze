@@ -8,24 +8,22 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.graphics.Color
 import com.app.shouze.data.local.CategoryEntity
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.data.local.Status
-import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -81,9 +79,6 @@ fun DetailEditDialog(
     val isLiterature = selectedCategory?.name?.contains("novel", ignoreCase = true) == true
             || selectedCategory?.name?.contains("book", ignoreCase = true) == true
             || selectedCategory?.name?.contains("manga", ignoreCase = true) == true
-    val unitLabel = if (isLiterature) "Chapter" else "Episode"
-
-    val screenHeightDp = LocalConfiguration.current.screenHeightDp
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -92,376 +87,362 @@ fun DetailEditDialog(
             decorFitsSystemWindows = false
         )
     ) {
-        Card(
+        // The outer box perfectly confines the dialog inside the safe drawing area 
+        // (away from the system bars and keyboard) and enforces the 70dp strict margins.
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 96.dp)
-                .wrapContentHeight()
-                .heightIn(max = (screenHeightDp - 120).dp),
-            shape = MaterialTheme.shapes.extraLarge,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-            )
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(horizontal = 16.dp, vertical = 70.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Column(modifier = Modifier.fillMaxWidth().imePadding()) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(20.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                Text(
-                    text = if (item == null) "Add New Item" else "Edit Item",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Title") },
-                    isError = !isTitleValid,
-                    supportingText = if (isTitleValid) null else { { Text("Title is required") } },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = categories.find { it.id == categoryId }?.name ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Category") },
-                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.medium
-                    )
-                    Box(
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(),
+                shape = MaterialTheme.shapes.extraLarge,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // weight(1f, fill = false) allows it to shrink if the content is small, 
+                    // but forces it to scroll if it hits the maximum height.
+                    Column(
                         modifier = Modifier
-                            .matchParentSize()
-                            .clickable { showCategoryPicker = true }
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = status.name.replace("_", " "),
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Status") },
-                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.medium
-                    )
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .clickable { showStatusPicker = true }
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = currentProgress,
-                        onValueChange = { currentProgress = it },
-                        label = { Text("Progress") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.medium
-                    )
-                    OutlinedTextField(
-                        value = totalCount,
-                        onValueChange = { totalCount = it },
-                        label = { Text("Total") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.medium
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (isLiterature) {
-                    OutlinedTextField(
-                        value = currentVolume,
-                        onValueChange = { currentVolume = it },
-                        label = { Text("Current Volume (optional)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.medium
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                OutlinedTextField(
-                    value = rating,
-                    onValueChange = { rating = it },
-                    label = { Text("Rating (0-10)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = rewatchCount,
-                    onValueChange = { rewatchCount = it },
-                    label = { Text("Rewatch Count") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Notes / Review") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    minLines = 3,
-                    maxLines = 6
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = coverImageUri,
-                    onValueChange = { coverImageUri = it },
-                    label = { Text("Cover Image URL") },
-                    isError = !coverLooksValid,
-                    supportingText = {
-                        if (!coverLooksValid) {
-                            Text("Please use a direct image link ending in .jpg, .png or .webp.")
-                        } else {
-                            Text("Direct image link only (ends in .jpg, .png, .webp). Webpages won't work.")
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedButton(
-                    onClick = {
-                        photoPicker.launch("image/*")
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Filled.Image, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Pick from Gallery")
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Opens your device's photo picker to use a local image.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = "Genres",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (genres.isNotEmpty()) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                            .weight(1f, fill = false)
+                            .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 12.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        genres.forEach { genre ->
-                            InputChip(
-                                selected = false,
-                                onClick = { },
-                                label = { Text(genre) },
-                                trailingIcon = {
-                                    IconButton(
-                                        onClick = { genres = genres - genre },
-                                        modifier = Modifier.size(16.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Remove $genre",
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = newGenre,
-                            onValueChange = { newGenre = it },
-                            placeholder = { Text("Add a genre...") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent
-                            )
+                        Text(
+                            text = if (item == null) "Add New Item" else "Edit Item",
+                            style = MaterialTheme.typography.headlineSmall
                         )
-                        IconButton(
-                            onClick = {
-                                if (newGenre.isNotBlank() && newGenre !in genres) {
-                                    genres = genres + newGenre.trim()
-                                    newGenre = ""
+
+                        OutlinedTextField(
+                            value = title,
+                            onValueChange = { title = it },
+                            label = { Text("Title") },
+                            isError = !isTitleValid,
+                            supportingText = if (isTitleValid) null else { { Text("Title is required") } },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
+                        )
+
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = categories.find { it.id == categoryId }?.name ?: "",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Category") },
+                                trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, contentDescription = null) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable { showCategoryPicker = true }
+                            )
+                        }
+
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = status.name.replace("_", " "),
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Status") },
+                                trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, contentDescription = null) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable { showStatusPicker = true }
+                            )
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = currentProgress,
+                                onValueChange = { currentProgress = it },
+                                label = { Text("Progress") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                shape = MaterialTheme.shapes.large
+                            )
+                            OutlinedTextField(
+                                value = totalCount,
+                                onValueChange = { totalCount = it },
+                                label = { Text("Total") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                shape = MaterialTheme.shapes.large
+                            )
+                        }
+
+                        if (isLiterature) {
+                            OutlinedTextField(
+                                value = currentVolume,
+                                onValueChange = { currentVolume = it },
+                                label = { Text("Current Volume (optional)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large
+                            )
+                        }
+
+                        OutlinedTextField(
+                            value = rating,
+                            onValueChange = { rating = it },
+                            label = { Text("Rating (0-10)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
+                        )
+
+                        OutlinedTextField(
+                            value = rewatchCount,
+                            onValueChange = { rewatchCount = it },
+                            label = { Text("Rewatch Count") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
+                        )
+
+                        OutlinedTextField(
+                            value = notes,
+                            onValueChange = { notes = it },
+                            label = { Text("Notes / Review") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large,
+                            minLines = 3,
+                            maxLines = 6
+                        )
+
+                        OutlinedTextField(
+                            value = coverImageUri,
+                            onValueChange = { coverImageUri = it },
+                            label = { Text("Cover Image URL") },
+                            isError = !coverLooksValid,
+                            supportingText = {
+                                if (!coverLooksValid) {
+                                    Text("Please use a direct image link ending in .jpg, .png or .webp.")
+                                } else {
+                                    Text("Direct image link only (ends in .jpg, .png, .webp).")
                                 }
                             },
-                            enabled = newGenre.isNotBlank()
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "Add genre")
-                        }
-                    }
-                }
-
-              Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = "Tags",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (tags.isNotEmpty()) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        tags.forEach { tag ->
-                            InputChip(
-                                selected = false,
-                                onClick = { },
-                                label = { Text(tag) },
-                                trailingIcon = {
-                                    IconButton(
-                                        onClick = { tags = tags - tag },
-                                        modifier = Modifier.size(16.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Remove $tag",
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = newTag,
-                            onValueChange = { newTag = it },
-                            placeholder = { Text("Add a tag...") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent
-                            )
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
                         )
-                        IconButton(
-                            onClick = {
-                                if (newTag.isNotBlank() && newTag !in tags) {
-                                    tags = tags + newTag.trim()
-                                    newTag = ""
-                                }
-                            },
-                            enabled = newTag.isNotBlank()
+
+                        OutlinedButton(
+                            onClick = { photoPicker.launch("image/*") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Add tag")
+                            Icon(Icons.Rounded.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Pick from Gallery")
+                        }
+
+                        Text(
+                            text = "Genres",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        if (genres.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                genres.forEach { genre ->
+                                    InputChip(
+                                        selected = false,
+                                        onClick = { },
+                                        label = { Text(genre) },
+                                        trailingIcon = {
+                                            IconButton(
+                                                onClick = { genres = genres - genre },
+                                                modifier = Modifier.size(16.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Close,
+                                                    contentDescription = "Remove $genre",
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = newGenre,
+                                    onValueChange = { newGenre = it },
+                                    placeholder = { Text("Add a genre...") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent
+                                    )
+                                )
+                                IconButton(
+                                    onClick = {
+                                        if (newGenre.isNotBlank() && newGenre !in genres) {
+                                            genres = genres + newGenre.trim()
+                                            newGenre = ""
+                                        }
+                                    },
+                                    enabled = newGenre.isNotBlank()
+                                ) {
+                                    Icon(Icons.Rounded.Add, contentDescription = "Add genre")
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = "Tags",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        if (tags.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                tags.forEach { tag ->
+                                    InputChip(
+                                        selected = false,
+                                        onClick = { },
+                                        label = { Text(tag) },
+                                        trailingIcon = {
+                                            IconButton(
+                                                onClick = { tags = tags - tag },
+                                                modifier = Modifier.size(16.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Close,
+                                                    contentDescription = "Remove $tag",
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = newTag,
+                                    onValueChange = { newTag = it },
+                                    placeholder = { Text("Add a tag...") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent
+                                    )
+                                )
+                                IconButton(
+                                    onClick = {
+                                        if (newTag.isNotBlank() && newTag !in tags) {
+                                            tags = tags + newTag.trim()
+                                            newTag = ""
+                                        }
+                                    },
+                                    enabled = newTag.isNotBlank()
+                                ) {
+                                    Icon(Icons.Rounded.Add, contentDescription = "Add tag")
+                                }
+                            }
                         }
                     }
-                }
 
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel")
-                    }
-                    Button(
-                        onClick = {
-                            val cover = coverImageUri.trim().takeIf { it.isNotBlank() }
-                            if (cover != null) {
-                                CoverImageStore.forgetFailure(cover)
-                            }
-                            val rewatchInt = rewatchCount.toIntOrNull()?.coerceAtLeast(0) ?: 0
-                            val finalItem = if (item != null) {
-                                item.copy(
-                                    title = title.trim(),
-                                    categoryId = categoryId,
-                                    status = status,
-                                    currentProgress = clampedProgress,
-                                    totalCount = totalInt,
-                                    currentVolume = currentVolume.toIntOrNull(),
-                                    rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
-                                    coverImageUri = cover,
-                                    genres = genres,
-                                    tags = tags,
-                                    notes = notes,
-                                    rewatchCount = rewatchInt,
-                                    lastUpdated = System.currentTimeMillis()
-                                )
-                            } else {
-                                MediaItemEntity(
-                                    title = title.trim(),
-                                    categoryId = categoryId,
-                                    status = status,
-                                    currentProgress = clampedProgress,
-                                    totalCount = totalInt,
-                                    currentVolume = currentVolume.toIntOrNull(),
-                                    rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
-                                    coverImageUri = cover,
-                                    genres = genres,
-                                    tags = tags,
-                                    notes = notes,
-                                    rewatchCount = rewatchInt,
-                                    lastUpdated = System.currentTimeMillis()
-                                )
-                            }
-                            onSave(finalItem)
-                        },
-                        enabled = isTitleValid && categoryId.isNotBlank()
+                    // Balanced action row perfectly symmetrical to the top layout
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
                     ) {
-                        Text("Save")
+                        TextButton(onClick = onDismiss) {
+                            Text("Cancel")
+                        }
+                        Button(
+                            onClick = {
+                                val cover = coverImageUri.trim().takeIf { it.isNotBlank() }
+                                val rewatchInt = rewatchCount.toIntOrNull()?.coerceAtLeast(0) ?: 0
+                                val finalItem = if (item != null) {
+                                    item.copy(
+                                        title = title.trim(),
+                                        categoryId = categoryId,
+                                        status = status,
+                                        currentProgress = clampedProgress,
+                                        totalCount = totalInt,
+                                        currentVolume = currentVolume.toIntOrNull(),
+                                        rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
+                                        coverImageUri = cover,
+                                        genres = genres,
+                                        tags = tags,
+                                        notes = notes,
+                                        rewatchCount = rewatchInt,
+                                        lastUpdated = System.currentTimeMillis()
+                                    )
+                                } else {
+                                    MediaItemEntity(
+                                        title = title.trim(),
+                                        categoryId = categoryId,
+                                        status = status,
+                                        currentProgress = clampedProgress,
+                                        totalCount = totalInt,
+                                        currentVolume = currentVolume.toIntOrNull(),
+                                        rating = rating.toDoubleOrNull()?.coerceIn(0.0, 10.0) ?: 0.0,
+                                        coverImageUri = cover,
+                                        genres = genres,
+                                        tags = tags,
+                                        notes = notes,
+                                        rewatchCount = rewatchInt,
+                                        lastUpdated = System.currentTimeMillis()
+                                    )
+                                }
+                                onSave(finalItem)
+                            },
+                            enabled = isTitleValid && categoryId.isNotBlank(),
+                            shape = MaterialTheme.shapes.large
+                        ) {
+                            Text("Save")
+                        }
                     }
                 }
             }
@@ -524,3 +505,4 @@ fun DetailEditDialog(
         )
     }
 }
+
