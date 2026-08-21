@@ -28,10 +28,19 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.graphicsLayer
 import com.app.shouze.data.UpdateScheduler
 import com.app.shouze.data.local.MediaItemEntity
 import com.app.shouze.ui.MediaViewModel
@@ -80,6 +89,7 @@ class MainActivity : ComponentActivity() {
             var editDialogOpen by remember { mutableStateOf(false) }
             var detailItem by remember { mutableStateOf<MediaItemEntity?>(null) }
             val detailOpenId = remember { mutableStateOf<String?>(null) }
+            var airingSpinTrigger by remember { mutableIntStateOf(0) }
             LaunchedEffect(detailItem) {
                 if (detailItem != null) detailOpenId.value = detailItem!!.id
             }
@@ -107,41 +117,70 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-
             com.app.shouze.ui.theme.MediaTrackerTheme(settings = settings) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentRoute = navBackStackEntry?.destination?.route
                         val showBottomBar = currentRoute in listOf("home", "airing", "search", "profile") && detailItem == null
+
+                        LaunchedEffect(currentRoute) {
+                           if (currentRoute == "airing") {
+                               airingSpinTrigger++
+                           }
+                        }
                         Scaffold(
                             bottomBar = {
-                                if (showBottomBar) {
-                                    NavigationBar {
-                                        NavigationBarItem(
-                                            selected = currentRoute == "home",
-                                            onClick = { navController.navigateToTab("home") },
-                                            icon = { BottomFillIcon(selected = currentRoute == "home", outlinedIcon = Icons.Outlined.Home, filledIcon = Icons.Filled.Home) },
-                                            label = { Text("Home") }
-                                        )
-                                        NavigationBarItem(
-                                            selected = currentRoute == "airing",
-                                            onClick = { navController.navigateToTab("airing") },
-                                            icon = { BottomFillIcon(selected = currentRoute == "airing", outlinedIcon = Icons.Outlined.Schedule, filledIcon = Icons.Filled.Schedule) },
-                                            label = { Text("Airing") }
-                                        )
-                                        NavigationBarItem(
-                                            selected = currentRoute == "search",
-                                            onClick = { navController.navigateToTab("search") },
-                                            icon = { SpinningSearchIcon(selected = currentRoute == "search", icon = Icons.Filled.Search) },
-                                            label = { Text("Search") }
-                                        )
-                                        NavigationBarItem(
-                                            selected = currentRoute == "profile",
-                                            onClick = { navController.navigateToTab("profile") },
-                                            icon = { BottomFillIcon(selected = currentRoute == "profile", outlinedIcon = Icons.Outlined.Person, filledIcon = Icons.Filled.Person) },
-                                            label = { Text("Profile") }
-                                        )
-                                    }
+                                val navBarAlpha by animateFloatAsState(
+                                    targetValue = if (showBottomBar) 1f else 0f,
+                                    animationSpec = tween(
+                                        durationMillis = if (showBottomBar) 220 else 0,
+                                        delayMillis = if (showBottomBar) 300 else 0
+                                    ),
+                                    label = "nav_bar_alpha"
+                                )
+                                NavigationBar(
+                                    modifier = Modifier
+                                        .graphicsLayer { alpha = navBarAlpha }
+                                        .layout { measurable, constraints ->
+                                            val placeable = measurable.measure(constraints)
+                                            // Report 0 height to Scaffold when hidden so nothing gets pushed up
+                                            val reportedHeight = if (navBarAlpha == 0f) 0 else placeable.height
+                                            layout(placeable.width, reportedHeight) {
+                                                placeable.place(0, 0)
+                                            }
+                                        }
+                                ) {
+                                    NavigationBarItem(
+                                        selected = currentRoute == "home",
+                                        onClick = { navController.navigateToTab("home") },
+                                        icon = { BottomFillIcon(selected = currentRoute == "home", outlinedIcon = Icons.Outlined.Home, filledIcon = Icons.Filled.Home) },
+                                        label = { Text("Home") }
+                                    )
+                                    NavigationBarItem(
+                                        selected = currentRoute == "airing",
+                                        onClick = {
+                                            navController.navigateToTab("airing")
+                                        },
+                                        icon = {
+                                            SpinningAiringTabIcon(
+                                                selected = currentRoute == "airing",
+                                                spinTrigger = airingSpinTrigger
+                                            )
+                                        },
+                                        label = { Text("Airing") }
+                                    )
+                                    NavigationBarItem(
+                                        selected = currentRoute == "search",
+                                        onClick = { navController.navigateToTab("search") },
+                                        icon = { SpinningSearchIcon(selected = currentRoute == "search", icon = Icons.Filled.Search) },
+                                        label = { Text("Search") }
+                                    )
+                                    NavigationBarItem(
+                                        selected = currentRoute == "profile",
+                                        onClick = { navController.navigateToTab("profile") },
+                                        icon = { BottomFillIcon(selected = currentRoute == "profile", outlinedIcon = Icons.Outlined.Person, filledIcon = Icons.Filled.Person) },
+                                        label = { Text("Profile") }
+                                    )
                                 }
                             },
                             contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -212,7 +251,12 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                        composable("anidetail") {
+                        composable(
+                            route = "anidetail",
+                            popExitTransition = {
+                                fadeOut(animationSpec = tween(durationMillis = 350))
+                            }
+                        ) {
                             val media = viewModel.selectedAniListMedia.value
                             if (media != null) {
                                 AniListDetailScreen(
@@ -523,5 +567,33 @@ class MainActivity : ComponentActivity() {
             )
             shortcutManager.dynamicShortcuts = shortcuts
         }
+    }
+}
+@Composable
+private fun SpinningAiringTabIcon(
+    selected: Boolean,
+    spinTrigger: Int,
+    modifier: Modifier = Modifier
+) {
+    val rotation by animateFloatAsState(
+        targetValue = spinTrigger * 360f,
+        animationSpec = tween(
+            durationMillis = 650,
+            easing = FastOutSlowInEasing
+        ),
+        label = "airing_clock_spin"
+    )
+
+    Box(
+        modifier = modifier
+            .graphicsLayer {
+                rotationZ = rotation % 360f
+            }
+    ) {
+        BottomFillIcon(
+            selected = selected,
+            outlinedIcon = Icons.Outlined.Schedule,
+            filledIcon = Icons.Filled.Schedule
+        )
     }
 }

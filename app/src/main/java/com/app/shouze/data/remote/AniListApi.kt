@@ -161,9 +161,9 @@ class AniListApi {
             }
 
             val graphqlQuery = """
-                query SearchMedia(${"$"}search: String, ${"$"}type: MediaType) {
+                query SearchMedia(${'$'}search: String, ${'$'}type: MediaType) {
                     Page(page: 1, perPage: 20) {
-                        media(search: ${"$"}search, type: ${"$"}type) {
+                        media(search: ${'$'}search, type: ${'$'}type, sort: SEARCH_MATCH) {
                             id
                             title { romaji english native }
                             coverImage { large medium }
@@ -278,6 +278,9 @@ class AniListApi {
 
             val requestBody = buildJsonObject {
                 put("query", graphqlQuery)
+                putJsonObject("variables") {
+                    put("type", type)
+                }
             }.toString()
 
             val request = Request.Builder()
