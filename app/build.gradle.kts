@@ -33,8 +33,8 @@ android {
         applicationId = "com.app.shouze"
         minSdk = 24
         targetSdk = 36
-        versionCode = 65
-        versionName = "6.5.0"
+        versionCode = 700
+        versionName = "7.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
