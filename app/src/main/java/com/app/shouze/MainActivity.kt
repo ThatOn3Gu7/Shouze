@@ -14,9 +14,11 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -60,7 +62,7 @@ private fun NavHostController.navigateToTab(route: String) {
     }
 }
 
-private val TAB_ROUTES = listOf("home", "airing", "search", "profile")
+private val TAB_ROUTES = listOf("home", "airing", "search", "settings")
 private fun tabIndex(route: String?): Int = TAB_ROUTES.indexOf(route)
 
 class MainActivity : ComponentActivity() {
@@ -121,7 +123,7 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentRoute = navBackStackEntry?.destination?.route
-                        val showBottomBar = currentRoute in listOf("home", "airing", "search", "profile") && detailItem == null
+                        val showBottomBar = currentRoute in listOf("home", "airing", "search", "settings") && detailItem == null
 
                         LaunchedEffect(currentRoute) {
                            if (currentRoute == "airing") {
@@ -176,10 +178,10 @@ class MainActivity : ComponentActivity() {
                                         label = { Text("Search") }
                                     )
                                     NavigationBarItem(
-                                        selected = currentRoute == "profile",
-                                        onClick = { navController.navigateToTab("profile") },
-                                        icon = { BottomFillIcon(selected = currentRoute == "profile", outlinedIcon = Icons.Outlined.Person, filledIcon = Icons.Filled.Person) },
-                                        label = { Text("Profile") }
+                                        selected = currentRoute == "settings",
+                                        onClick = { navController.navigateToTab("settings") },
+                                        icon = { SpinningSettingsTabIcon(selected = currentRoute == "settings") },
+                                        label = { Text("Settings") }
                                     )
                                 }
                             },
@@ -308,7 +310,9 @@ class MainActivity : ComponentActivity() {
                                 onCategorySelected = viewModel::setCategoryFilter,
                                 onSearchQueryChange = viewModel::setSearchQuery,
                                 onClearMessage = viewModel::clearSyncMessage,
-                                onSettingsClick = { navController.navigate("settings") },
+                                onProfileClick = { navController.navigate("profile") },
+                                profilePictureUri = settings.profilePictureUri,
+                                username = settings.username,
                                 onSortModeChange = viewModel::setSortMode,
                                 onToggleFavorites = viewModel::toggleShowFavorites,
                                 onToggleFavorite = { viewModel.toggleFavorite(it.id) },
@@ -456,6 +460,7 @@ class MainActivity : ComponentActivity() {
                                 username = settings.username,
                                 profilePictureUri = settings.profilePictureUri,
                                 stats = statsUiState,
+                                onBack = { navController.popBackStack() },
                                 onUsernameChange = viewModel::setUsername,
                                 onProfilePictureChange = viewModel::setProfilePicture,
                                 onNavigateToStatistics = { navController.navigate("statistics") },
@@ -594,6 +599,35 @@ private fun SpinningAiringTabIcon(
             selected = selected,
             outlinedIcon = Icons.Outlined.Schedule,
             filledIcon = Icons.Filled.Schedule
+        )
+    }
+}
+
+@Composable
+private fun SpinningSettingsTabIcon(
+    selected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val rotation = remember { androidx.compose.animation.core.Animatable(0f) }
+
+    LaunchedEffect(selected) {
+        if (selected) {
+            rotation.animateTo(
+                targetValue = rotation.value + 360f,
+                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+            )
+        }
+    }
+
+    Box(
+        modifier = modifier.graphicsLayer {
+            rotationZ = rotation.value
+        }
+    ) {
+        BottomFillIcon(
+            selected = selected,
+            outlinedIcon = Icons.Outlined.Settings,
+            filledIcon = Icons.Filled.Settings
         )
     }
 }

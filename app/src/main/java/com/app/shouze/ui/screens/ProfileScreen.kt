@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.AccountCircle
@@ -51,6 +52,7 @@ fun ProfileScreen(
     username: String,
     profilePictureUri: String?,
     stats: StatsUiState = StatsUiState(),
+    onBack: () -> Unit = {},
     onUsernameChange: (String) -> Unit,
     onProfilePictureChange: (String?) -> Unit,
     onNavigateToStatistics: () -> Unit,
@@ -89,6 +91,11 @@ fun ProfileScreen(
                         color = MaterialTheme.colorScheme.primary,
                         letterSpacing = 0.5.sp
                     )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.Transparent

@@ -109,7 +109,7 @@ fun HomeScreen(
     onCategorySelected: (String?) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearMessage: () -> Unit,
-    onSettingsClick: () -> Unit,
+    onProfileClick: () -> Unit,
     onSortModeChange: (SortMode) -> Unit,
     onToggleFavorites: () -> Unit,
     onToggleFavorite: (MediaItemEntity) -> Unit,
@@ -124,7 +124,9 @@ fun HomeScreen(
     allTags: List<String> = emptyList(),
     selectedTag: String? = null,
     onTagSelected: (String?) -> Unit = {},
-    onClearFilters: () -> Unit = {}
+    onClearFilters: () -> Unit = {},
+    profilePictureUri: String? = null,
+    username: String = ""
 ) {
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
@@ -461,18 +463,45 @@ fun HomeScreen(
                         }
                         TooltipBox(
                             tooltip = {
-                                PlainTooltip { Text("Settings") }
+                                PlainTooltip { Text("Profile") }
                             },
                             state = rememberTooltipState(),
                             positionProvider = rememberTooltipPositionProvider(),
                             focusable = false
                         ) {
-                            IconButton(onClick = onSettingsClick) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Settings, 
-                                    contentDescription = "Settings",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
+                            Surface(
+                                onClick = onProfileClick,
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .size(32.dp)
+                            ) {
+                                if (!profilePictureUri.isNullOrBlank()) {
+                                    if (profilePictureUri.startsWith("emoji:")) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primaryContainer),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = profilePictureUri.removePrefix("emoji:"),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
+                                    } else {
+                                        SafeRemoteImage(
+                                            url = profilePictureUri,
+                                            contentDescription = "Profile",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                            placeholder = { FallbackAvatar() },
+                                            errorContent = { FallbackAvatar() }
+                                        )
+                                    }
+                                } else {
+                                    FallbackAvatar()
+                                }
                             }
                         }
                     }
@@ -1164,5 +1193,22 @@ private fun EmptyState(
                 Text("Clear filters", fontWeight = FontWeight.Bold)
             }
         }
+    }
+}
+
+@Composable
+private fun FallbackAvatar() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "?",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
     }
 }
