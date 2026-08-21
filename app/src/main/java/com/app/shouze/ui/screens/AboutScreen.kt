@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.app.shouze.data.GITHUB_REPO
@@ -597,10 +598,10 @@ private fun UpdateMenuContent(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             TextButton(onClick = { promptApkCleanup() }) {
-                                Text("Clean up downloaded APKs")
+                                Text("Clean up APKs", maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             Button(onClick = onCheckForUpdates) {
-                                Text(checkLabel)
+                                Text(checkLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }

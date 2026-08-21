@@ -481,13 +481,16 @@ fun HomeScreen(
         },
         floatingActionButton = {
             if (!isSelectionMode) {
+                val fabHover = with(LocalDensity.current) { 35.toDp() }
                 AnimatedFab(
                     progress = fabProgress,
-                    onClick = onAddClick
+                    onClick = onAddClick,
+                    modifier = Modifier.padding(bottom = fabHover)
                 )
             }
         },
         floatingActionButtonPosition = FabPosition.End,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
@@ -820,7 +823,8 @@ private fun BouncyFilterChip(
 // while gliding right off-screen and fading; the same motion reverses when scrolling up.
 private fun AnimatedFab(
     progress: Float,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val fabSize = 56.dp
     val extendedWidth = 140.dp
@@ -849,7 +853,7 @@ private fun AnimatedFab(
     Surface(
         onClick = onClick,
         enabled = alpha > 0.5f,
-        modifier = Modifier
+        modifier = modifier
             .graphicsLayer {
                 translationX = swipeDistance.toPx() * exitE
                 val s = 1f - 0.3f * exitE

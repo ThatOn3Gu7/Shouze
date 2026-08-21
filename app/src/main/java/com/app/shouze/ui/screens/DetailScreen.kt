@@ -67,7 +67,7 @@ fun DetailScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        text = "Details", 
+                        text = item.title, 
                         maxLines = 1, 
                         overflow = TextOverflow.Ellipsis,
                         fontWeight = FontWeight.Bold,

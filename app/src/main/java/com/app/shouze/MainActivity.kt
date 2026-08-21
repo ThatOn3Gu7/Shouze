@@ -324,7 +324,6 @@ class MainActivity : ComponentActivity() {
                                         AniListDetailScreen(
                                             media = media,
                                             onBack = {
-                                                viewModel.clearSelectedAniListMedia()
                                                 navController.popBackStack()
                                             },
                                             onAdd = { m, status ->

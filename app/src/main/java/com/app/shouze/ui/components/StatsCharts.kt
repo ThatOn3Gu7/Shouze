@@ -81,11 +81,12 @@ fun StatusDonutChart(
     planToWatch: Int,
     modifier: Modifier = Modifier
 ) {
-    val total = (completed + watching + reading + dropped + planToWatch).coerceAtLeast(1)
-    val completedAngle = (completed.toFloat() / total) * 360f
-    val watchingAngle = (watching.toFloat() / total) * 360f
-    val readingAngle = (reading.toFloat() / total) * 360f
-    val droppedAngle = (dropped.toFloat() / total) * 360f
+    val total = completed + watching + reading + dropped + planToWatch
+    val safeTotal = total.coerceAtLeast(1)
+    val completedAngle = (completed.toFloat() / safeTotal) * 360f
+    val watchingAngle = (watching.toFloat() / safeTotal) * 360f
+    val readingAngle = (reading.toFloat() / safeTotal) * 360f
+    val droppedAngle = (dropped.toFloat() / safeTotal) * 360f
 
     val animatedProgress = remember { Animatable(0f) }
     LaunchedEffect(total) {

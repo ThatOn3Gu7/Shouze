@@ -117,32 +117,6 @@ fun AniListDetailScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = { },
-                navigationIcon = {
-                    Surface(
-                        onClick = onBack,
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                        modifier = Modifier
-                            .padding(start = 12.dp, top = 8.dp)
-                            .size(40.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                )
-            )
-        },
         bottomBar = {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -195,12 +169,13 @@ fun AniListDetailScreen(
             }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .padding(bottom = padding.calculateBottomPadding())
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+            ) {
             val coverUrl = media.coverImage?.large
                 ?: media.coverImage?.medium
 
@@ -210,7 +185,7 @@ fun AniListDetailScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(280.dp)
+                    .height(350.dp)
             ) {
                 // Blurred Ambient Background Banner
                 if (!bannerUrl.isNullOrBlank()) {
@@ -509,6 +484,53 @@ fun AniListDetailScreen(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(96.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.35f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(start = 12.dp, top = 8.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color.Black.copy(alpha = 0.45f)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White
+                            )
+                        }
+                        Text(
+                            text = mainTitle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier
+                                .widthIn(max = 260.dp)
+                                .padding(end = 16.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 
