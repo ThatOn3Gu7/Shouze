@@ -183,24 +183,33 @@ fun HomeScreen(
         label = "fabProgress"
     )
     
-    LaunchedEffect(isSelectionMode) {
-        if (!isSelectionMode) {
+        val canScroll by remember {
+        derivedStateOf { listState.canScrollForward || listState.canScrollBackward }
+    }
+
+    LaunchedEffect(canScroll, isSelectionMode) {
+        if (!canScroll || isSelectionMode) {
             scrollAccumulator = 0f
         }
     }
 
     val fabNestedScrollConnection = remember(hideDistancePx) {
         object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.UserInput && available.y != 0f) {
-                    scrollAccumulator = (scrollAccumulator - available.y).coerceIn(0f, hideDistancePx)
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                // Only hide/show FAB if distance was actually consumed by scrolling content
+                if (source == NestedScrollSource.UserInput && consumed.y != 0f) {
+                    scrollAccumulator = (scrollAccumulator - consumed.y).coerceIn(0f, hideDistancePx)
                 }
                 return Offset.Zero
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                if (abs(available.y) > fabFlingThreshold) {
-                    scrollAccumulator = if (available.y < 0f) hideDistancePx else 0f
+                if (abs(consumed.y) > fabFlingThreshold) {
+                    scrollAccumulator = if (consumed.y < 0f) hideDistancePx else 0f
                 }
                 return Velocity.Zero
             }
@@ -851,15 +860,13 @@ private fun BouncyFilterChip(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-// Swipe-out "Add Media" FAB: one continuous motion — the pill morphs into a "+" circle
-// while gliding right off-screen and fading; the same motion reverses when scrolling up.
 private fun AnimatedFab(
     progress: Float,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val fabSize = 56.dp
-    val extendedWidth = 140.dp
+    val extendedWidth = 156.dp // Increased from 140.dp to fit full text
     val swipeDistance = 420.dp
 
     val collapse = (progress / 0.6f).coerceIn(0f, 1f)
@@ -899,7 +906,7 @@ private fun AnimatedFab(
         shape = RoundedCornerShape(corner),
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        shadowElevation = 6.dp
+        shadowElevation = 0.dp // Set to 0.dp to remove shadow
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -926,7 +933,7 @@ private fun AnimatedFab(
                     softWrap = false,
                     overflow = TextOverflow.Clip,
                     modifier = Modifier
-                        .padding(end = 20.dp)
+                        .padding(end = 16.dp) // Reduced end padding from 20.dp
                         .alpha(1f - collapseE)
                         .graphicsLayer { translationX = -24f * collapseE }
                 )

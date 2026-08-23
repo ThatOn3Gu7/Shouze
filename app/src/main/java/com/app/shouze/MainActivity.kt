@@ -40,6 +40,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.layout
@@ -53,7 +55,6 @@ import com.app.shouze.ui.components.CoverImageStore
 import com.app.shouze.ui.components.DetailEditDialog
 import com.app.shouze.ui.components.SpinningSearchIcon
 import com.app.shouze.ui.StatsUiState
-import org.springframework.boot.SpringApplication
 
 private val TabLabelEnter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) +
     androidx.compose.animation.expandVertically(
