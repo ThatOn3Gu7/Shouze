@@ -11,20 +11,23 @@ Android app (Jetpack Compose + Room + OkHttp + AniList GraphQL). Package: `com.a
 ## Verification rule
 - After every edit, re-read the changed file to confirm the change is correct and does not break surrounding code. You cannot rely on the compiler here.
 
-## Architecture map
-- `MainActivity.kt` — single `NavHost`, bottom nav (Home/Search/Profile), wires ViewModel to screens.
-- `ui/MediaViewModel.kt` — single source of truth (Room + Settings + AniList). UI states: `HomeUiState`, `AniListSearchUiState`, `AiringScheduleUiState`, `StreamingUiState`, `StatsUiState`.
+## Architecture map (online-first)
+- `MainActivity.kt` — single `NavHost`, bottom nav (Discover/Library/Search/Account), wires `ShouzeViewModel` to screens. Also handles the AniList OAuth2 deep link (`com.app.shouze://oauth?code=…`) and static shortcuts.
+- `ui/ShouzeViewModel.kt` — single source of truth. UI states: `LibraryUiState`, `DiscoverUiState`, `SearchUiState`, `DetailUiState`, `StatsUiState`; exposes `account` (`AccountUiState`), `categories`, `credentials`, `settingsFlow`.
+- `data/MediaRepository.kt` — online-first two-way sync against AniList; Room is a local cache of `library_entries`, AniList is canonical. Optimistic mutations push via `SaveMediaListEntry`.
+- `data/AniListAuth.kt` — AniList OAuth2 (client credentials in SharedPreferences, authorization-code token exchange, persisted access/refresh token).
 - `data/remote/AniListApi.kt` — OkHttp GraphQL to `https://graphql.anilist.co` (URL is correct; "host not resolving" is environmental network, not a code bug).
+- `data/local/*` — Room DB v7: `library_entries` (`LibraryEntryEntity`) + `categories` (`CategoryEntity`).
 - Screens in `ui/screens/*`, reusable UI in `ui/components/*`.
 - Theme in `ui/theme/MediaTrackerTheme.kt`.
 
 ## Conventions
 - Material 3, Compose BOM. No XML layouts for screens (Compose only).
-- `Status` enum: WATCHING, READING, COMPLETED, DROPPED, PLAN_TO_WATCH.
-- Status colors: chips/cards use `statusContainerColor`/`statusContentColor` helpers.
-- Friendly API errors: map network failures to user-facing text via `MediaViewModel.friendlyError`.
+- `MediaStatus` enum (AniList vocabulary): CURRENT, PLANNING, COMPLETED, DROPPED, PAUSED, REPEATING.
+- Status colors: chips/cards use the `MediaStatus.containerColor()` / `contentColor()` composable extensions in `ui/components/StatusUi.kt`.
+- Friendly API errors: map network failures to user-facing text via `friendlyError` in `data/MediaRepository.kt`.
 
 ## Known limitations / out of scope (skip, don't force)
-- Offline caching of AniList, reminders/notifications (WorkManager), QR share, category color *editing* UI.
-- Backup zip is already JSON; CSV + MAL XML import exist.
+- Reminders/notifications (WorkManager), category color *editing* UI.
+- Pruned (removed): MAL XML import, CSV export, backup zip, avatar pickers, share list. Manual add (offline fallback) and categories are kept.
 - Widget exists (`ui/widget/ShouzeWidgetProvider`).

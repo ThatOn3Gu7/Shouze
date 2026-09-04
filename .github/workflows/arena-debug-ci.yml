@@ -1,0 +1,194 @@
+name: Arena Debug Build & Report
+
+# ---------------------------------------------------------------------------
+# Purpose
+# ---------------------------------------------------------------------------
+# Every time work is pushed to an `arena/**` branch, or a pull request whose
+# HEAD branch matches `arena/**` is opened/updated, this workflow:
+#   1. Builds the app (`assembleDebug`).
+#   2. Uploads the debug APK as a downloadable artifact.
+#   3. If the build fails, extracts the compile errors and posts them as a
+#      comment on the open pull request (so they can be read and fixed).
+#
+# It intentionally does NOT build/upload a release APK — that is handled by
+# `build-release.yml` when a version tag is pushed.
+
+on:
+  push:
+    branches:
+      - 'arena/**'
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Cancel any superseded run for the same arena branch so we don't queue up a
+# pile of builds when commits land quickly.
+concurrency:
+  group: arena-ci-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build-debug:
+    # On push events we already filtered by branch name. For pull_request
+    # events the `branches` filter would match the BASE branch, so we gate the
+    # job on the HEAD branch instead: only arena/** PRs build here.
+    if: ${{ github.event_name == 'push' || startsWith(github.head_ref, 'arena/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build (assembleDebug)
+        id: build
+        run: |
+          set +e
+          ./gradlew assembleDebug 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          echo "build_exit_code=$status" >> "$GITHUB_ENV"
+          exit "$status"
+
+      - name: Extract compile errors
+        id: extract
+        if: failure()
+        run: |
+          {
+            echo "### Kotlin / Java compiler errors"
+            grep -E '^(e|w): ' build.log | head -n 200
+            echo
+            echo "### Gradle failure summary"
+            awk '/FAILURE: Build failed/{flag=1} flag{print} /BUILD FAILED/{flag=0}' build.log | head -n 80
+            echo
+            echo "### Last 120 lines of the build log"
+            tail -n 120 build.log
+          } | head -c 50000 > compile-errors.txt
+          echo "Captured $(wc -c < compile-errors.txt) bytes of errors"
+          cat compile-errors.txt
+
+      - name: Stage APK
+        if: success()
+        run: |
+          mkdir -p artifacts
+          cp app/build/outputs/apk/debug/*.apk artifacts/Shouze-debug.apk
+          ls -la artifacts
+
+      - name: Upload debug APK artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shouze-debug
+          path: artifacts/Shouze-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Report success on PR
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- arena-build-report -->';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            let prNumber = context.payload.pull_request && context.payload.pull_request.number;
+            if (!prNumber) {
+              const head = context.ref.replace('refs/heads/', '');
+              const prs = await github.rest.pulls.list({
+                owner, repo, state: 'open', head: `${owner}:${head}`,
+              });
+              prNumber = prs.data.length ? prs.data[0].number : null;
+            }
+            if (!prNumber) {
+              core.info('No open PR for this branch; skipping success comment.');
+              return;
+            }
+
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body =
+              `## ✅ Debug build passed\n\n` +
+              `The debug APK was built successfully and uploaded as an artifact.\n\n` +
+              `**Artifact:** \`Shouze-debug\` — download it from the [Actions run](${runUrl}) ` +
+              `or with:\n\n\`\`\`bash\ngh run download ${context.runId} -n Shouze-debug\n\`\`\`\n\n` +
+              marker;
+
+            const existing = await github.rest.issues.listComments({
+              owner, repo, issue_number: prNumber, per_page: 100,
+            });
+            const prev = existing.data.find(c => c.body && c.body.includes(marker));
+            if (prev) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: prev.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+            }
+            core.info(`Success comment ${prev ? 'updated' : 'created'} on PR #${prNumber}`);
+
+      - name: Report build errors on PR
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- arena-build-report -->';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            let errors = '';
+            try {
+              errors = fs.readFileSync('compile-errors.txt', 'utf8');
+            } catch (e) {
+              errors = '(No compile-errors.txt found — see the run log for details.)';
+            }
+            if (!errors.trim()) {
+              errors = '(No compiler error lines were captured — see the run log for details.)';
+            }
+
+            let prNumber = context.payload.pull_request && context.payload.pull_request.number;
+            if (!prNumber) {
+              const head = context.ref.replace('refs/heads/', '');
+              const prs = await github.rest.pulls.list({
+                owner, repo, state: 'open', head: `${owner}:${head}`,
+              });
+              prNumber = prs.data.length ? prs.data[0].number : null;
+            }
+            if (!prNumber) {
+              core.info('No open PR for this branch; skipping error comment.');
+              return;
+            }
+
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body =
+              `## ❌ Build failed\n\n` +
+              `\`assembleDebug\` failed. Compile errors below — fix and push again.\n\n` +
+              `<details>\n<summary>Compile errors</summary>\n\n` +
+              `\`\`\`\n${errors.slice(0, 45000)}\n\`\`\`\n\n` +
+              `</details>\n\n` +
+              `[View the full run](${runUrl})\n\n` +
+              marker;
+
+            const existing = await github.rest.issues.listComments({
+              owner, repo, issue_number: prNumber, per_page: 100,
+            });
+            const prev = existing.data.find(c => c.body && c.body.includes(marker));
+            if (prev) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: prev.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+            }
+            core.info(`Error comment ${prev ? 'updated' : 'created'} on PR #${prNumber}`);
