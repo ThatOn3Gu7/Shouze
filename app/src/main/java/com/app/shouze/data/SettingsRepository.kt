@@ -15,8 +15,6 @@ data class AppSettings(
     val useDynamicColor: Boolean = true,
     val amoledBlack: Boolean = false,
     val hasSeenOnboarding: Boolean = false,
-    val username: String = "",
-    val profilePictureUri: String? = null,
     val updateFrequency: UpdateFrequency = UpdateFrequency.WEEKLY
 )
 
@@ -47,16 +45,6 @@ class SettingsRepository(context: Context) {
         _settings.value = loadSettings()
     }
 
-    fun setUsername(name: String) {
-        prefs.edit().putString("username", name).apply()
-        _settings.value = loadSettings()
-    }
-
-    fun setProfilePicture(uri: String?) {
-        prefs.edit().putString("profile_picture_uri", uri).apply()
-        _settings.value = loadSettings()
-    }
-
     fun setUpdateFrequency(frequency: UpdateFrequency) {
         prefs.edit().putString("update_frequency", frequency.name).apply()
         _settings.value = loadSettings()
@@ -70,8 +58,7 @@ class SettingsRepository(context: Context) {
     }
 
     private fun loadSettings(): AppSettings {
-        val themeName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name)
-            ?: ThemeMode.SYSTEM.name
+        val themeName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
         val frequencyName = prefs.getString("update_frequency", UpdateFrequency.WEEKLY.name)
             ?: UpdateFrequency.WEEKLY.name
         return AppSettings(
@@ -83,8 +70,6 @@ class SettingsRepository(context: Context) {
             useDynamicColor = prefs.getBoolean("dynamic_color", true),
             amoledBlack = prefs.getBoolean("amoled_black", false),
             hasSeenOnboarding = prefs.getBoolean("has_seen_onboarding", false),
-            username = prefs.getString("username", "") ?: "",
-            profilePictureUri = prefs.getString("profile_picture_uri", null),
             updateFrequency = try {
                 UpdateFrequency.valueOf(frequencyName)
             } catch (_: Exception) {

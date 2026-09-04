@@ -1,19 +1,34 @@
 package com.app.shouze.ui.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.BarChart
-import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material3.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,32 +41,23 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onNavigateToAppearance: () -> Unit,
     onNavigateToCategories: () -> Unit,
-    onNavigateToBackup: () -> Unit,
     onNavigateToAbout: () -> Unit,
-    onNavigateToStatistics: () -> Unit,
-    onNavigateToShareList: () -> Unit = {}
+    onNavigateToStatistics: () -> Unit
 ) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { 
-                    Text(
-                        text = "Settings",
-                        fontWeight = FontWeight.Bold 
-                    ) 
-                },
+                title = { Text("Settings", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.Transparent
-                )
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        
         Column(
             modifier = Modifier
                 .padding(padding)
@@ -60,8 +66,6 @@ fun SettingsScreen(
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            
-            // --- General Settings Section ---
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "General",
@@ -69,7 +73,6 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 8.dp)
                 )
-                
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.extraLarge,
@@ -85,7 +88,6 @@ fun SettingsScreen(
                             onClick = onNavigateToStatistics
                         )
                         SettingsDivider()
-                        
                         SettingsItem(
                             title = "Appearance",
                             subtitle = "Theme, colors, display",
@@ -93,34 +95,16 @@ fun SettingsScreen(
                             onClick = onNavigateToAppearance
                         )
                         SettingsDivider()
-                        
                         SettingsItem(
                             title = "Categories",
                             subtitle = "Manage your library categories",
                             icon = Icons.Rounded.Folder,
                             onClick = onNavigateToCategories
                         )
-                        SettingsDivider()
-                        
-                        SettingsItem(
-                            title = "Backup & Restore",
-                            subtitle = "Export or import your data",
-                            icon = Icons.Rounded.CloudUpload,
-                            onClick = onNavigateToBackup
-                        )
-                        SettingsDivider()
-                        
-                        SettingsItem(
-                            title = "Share List",
-                            subtitle = "Share or import your library",
-                            icon = Icons.Rounded.Share,
-                            onClick = onNavigateToShareList
-                        )
                     }
                 }
             }
 
-            // --- Info Section ---
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "Info",
@@ -128,7 +112,6 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 8.dp)
                 )
-                
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.extraLarge,
@@ -166,18 +149,18 @@ private fun SettingsItem(
     onClick: () -> Unit
 ) {
     ListItem(
-        headlineContent = { 
+        headlineContent = {
             Text(
-                text = title, 
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium
-            ) 
+            )
         },
-        supportingContent = { 
+        supportingContent = {
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodyMedium
-            ) 
+            )
         },
         leadingContent = {
             Icon(
@@ -196,8 +179,6 @@ private fun SettingsItem(
             )
         },
         modifier = Modifier.clickable(onClick = onClick),
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent
-        )
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
     )
 }

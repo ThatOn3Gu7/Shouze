@@ -3,264 +3,233 @@ package com.app.shouze.ui.components
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.StarHalf
-import androidx.compose.material.icons.filled.BrokenImage
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material3.*
+import androidx.compose.material.icons.rounded.BrokenImage
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.app.shouze.data.local.MediaItemEntity
-import com.app.shouze.data.local.Status
+import com.app.shouze.data.local.LibraryEntryEntity
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-  fun MediaCardItem(
-    item: MediaItemEntity,
-    categoryName: String,
+fun MediaCardItem(
+    entry: LibraryEntryEntity,
     onClick: () -> Unit,
+    onToggleFavorite: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
-    isSelected: Boolean = false,
-    isSelectionMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val view = androidx.compose.ui.platform.LocalView.current
     Card(
         modifier = modifier
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = {
-                    com.app.shouze.ui.components.HapticsHelper.performSelectionHaptic(view)
-                    onLongClick?.invoke()
-                }
+                onLongClick = { onLongClick?.invoke() }
             )
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceContainerHigh
-            }
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                PosterThumbnail(
-                    coverUri = item.coverImageUri,
-                    title = item.title,
-                    modifier = Modifier.width(68.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            PosterThumbnail(
+                coverUrl = entry.coverImageUrl,
+                title = entry.title,
+                modifier = Modifier.width(64.dp)
+            )
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = item.title,
+                        text = entry.title,
                         style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = buildSubtitle(item, categoryName),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
-                    )
-                    if (item.totalCount > 0) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        LinearProgressIndicator(
-                            progress = { (item.currentProgress.toFloat() / item.totalCount).coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(4.dp)
-                                .clip(MaterialTheme.shapes.small),
-                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            color = MaterialTheme.colorScheme.primary
+                    if (entry.pendingSync) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Rounded.Sync,
+                            contentDescription = "Waiting to sync",
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(14.dp)
                         )
                     }
-                    if (item.rating > 0.0) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        RatingBar(rating = item.rating)
-                    }
                 }
-                Spacer(modifier = Modifier.width(12.dp))
-                StatusBadge(status = item.status)
-                if (item.isFavorite) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.Filled.Star,
-                        contentDescription = "Favorite",
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.size(16.dp)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = buildSubtitle(entry),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                val total = entry.totalCount() ?: 0
+                if (total > 0) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    LinearProgressIndicator(
+                        progress = { (entry.progress.toFloat() / total).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        color = MaterialTheme.colorScheme.primary
                     )
+                }
+                if (entry.score > 0) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ScoreBadge(score = entry.score)
                 }
             }
-            if (isSelectionMode) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(12.dp),
-                    contentAlignment = Alignment.TopEnd
-                ) {
-                    Checkbox(
-                        checked = isSelected,
-                        onCheckedChange = null
-                    )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                StatusBadge(status = entry.status, label = entry.statusLabel())
+                Spacer(modifier = Modifier.height(8.dp))
+                if (onToggleFavorite != null) {
+                    Surface(
+                        onClick = onToggleFavorite,
+                        shape = CircleShape,
+                        color = Color.Transparent,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (entry.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                contentDescription = if (entry.isFavorite) "Unfavorite" else "Favorite",
+                                tint = if (entry.isFavorite) MaterialTheme.colorScheme.tertiary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ScoreBadge(score: Int) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.tertiaryContainer
+    ) {
+        Text(
+            text = "%.1f".format(score / 10.0),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        )
+    }
+}
+
+@Composable
+private fun StatusBadge(status: com.app.shouze.data.local.MediaStatus, label: String) {
+    Surface(
+        shape = CircleShape,
+        color = status.containerColor(),
+        contentColor = status.contentColor()
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+        )
     }
 }
 
 @Composable
 private fun PosterThumbnail(
-    coverUri: String?,
+    coverUrl: String?,
     title: String,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier.aspectRatio(2f / 3f),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-        )
+        color = MaterialTheme.colorScheme.surfaceContainerHighest
     ) {
-        if (!coverUri.isNullOrBlank()) {
+        if (!coverUrl.isNullOrBlank()) {
             SafeRemoteImage(
-                url = coverUri,
+                url = coverUrl,
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
-                placeholder = { ImagePlaceholder(iconSize = 28.dp) },
-                errorContent = { ImagePlaceholder(iconSize = 28.dp, failed = true) }
+                placeholder = { PosterPlaceholder() },
+                errorContent = { PosterPlaceholder(failed = true) }
             )
         } else {
-            ImagePlaceholder(iconSize = 28.dp)
+            PosterPlaceholder()
         }
     }
 }
 
 @Composable
-private fun ImagePlaceholder(
-    iconSize: androidx.compose.ui.unit.Dp,
-    failed: Boolean = false
-) {
+private fun PosterPlaceholder(failed: Boolean = false) {
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                if (failed) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                else MaterialTheme.colorScheme.surfaceContainerHighest
+            ),
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = if (failed) Icons.Filled.BrokenImage else Icons.Filled.Image,
-            contentDescription = if (failed) "Image failed to load" else null,
-            tint = if (failed) {
-                MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-            },
-            modifier = Modifier.size(iconSize)
+            imageVector = if (failed) Icons.Rounded.BrokenImage else Icons.Rounded.Image,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(24.dp)
         )
     }
 }
 
-@Composable
-private fun StatusBadge(status: Status, modifier: Modifier = Modifier) {
-    val container: Color
-    val content: Color
-    val label: String
-    when (status) {
-        Status.COMPLETED -> {
-            container = MaterialTheme.colorScheme.tertiaryContainer
-            content = MaterialTheme.colorScheme.onTertiaryContainer
-            label = "Completed"
-        }
-        Status.DROPPED -> {
-            container = MaterialTheme.colorScheme.errorContainer
-            content = MaterialTheme.colorScheme.onErrorContainer
-            label = "Dropped"
-        }
-        Status.PLAN_TO_WATCH -> {
-            container = MaterialTheme.colorScheme.surfaceContainerHighest
-            content = MaterialTheme.colorScheme.onSurfaceVariant
-            label = "Plan to Watch"
-        }
-        Status.WATCHING -> {
-            container = MaterialTheme.colorScheme.primaryContainer
-            content = MaterialTheme.colorScheme.onPrimaryContainer
-            label = "Watching"
-        }
-        Status.READING -> {
-            container = MaterialTheme.colorScheme.primaryContainer
-            content = MaterialTheme.colorScheme.onPrimaryContainer
-            label = "Reading"
-        }
+private fun buildSubtitle(entry: LibraryEntryEntity): String {
+    val parts = mutableListOf<String>()
+    entry.format?.takeIf { it.isNotBlank() }?.let { parts.add(it.replace('_', ' ')) }
+    if (!entry.season.isNullOrBlank() || entry.seasonYear != null) {
+        val season = entry.season?.replaceFirstChar { c -> c.uppercase() } ?: ""
+        parts.add("$season ${entry.seasonYear ?: ""}".trim())
     }
-    Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.small,
-        color = container,
-        contentColor = content
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-    }
-}
-
-@Composable
-private fun RatingBar(rating: Double, modifier: Modifier = Modifier) {
-    val scale = (rating / 2.0).coerceIn(0.0, 5.0)
-    val fullStars = scale.toInt()
-    val hasHalf = scale - fullStars >= 0.5
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        repeat(5) { index ->
-            val icon: ImageVector = when {
-                index < fullStars -> Icons.Filled.Star
-                index == fullStars && hasHalf -> Icons.AutoMirrored.Filled.StarHalf
-                else -> Icons.Filled.StarBorder
-            }
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier.size(14.dp)
-            )
-        }
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = "%.1f".format(rating),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-private fun buildSubtitle(item: MediaItemEntity, categoryName: String): String {
-    val progressLabel = if (item.totalCount > 0) {
-        "${item.currentProgress}/${item.totalCount}"
-    } else {
-        "${item.currentProgress}/ongoing"
-    }
-    val volumeLabel = if (item.currentVolume != null) {
-        " · Vol.${item.currentVolume}"
-    } else {
-        ""
-    }
-    return "$categoryName · $progressLabel$volumeLabel"
+    val total = entry.totalCount()
+    val progress = if (total != null && total > 0) "${entry.progress}/$total" else "${entry.progress}+"
+    parts.add("$progress ${entry.progressUnit()}")
+    return parts.joinToString(" · ")
 }
