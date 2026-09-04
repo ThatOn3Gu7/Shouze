@@ -118,7 +118,7 @@ class MediaRepository(
             val now = System.currentTimeMillis()
             val local = libraryDao.getAllSnapshot()
             val byMediaId = local.filter { it.mediaId != null }.associateBy { it.mediaId }
-            val categoryIds = categoryDao.getAllSnapshot().associateBy { it.name.lowercase() }
+            val categoryIds = categoryDao.getAllSnapshot().associate { it.name.lowercase() to it.id }
 
             val upserts = remote.mapNotNull { dto ->
                 dto.media?.let { m ->
@@ -209,7 +209,7 @@ class MediaRepository(
 
     /** Adds an AniList media to the user's list and pushes it immediately. */
     suspend fun addFromDetail(detail: MediaDetail, status: MediaStatus, type: MediaType) {
-        val categoryIds = categoryDao.getAllSnapshot().associateBy { it.name.lowercase() }
+        val categoryIds = categoryDao.getAllSnapshot().associate { it.name.lowercase() to it.id }
         val entry = LibraryEntryEntity(
             mediaId = detail.id,
             title = displayTitle(detail.title),

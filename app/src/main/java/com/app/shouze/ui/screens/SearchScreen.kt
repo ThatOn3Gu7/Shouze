@@ -121,14 +121,12 @@ fun SearchScreen(
                         }
                     )
                 )
-                AnimatedVisibility(
-                    visible = fieldFocused && historyMatches.isNotEmpty(),
-                    enter = expandVertically(animationSpec = tween(200)) + fadeIn(),
-                    exit = shrinkVertically(animationSpec = tween(150)) + fadeOut(),
-                    modifier = Modifier.padding(horizontal = 16.dp).padding(top = 64.dp)
-                ) {
+                if (fieldFocused && historyMatches.isNotEmpty()) {
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(top = 64.dp),
                         shape = MaterialTheme.shapes.large,
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         shadowElevation = 8.dp
