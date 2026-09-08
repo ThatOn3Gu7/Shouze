@@ -22,7 +22,7 @@ class FuzzyDateTest {
 
     @Test
     fun `partial dates keep their month and day defaults`() {
-        val millis = FuzzyDate.toEpochMillis(AniListFuzzyDate(year = 2024))
+        val millis = FuzzyDate.toEpochMillis(AniListFuzzyDate(year = 2024))!!
         assertEquals(AniListFuzzyDate(year = 2024, month = 1, day = 1), FuzzyDate.toInput(millis))
     }
 }
