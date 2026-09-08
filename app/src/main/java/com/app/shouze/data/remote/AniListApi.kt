@@ -52,7 +52,7 @@ class AniListApi(
             runCatching {
                 if (query.isBlank()) return@runCatching AniListMediaPage()
 
-                val entryField = if (hasToken()) "mediaListEntry { id status score progress }" else ""
+                val entryField = if (hasToken()) "mediaListEntry { id mediaId status score progress }" else ""
                 val graphqlQuery = """
                     query SearchMedia(${'$'}search: String, ${'$'}type: MediaType, ${'$'}page: Int) {
                         Page(page: ${'$'}page, perPage: 24) {
@@ -101,7 +101,7 @@ class AniListApi(
     suspend fun getTrending(type: String = "ANIME"): Result<List<AniListMedia>> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val entryField = if (hasToken()) "mediaListEntry { id status score progress }" else ""
+                val entryField = if (hasToken()) "mediaListEntry { id mediaId status score progress }" else ""
                 val graphqlQuery = """
                     query Trending(${'$'}type: MediaType) {
                         Page(page: 1, perPage: 20) {
