@@ -193,9 +193,13 @@ class AniListLibraryRepository(
                         // queue can't clog forever on an unrecoverable op.
                         outboxDao.markFailed(op.seq, e.message)
                         if (op.attempts + 1 >= MAX_ATTEMPTS) {
+                            // Give up on delivering this op, but keep the row flagged
+                            // pending: the user's edit must neither vanish nor be
+                            // clobbered by the next server pull. Editing the item
+                            // again re-queues a fresh attempt; signing out/in
+                            // restores the server value.
                             outboxDao.delete(op.seq)
                             val failedItem = mediaDao.getById(op.localItemId)
-                            failedItem?.let { mediaDao.insertOrUpdate(it.copy(pendingSync = false)) }
                             hardError = "A change to \"${failedItem?.title ?: "an item"}\" couldn't be synced: ${e.message}"
                         }
                         allDelivered = false
@@ -284,10 +288,18 @@ class AniListLibraryRepository(
         }
     }
 
-    /** Upserts fresh entities and prunes cached rows the user removed on AniList. */
+    /**
+     * Upserts fresh entities and prunes cached rows the user removed on AniList.
+     * Rows with a still-unsynced local edit (pendingSync) are never overwritten:
+     * the user's change wins until it has been delivered to AniList.
+     */
     private suspend fun reconcileType(mediaType: String, entities: List<MediaItemEntity>) {
         db.withTransaction {
-            mediaDao.insertAll(entities)
+            val pendingIds = mediaDao.getAniListItemsByType(mediaType)
+                .filter { it.pendingSync }
+                .map { it.id }
+                .toSet()
+            mediaDao.insertAll(if (pendingIds.isEmpty()) entities else entities.filter { it.id !in pendingIds })
             val freshIds = entities.map { it.id }.toSet()
             val stale = mediaDao.getAniListItemsByType(mediaType)
                 .filter { it.id !in freshIds && !it.pendingSync }

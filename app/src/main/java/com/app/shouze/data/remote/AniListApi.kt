@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -293,8 +294,8 @@ class AniListApi(
                         ${'$'}progressVolumes: Int,
                         ${'$'}notes: String,
                         ${'$'}repeat: Int,
-                        ${'$'}startedAt: FuzzyDateInt,
-                        ${'$'}completedAt: FuzzyDateInt
+                        ${'$'}startedAt: FuzzyDateInput,
+                        ${'$'}completedAt: FuzzyDateInput
                     ) {
                         SaveMediaListEntry(
                             mediaId: ${'$'}mediaId
@@ -318,8 +319,14 @@ class AniListApi(
                     }
                 """.trimIndent()
 
-                val startedAt = payload.startedAt?.let { FuzzyDate.fromEpochMillis(it) }
-                val completedAt = payload.completedAt?.let { FuzzyDate.fromEpochMillis(it) }
+                // SaveMediaListEntry takes FuzzyDateInput objects ({year, month, day}),
+                // NOT the FuzzyDateInt scalar — an int here fails validation server-side.
+                val startedAt = payload.startedAt?.let {
+                    json.encodeToJsonElement(AniListFuzzyDate.serializer(), FuzzyDate.toInput(it))
+                }
+                val completedAt = payload.completedAt?.let {
+                    json.encodeToJsonElement(AniListFuzzyDate.serializer(), FuzzyDate.toInput(it))
+                }
 
                 val body = execute(
                     graphqlQuery,
@@ -492,6 +499,18 @@ object FuzzyDate {
             set(year.coerceIn(1970, 2200), (month.coerceIn(1, 12)) - 1, day.coerceIn(1, 31), 0, 0, 0)
         }
         return cal.timeInMillis
+    }
+
+    /** FuzzyDateInput-shaped value ({year, month, day}) for SaveMediaListEntry. */
+    fun toInput(millis: Long): AniListFuzzyDate {
+        val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+            timeInMillis = millis
+        }
+        return AniListFuzzyDate(
+            year = cal.get(java.util.Calendar.YEAR),
+            month = cal.get(java.util.Calendar.MONTH) + 1,
+            day = cal.get(java.util.Calendar.DAY_OF_MONTH)
+        )
     }
 
     fun toEpochMillis(date: AniListFuzzyDate?): Long? {
