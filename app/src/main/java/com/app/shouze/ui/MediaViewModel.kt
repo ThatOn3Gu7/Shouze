@@ -965,7 +965,132 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectAniListMedia(media: AniListMedia) {
         _mediaDetail.value = MediaDetailState()
+        _detailStaff.value = DetailStaffState()
+        _detailRelations.value = DetailRelationsState()
+        _detailStats.value = DetailStatsState()
+        _detailSocial.value = DetailSocialState()
         selectedAniListMedia.value = media
+    }
+
+    /**
+     * Opens the AniList detail screen for a tracked library item: the header
+     * renders instantly from the local entity while the full detail loads.
+     */
+    fun openLibraryAniListItem(item: com.app.shouze.data.local.MediaItemEntity) {
+        val anilistId = item.anilistId ?: return
+        val light = AniListMedia(
+            id = anilistId,
+            title = com.app.shouze.data.remote.AniListTitle(romaji = item.title, english = item.title),
+            coverImage = com.app.shouze.data.remote.AniListCoverImage(large = item.coverImageUri),
+            episodes = if (item.mediaType.equals("MANGA", true)) null else item.totalCount.takeIf { it > 0 },
+            chapters = if (item.mediaType.equals("MANGA", true)) item.totalCount.takeIf { it > 0 } else null,
+            genres = item.genres,
+            format = item.mediaType,
+            type = item.mediaType
+        )
+        selectAniListMedia(light)
+    }
+
+    // ---- Detail-tab lazy state ----
+
+    data class DetailStaffState(
+        val isLoading: Boolean = false,
+        val staff: List<com.app.shouze.data.remote.AniListStaffEdge> = emptyList(),
+        val characters: List<com.app.shouze.data.remote.AniListCharacterEdge> = emptyList(),
+        val error: String? = null
+    )
+
+    data class DetailRelationsState(
+        val isLoading: Boolean = false,
+        val related: List<com.app.shouze.data.remote.AniListRelationEdge> = emptyList(),
+        val recommendations: List<com.app.shouze.data.remote.AniListRecommendationEdge> = emptyList(),
+        val error: String? = null
+    )
+
+    data class DetailStatsState(
+        val isLoading: Boolean = false,
+        val rankings: List<com.app.shouze.data.remote.AniListRanking> = emptyList(),
+        val statusDist: List<com.app.shouze.data.remote.AniListStatusCount> = emptyList(),
+        val scoreDist: List<com.app.shouze.data.remote.AniListScoreCount> = emptyList(),
+        val error: String? = null
+    )
+
+    data class DetailSocialState(
+        val isLoading: Boolean = false,
+        val threads: List<com.app.shouze.data.remote.AniListThread> = emptyList(),
+        val reviews: List<com.app.shouze.data.remote.AniListReview> = emptyList(),
+        val activities: List<com.app.shouze.data.remote.AniListActivity> = emptyList(),
+        val error: String? = null
+    )
+
+    private val _detailStaff = MutableStateFlow(DetailStaffState())
+    val detailStaff: StateFlow<DetailStaffState> = _detailStaff.asStateFlow()
+
+    private val _detailRelations = MutableStateFlow(DetailRelationsState())
+    val detailRelations: StateFlow<DetailRelationsState> = _detailRelations.asStateFlow()
+
+    private val _detailStats = MutableStateFlow(DetailStatsState())
+    val detailStats: StateFlow<DetailStatsState> = _detailStats.asStateFlow()
+
+    private val _detailSocial = MutableStateFlow(DetailSocialState())
+    val detailSocial: StateFlow<DetailSocialState> = _detailSocial.asStateFlow()
+
+    fun loadDetailStaff(id: Int) {
+        if (_detailStaff.value.isLoading) return
+        viewModelScope.launch {
+            _detailStaff.value = DetailStaffState(isLoading = true)
+            aniListApi.getMediaStaff(id).fold(
+                onSuccess = { (staff, characters) ->
+                    _detailStaff.value = DetailStaffState(staff = staff, characters = characters)
+                },
+                onFailure = { e -> _detailStaff.value = DetailStaffState(error = friendlyError(e)) }
+            )
+        }
+    }
+
+    fun loadDetailRelations(id: Int) {
+        if (_detailRelations.value.isLoading) return
+        viewModelScope.launch {
+            _detailRelations.value = DetailRelationsState(isLoading = true)
+            aniListApi.getMediaRelations(id).fold(
+                onSuccess = { (related, recommendations) ->
+                    _detailRelations.value = DetailRelationsState(related = related, recommendations = recommendations)
+                },
+                onFailure = { e -> _detailRelations.value = DetailRelationsState(error = friendlyError(e)) }
+            )
+        }
+    }
+
+    fun loadDetailStats(id: Int) {
+        if (_detailStats.value.isLoading) return
+        viewModelScope.launch {
+            _detailStats.value = DetailStatsState(isLoading = true)
+            aniListApi.getMediaStats(id).fold(
+                onSuccess = { media ->
+                    _detailStats.value = DetailStatsState(
+                        rankings = media.rankings ?: emptyList(),
+                        statusDist = media.statistics?.statusDistribution?.statuses ?: emptyList(),
+                        scoreDist = media.statistics?.scoreDistribution ?: emptyList()
+                    )
+                },
+                onFailure = { e -> _detailStats.value = DetailStatsState(error = friendlyError(e)) }
+            )
+        }
+    }
+
+    fun loadDetailSocial(id: Int) {
+        if (_detailSocial.value.isLoading) return
+        viewModelScope.launch {
+            _detailSocial.value = DetailSocialState(isLoading = true)
+            aniListApi.getMediaSocial(id).fold(
+                onSuccess = { (threads, reviews, activities) ->
+                    _detailSocial.value = DetailSocialState(
+                        threads = threads, reviews = reviews, activities = activities
+                    )
+                },
+                onFailure = { e -> _detailSocial.value = DetailSocialState(error = friendlyError(e)) }
+            )
+        }
     }
 
     fun clearSelectedAniListMedia() {
