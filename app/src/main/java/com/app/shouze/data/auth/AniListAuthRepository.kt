@@ -187,6 +187,13 @@ class AniListAuthRepository(context: Context) {
         }
     }
 
+    // security-crypto 1.1.0 deprecates EncryptedSharedPreferences with no in-Jetpack
+    // replacement (Google moved the APIs out of maintenance rather than shipping a
+    // successor). Alternatives would mean a Tink dependency for equivalent guarantees
+    // or plain DataStore without at-rest encryption. We keep the deprecated API —
+    // it is stable, works on API 23+, and the repository already degrades to a
+    // memory-only session if the keystore misbehaves.
+    @Suppress("DEPRECATION")
     private fun createEncryptedPrefs(context: Context): SharedPreferences {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)

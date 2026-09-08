@@ -16,9 +16,9 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Link
-import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.automirrored.rounded.logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -919,7 +919,7 @@ private fun AniListAccountCard(
                             contentColor = MaterialTheme.colorScheme.error
                         )
                     ) {
-                        Icon(Icons.Rounded.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Sign out")
                     }
