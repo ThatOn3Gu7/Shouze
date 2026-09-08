@@ -36,7 +36,8 @@ class ImplicitRedirectParserTest {
 
         assertTrue(result is ImplicitRedirectParser.Result.Denied)
         result as ImplicitRedirectParser.Result.Denied
-        assertEquals("access_denied", result.description)
+        assertEquals("access_denied", result.error)
+        assertEquals("The user denied access", result.description)
     }
 
     @Test
