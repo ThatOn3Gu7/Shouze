@@ -103,6 +103,15 @@ android {
     }
 }
 
+// Surface failing test names + stack traces in CI logs so the PR failure
+// report can extract them.
+tasks.withType<Test> {
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
+
 dependencies {
     // Compose BOM — version pinned in gradle/libs.versions.toml
     implementation(platform(libs.androidx.compose.bom))
