@@ -45,5 +45,7 @@ data class MediaItemEntity(
     /** True while local edits are queued/flushing to AniList and not yet acknowledged. */
     val pendingSync: Boolean = false
 ) {
+    /** Computed convenience flag — @Ignore keeps Room from treating it as a column. */
+    @get:Ignore
     val isAniListBacked: Boolean get() = source == MediaSource.ANILIST && anilistId != null
 }

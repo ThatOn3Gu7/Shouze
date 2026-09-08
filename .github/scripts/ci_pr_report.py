@@ -40,12 +40,17 @@ KOTLIN_ERROR_RE = re.compile(
 KOTLIN_ERROR_LEGACY_RE = re.compile(
     r"^e:\s+(?:file://)?(?P<file>.+?):\s*\((?P<line>\d+),\s*(?P<col>\d+)\):\s+(?P<msg>.+)$"
 )
+# KSP (Room etc.):  e: [ksp] file:///path/File.kt:12:5 The error text
+KSP_ERROR_RE = re.compile(
+    r"^e:\s+\[ksp\]\s+(?:file://)?(?P<file>.+?):(?P<line>\d+):(?P<col>\d+)\s+(?P<msg>.+)$"
+)
 # javac:  path/File.java:42: error: message
 JAVA_ERROR_RE = re.compile(
     r"^(?P<file>\S+\.java):(?P<line>\d+):\s*error:\s*(?P<msg>.+)$"
 )
 FAILED_TASK_RE = re.compile(r"^>\s+Task\s+(?P<task>:\S+)\s+FAILED")
-KOTLIEST_WARN = re.compile(r"^w:\s+(?:file://)?(?P<file>.+?):(?P<line>\d+)")
+STACK_FRAME_RE = re.compile(r"^\s*at\s+[\w$.$]+\(")
+MORE_MARKER_RE = re.compile(r"^\s*\.\.\. \d+ more")
 
 def strip_runners_prefix(path: str) -> str:
     """Collapse absolute CI paths to repo-relative for readability."""
@@ -63,7 +68,8 @@ def extract_compile_errors(log_lines: list[str]) -> list[dict]:
     seen: set[tuple] = set()
     for line in log_lines:
         match = (
-            KOTLIN_ERROR_RE.match(line)
+            KSP_ERROR_RE.match(line)
+            or KOTLIN_ERROR_RE.match(line)
             or KOTLIN_ERROR_LEGACY_RE.match(line)
             or JAVA_ERROR_RE.match(line)
         )
@@ -114,7 +120,32 @@ def extract_build_result_line(log_lines: list[str]) -> str:
     return ""
 
 def extract_log_tail(log_lines: list[str], count: int = MAX_TAIL_LINES) -> str:
-    return "\n".join(log_lines[-count:]).strip()
+    """Last interesting lines: stack frames from --stacktrace are noise, drop them."""
+    interesting = [
+        l for l in log_lines
+        if not STACK_FRAME_RE.match(l) and not MORE_MARKER_RE.match(l)
+    ]
+    return "\n".join(interesting[-count:]).strip()
+
+
+def extract_raw_error_lines(log_lines: list[str], limit: int = 40) -> list[str]:
+    """Catch-all for error-ish lines in formats the structured parsers don't know
+    (KSP variants, Room validation errors, dependency failures, ...)."""
+    results: list[str] = []
+    seen: set[str] = set()
+    for line in log_lines:
+        stripped = line.strip()
+        if not stripped or STACK_FRAME_RE.match(line) or MORE_MARKER_RE.match(line):
+            continue
+        lowered = stripped.lower()
+        if ("error" in lowered or lowered.startswith("e:") or lowered.startswith("w: [ksp]")) \
+                and "warning" not in lowered[:12]:
+            if stripped not in seen:
+                seen.add(stripped)
+                results.append(stripped)
+        if len(results) >= limit:
+            break
+    return results
 
 # ---------------------------------------------------------------------------
 # Report rendering
@@ -122,6 +153,7 @@ def extract_log_tail(log_lines: list[str], count: int = MAX_TAIL_LINES) -> str:
 
 def render_failure_report(
     errors: list[dict],
+    raw_error_lines: list[str],
     failure_block: str,
     failed_tasks: list[str],
     result_line: str,
@@ -150,6 +182,17 @@ def render_failure_report(
             "_No compile errors were parsed from the log. The failure is likely a "
             "task/dependency/configuration failure — see the Gradle summary below._"
         )
+        parts.append("")
+
+    if raw_error_lines:
+        parts.append("<details>")
+        parts.append("<summary><strong>Other error lines from the log</strong></summary>")
+        parts.append("")
+        parts.append("```")
+        parts.append("\n".join(raw_error_lines))
+        parts.append("```")
+        parts.append("")
+        parts.append("</details>")
         parts.append("")
 
     if failure_block:
@@ -269,12 +312,13 @@ def main() -> int:
         body = render_success_report(run_url, commit_sha, commit_subject, existing_id is not None)
     else:
         errors = extract_compile_errors(log_lines)
+        raw_error_lines = extract_raw_error_lines(log_lines)
         failure_block = extract_gradle_failure_block(log_lines)
         failed_tasks = extract_failed_tasks(log_lines)
         result_line = extract_build_result_line(log_lines)
         log_tail = extract_log_tail(log_lines)
         body = render_failure_report(
-            errors, failure_block, failed_tasks, result_line,
+            errors, raw_error_lines, failure_block, failed_tasks, result_line,
             log_tail, run_url, commit_sha, commit_subject,
         )
 
