@@ -248,7 +248,9 @@ def main() -> int:
     build_status = os.environ.get("BUILD_STATUS", "failure").strip()
     run_url = os.environ.get("RUN_URL", "").strip()
     commit_sha = os.environ.get("COMMIT_SHA", "").strip()
-    commit_subject = os.environ.get("COMMIT_SUBJECT", "").strip()
+    # head_commit.message can be multi-line; keep only the subject line.
+    commit_subject = os.environ.get("COMMIT_SUBJECT", "").strip().splitlines()
+    commit_subject = commit_subject[0].strip() if commit_subject else ""
     log_file = os.environ.get("LOG_FILE", "").strip()
 
     try:
