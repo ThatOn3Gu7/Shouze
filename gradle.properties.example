@@ -9,11 +9,13 @@
 # If you already configure Gradle globally (~/.gradle/gradle.properties),
 # you don't need a project copy at all; global settings win over project ones.
 
+# Heap sized for on-device (Termux) builds. Desktops/CI override it larger
+# (the CI workflow appends its own org.gradle.jvmargs after copying this file).
 android.useAndroidX=true
 android.nonTransitiveRClass=true
 org.gradle.caching=true
 org.gradle.parallel=true
-org.gradle.jvmargs=-Xmx2048m -Xms512m -XX\:+UseParallelGC -Dfile.encoding\=UTF-8 -Dsun.jnu.encoding\=UTF-8 -Duser.language\=en -Duser.country\=US
+org.gradle.jvmargs=-Xmx1024m -Xms256m -XX\:+UseParallelGC -Dfile.encoding\=UTF-8 -Dsun.jnu.encoding\=UTF-8 -Duser.language\=en -Duser.country\=US
 
 # ---------------------------------------------------------------------------
 # AniList integration (see docs/ANILIST_SETUP.md)

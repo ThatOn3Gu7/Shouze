@@ -65,7 +65,10 @@ jobs:
       # gradle.properties is machine-local (gitignored, it also carries personal
       # settings like ANILIST_CLIENT_ID); CI starts from the committed template.
       - name: Configure Gradle build properties
-        run: test -f gradle.properties || cp gradle.properties.example gradle.properties
+        # The template is phone-friendly (1 GB heap); CI runners can afford more.
+        run: |
+          test -f gradle.properties || cp gradle.properties.example gradle.properties
+          echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC -Dfile.encoding=UTF-8" >> gradle.properties
 
       # A pushed commit may belong to an open PR (e.g. an agent pushing to its
       # PR branch). Resolve the PR *of this commit* so reports land on the right
@@ -88,11 +91,20 @@ jobs:
         continue-on-error: true
         env:
           # Optional repo secret; makes the published APKs sign-in ready.
+          # When absent, the baked-in default id in app/build.gradle.kts is used
+          # (passing an EMPTY -P here would shadow that default — don't).
           ANILIST_CLIENT_ID: ${{ secrets.ANILIST_CLIENT_ID }}
         run: |
           set -o pipefail
           chmod +x ./gradlew
-          ./gradlew -PANILIST_CLIENT_ID="$ANILIST_CLIENT_ID" assembleDebug testDebugUnitTest --stacktrace 2>&1 | tee "$RUNNER_TEMP/build.log"
+          GRADLE_ARGS=()
+          if [ -n "$ANILIST_CLIENT_ID" ]; then
+            GRADLE_ARGS+=("-PANILIST_CLIENT_ID=$ANILIST_CLIENT_ID")
+            echo "Using ANILIST_CLIENT_ID from repository secret."
+          else
+            echo "No ANILIST_CLIENT_ID secret — using the baked-in default client id."
+          fi
+          ./gradlew "${GRADLE_ARGS[@]}" assembleDebug testDebugUnitTest --stacktrace 2>&1 | tee "$RUNNER_TEMP/build.log"
 
       - name: Publish CI report to PR
         if: always()

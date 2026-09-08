@@ -75,7 +75,7 @@ builds). The client id is public; never add a client *secret* anywhere.
 
 | Topic | Detail |
 | --- | --- |
-| Authorize URL | `https://anilist.co/api/v2/oauth/authorize?client_id=…&redirect_uri=shouze://anilist-auth&response_type=token` |
+| Authorize URL | `https://anilist.co/api/v2/oauth/authorize?client_id=…&response_type=token` — never add `redirect_uri`; AniList redirects to the URL registered on the application and rejects the parameter with `unsupported_grant_type` |
 | Token delivery | URL *fragment* of the redirect (`#access_token=…&expires=…`), parsed by `ImplicitRedirectParser` |
 | Token lifetime | 1 year; no refresh tokens exist — on expiry the app asks you to sign in again |
 | Storage | `androidx.security:security-crypto` EncryptedSharedPreferences (Keystore-backed); falls back to memory-only if the keystore is broken |
