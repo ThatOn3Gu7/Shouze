@@ -198,7 +198,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             when (val parsed = ImplicitRedirectParser.parse(uriString)) {
                 is ImplicitRedirectParser.Result.NotAnAuthRedirect -> Unit
                 is ImplicitRedirectParser.Result.Denied -> {
-                    authRepository.setLoginError("AniList sign-in was cancelled: ${parsed.description}")
+                    val reason = parsed.description ?: parsed.error
+                    authRepository.setLoginError("AniList sign-in failed: $reason")
                 }
                 is ImplicitRedirectParser.Result.Success -> {
                     val token = parsed.parsed.accessToken
