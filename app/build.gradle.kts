@@ -20,7 +20,7 @@ if (keystorePropertiesFile.exists()) {
 // can sign in with zero setup; personal builds override it via ANILIST_CLIENT_ID in
 // local.properties, gradle.properties, or the CI secret of the same name.
 // See docs/ANILIST_SETUP.md for a step-by-step guide.
-val defaultAniListClientId = ""
+val defaultAniListClientId = "50591"
 
 val aniListClientId: String =
     keystoreProperties.getProperty("ANILIST_CLIENT_ID")
