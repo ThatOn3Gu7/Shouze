@@ -67,14 +67,25 @@ class AniListAuthRepository(context: Context) {
 
     fun isTokenConfigured(): Boolean = clientId().isNotBlank()
 
-    fun startLoginUrl(): String {
-        val clientId = clientId()
-        return buildString {
-            append("https://anilist.co/api/v2/oauth/authorize")
-            append("?client_id=").append(java.net.URLEncoder.encode(clientId, Charsets.UTF_8.name()))
-            append("&redirect_uri=").append(java.net.URLEncoder.encode(REDIRECT_URI, Charsets.UTF_8.name()))
-            append("&response_type=token")
-        }
+    fun startLoginUrl(): String = buildAuthorizeUrl(clientId())
+
+    companion object {
+        private const val KEY_SESSION = "session_v1"
+        const val REDIRECT_URI = "shouze://anilist-auth"
+
+        /**
+         * AniList's implicit-grant authorize URL.
+         *
+         * Deliberately contains NO redirect_uri parameter: AniList redirects to
+         * the URL registered on the application at anilist.co/settings/developer,
+         * and passing redirect_uri here anyway makes its OAuth server fail with
+         * `{"error":"unsupported_grant_type"}` (observed in practice and matching
+         * the official docs, whose URL template omits the parameter).
+         */
+        fun buildAuthorizeUrl(clientId: String): String =
+            "https://anilist.co/api/v2/oauth/authorize" +
+                "?client_id=" + java.net.URLEncoder.encode(clientId, Charsets.UTF_8.name()) +
+                "&response_type=token"
     }
 
     /**
@@ -218,9 +229,4 @@ class AniListAuthRepository(context: Context) {
         val profileUrl: String? = null,
         val scoreFormat: String = "POINT_100"
     )
-
-    companion object {
-        private const val KEY_SESSION = "session_v1"
-        const val REDIRECT_URI = "shouze://anilist-auth"
-    }
 }

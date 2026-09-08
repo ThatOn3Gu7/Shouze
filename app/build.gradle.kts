@@ -23,8 +23,8 @@ if (keystorePropertiesFile.exists()) {
 val defaultAniListClientId = "50591"
 
 val aniListClientId: String =
-    keystoreProperties.getProperty("ANILIST_CLIENT_ID")
-        ?: (project.findProperty("ANILIST_CLIENT_ID") as String?)
+    keystoreProperties.getProperty("ANILIST_CLIENT_ID")?.takeIf { it.isNotBlank() }
+        ?: (project.findProperty("ANILIST_CLIENT_ID") as String?)?.takeIf { it.isNotBlank() }
         ?: defaultAniListClientId
 
 val releaseStoreFile = if (keystoreProperties.getProperty("KEYSTORE_FILE").isNullOrEmpty()) {
