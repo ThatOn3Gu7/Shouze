@@ -27,12 +27,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.automirrored.rounded.menuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -222,7 +222,7 @@ fun SearchScreen(
                 Tab(
                     selected = uiState.searchType == "MANGA",
                     onClick = { onTypeChange("MANGA"); onLoadTrending() },
-                    icon = { Icon(Icons.Rounded.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    icon = { Icon(Icons.AutoMirrored.Rounded.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp)) },
                     text = {
                         Text(
                             "Manga",

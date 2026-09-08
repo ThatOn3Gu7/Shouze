@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.menuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,7 +55,7 @@ private fun getStatusConfig(status: Status): StatusUiConfig {
         )
         Status.READING -> StatusUiConfig(
             label = "Reading",
-            icon = Icons.Rounded.MenuBook,
+            icon = Icons.AutoMirrored.Rounded.MenuBook,
             color = MaterialTheme.colorScheme.primary
         )
         Status.COMPLETED -> StatusUiConfig(
@@ -374,7 +375,7 @@ fun AniListDetailScreen(
                     }
                     DetailBentoCard(
                         modifier = Modifier.weight(1f),
-                        icon = if (isManga) Icons.Rounded.MenuBook else Icons.Rounded.Tv,
+                        icon = if (isManga) Icons.AutoMirrored.Rounded.MenuBook else Icons.Rounded.Tv,
                         label = if (isManga) "Length" else "Episodes",
                         value = countLabel
                     )
