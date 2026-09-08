@@ -2,19 +2,15 @@ package com.app.shouze.ui.screens
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,14 +31,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.app.shouze.R
 import com.app.shouze.data.ThemeMode
+
+/** The same green as the launcher icon background, splash, and intro. */
+private val IntroBrandGreen = Color(0xFF1B5E20)
 
 /**
  * First-launch onboarding as three light steps:
@@ -74,14 +73,7 @@ fun OnboardingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.tertiaryContainer
-                    )
-                )
-            )
+            .background(IntroBrandGreen)
     ) {
         Column(
             modifier = Modifier
@@ -100,7 +92,7 @@ fun OnboardingScreen(
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onPrimary
+                            tint = Color.White
                         )
                     }
                 }
@@ -150,8 +142,8 @@ fun OnboardingScreen(
                     .height(56.dp),
                 shape = MaterialTheme.shapes.extraLarge,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.onPrimary,
-                    contentColor = MaterialTheme.colorScheme.primary
+                    containerColor = Color.White,
+                    contentColor = IntroBrandGreen
                 )
             ) {
                 Text(ctaLabel, style = MaterialTheme.typography.titleMedium)
@@ -165,7 +157,7 @@ fun OnboardingScreen(
             ) {
                 Text(
                     text = "Skip setup",
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
+                    color = Color.White.copy(alpha = 0.75f)
                 )
             }
         }
@@ -178,20 +170,24 @@ fun OnboardingScreen(
 private fun WelcomeStep() {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Spacer(modifier = Modifier.height(36.dp))
-        FloatingLogo(alpha = 1f, scale = 1f)
+        Image(
+            painter = painterResource(R.mipmap.ic_launcher_foreground),
+            contentDescription = "Shouze",
+            modifier = Modifier.size(120.dp)
+        )
         Spacer(modifier = Modifier.height(40.dp))
         Text(
             text = "Welcome to Shouze",
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimary,
+            color = Color.White,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(14.dp))
         Text(
             text = "Your personal keeper for anime and manga — and it syncs both ways with your AniList account.",
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+            color = Color.White.copy(alpha = 0.85f),
             textAlign = TextAlign.Center
         )
     }
@@ -207,7 +203,7 @@ private fun ConnectStep(isSignedIn: Boolean, userName: String?, onSignIn: () -> 
             text = "Connect AniList",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimary,
+            color = Color.White,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -222,14 +218,14 @@ private fun ConnectStep(isSignedIn: Boolean, userName: String?, onSignIn: () -> 
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f))
+                    .background(Color.White.copy(alpha = 0.15f))
                     .padding(horizontal = 18.dp, vertical = 10.dp)
             ) {
-                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Connected${userName?.let { " as $it" } ?: ""}",
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = Color.White,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -239,7 +235,7 @@ private fun ConnectStep(isSignedIn: Boolean, userName: String?, onSignIn: () -> 
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = MaterialTheme.shapes.extraLarge,
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                    contentColor = Color.White
                 )
             ) {
                 Icon(Icons.Rounded.Public, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -260,14 +256,14 @@ private fun PreferencesStep(themeMode: ThemeMode, onThemeChange: (ThemeMode) -> 
             text = "Make it yours",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimary,
+            color = Color.White,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "Pick a theme — you can change this anytime in Settings.",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+            color = Color.White.copy(alpha = 0.85f),
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(24.dp))
@@ -287,17 +283,17 @@ private fun ThemeOption(label: String, icon: ImageVector, selected: Boolean, onC
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = if (selected) 0.18f else 0.07f))
-            .border(1.5.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = borderColor), RoundedCornerShape(20.dp))
+            .background(Color.White.copy(alpha = if (selected) 0.18f else 0.07f))
+            .border(1.5.dp, Color.White.copy(alpha = borderColor), RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 16.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+        Icon(icon, contentDescription = null, tint = Color.White)
         Spacer(modifier = Modifier.height(8.dp))
-        Text(label, color = MaterialTheme.colorScheme.onPrimary, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+        Text(label, color = Color.White, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
         Spacer(modifier = Modifier.height(4.dp))
         if (selected) {
-            Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+            Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(16.dp))
         } else {
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -310,30 +306,22 @@ private fun BenefitRow(text: String) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(vertical = 6.dp)
     ) {
-        Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+        Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(10.dp))
-        Text(text, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f))
+        Text(text, color = Color.White.copy(alpha = 0.9f))
     }
 }
 
 @Composable
 private fun FeatureBadge(icon: ImageVector) {
-    val infinite = rememberInfiniteTransition(label = "badge")
-    val float by infinite.animateFloat(
-        initialValue = -8f,
-        targetValue = 8f,
-        animationSpec = infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "badge_float"
-    )
     Box(
         modifier = Modifier
-            .graphicsLayer { translationY = float }
             .size(88.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f)),
+            .background(Color.White.copy(alpha = 0.15f)),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
     }
 }
 
@@ -347,51 +335,9 @@ private fun StepDots(current: Int, count: Int) {
                     .size(width = width, height = 8.dp)
                     .clip(CircleShape)
                     .background(
-                        MaterialTheme.colorScheme.onPrimary.copy(alpha = if (i == current) 1f else 0.35f)
+                        Color.White.copy(alpha = if (i == current) 1f else 0.35f)
                     )
             )
         }
-    }
-}
-
-@Composable
-private fun FloatingLogo(alpha: Float, scale: Float) {
-    val infiniteTransition = rememberInfiniteTransition(label = "float")
-    val offsetY by infiniteTransition.animateFloat(
-        initialValue = -15f,
-        targetValue = 15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "logo_float"
-    )
-
-    Box(
-        modifier = Modifier
-            .graphicsLayer {
-                this.alpha = alpha
-                this.scaleX = scale
-                this.scaleY = scale
-                this.translationY = offsetY.dp.toPx()
-            }
-            .size(120.dp)
-            .clip(CircleShape)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
-                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f)
-                    )
-                )
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "S",
-            style = MaterialTheme.typography.displayLarge,
-            fontWeight = FontWeight.Black,
-            color = MaterialTheme.colorScheme.onPrimary
-        )
     }
 }
