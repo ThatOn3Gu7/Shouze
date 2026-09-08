@@ -264,8 +264,18 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun syncNow() {
         viewModelScope.launch {
             if (!authState.value.isSignedIn) return@launch
-            libraryRepository.flushOutbox()
-            libraryRepository.refreshLibrary(force = true)
+            val delivered = libraryRepository.flushOutbox()
+            // Capture drain errors before the pull refresh clears them.
+            val drainError = libraryRepository.syncStatus.value.lastError
+            val result = libraryRepository.refreshLibrary(force = true)
+            val status = libraryRepository.syncStatus.value
+            when {
+                drainError != null -> showMessage(drainError, isError = true)
+                status.lastError != null -> showMessage(status.lastError!!, isError = true)
+                delivered > 0 -> showMessage("Synced $delivered change(s) to AniList ✓")
+                result.isSuccess -> showMessage("Up to date with AniList ✓")
+                else -> showMessage("Couldn't reach AniList — try again when you're online.", isError = true)
+            }
         }
     }
 
