@@ -129,18 +129,19 @@ class AniListLibraryRepository(
      * delivered right now (offline / rate limited / unauthorized) and resumes
      * from there on the next drain.
      */
-    suspend fun flushOutbox(): Boolean = syncMutex.withLock {
+    /** Drains the queue and returns how many changes actually reached AniList. */
+    suspend fun flushOutbox(): Int = syncMutex.withLock {
         drainOutboxLocked()
     }
 
-    private suspend fun drainOutboxLocked(): Boolean {
+    private suspend fun drainOutboxLocked(): Int {
         val ops = outboxDao.getAll()
         if (ops.isEmpty()) {
             setPendingCount(0)
-            return true
+            return 0
         }
         setSyncing(true)
-        var allDelivered = true
+        var delivered = 0
         var hardError: String? = null
 
         for (op in ops) {
@@ -162,6 +163,7 @@ class AniListLibraryRepository(
                                 )
                             }
                             outboxDao.delete(op.seq)
+                            delivered++
                         }
                     }
                     OutboxOp.DELETE -> {
@@ -170,6 +172,7 @@ class AniListLibraryRepository(
                             api.deleteMediaListEntry(entryId).getOrThrow()
                         }
                         outboxDao.delete(op.seq)
+                        delivered++
                     }
                 }
             } catch (e: Throwable) {
@@ -179,13 +182,11 @@ class AniListLibraryRepository(
                         // Session expired/revoked: keep the queue, wait for re-login.
                         hardError = "AniList session expired — please sign in again to sync your changes."
                         _syncStatus.update { it.copy(isStaleSession = true) }
-                        allDelivered = false
                         break
                     }
                     AniListException.Kind.NETWORK, AniListException.Kind.RATE_LIMITED -> {
                         outboxDao.markFailed(op.seq, e.message)
                         hardError = "Offline — ${ops.size} change(s) will sync when you're back online."
-                        allDelivered = false
                         break
                     }
                     else -> {
@@ -202,7 +203,6 @@ class AniListLibraryRepository(
                             val failedItem = mediaDao.getById(op.localItemId)
                             hardError = "A change to \"${failedItem?.title ?: "an item"}\" couldn't be synced: ${e.message}"
                         }
-                        allDelivered = false
                     }
                 }
             }
@@ -211,9 +211,13 @@ class AniListLibraryRepository(
         setSyncing(false)
         if (hardError != null) {
             _syncStatus.update { it.copy(lastError = hardError) }
+        } else if (delivered == ops.size) {
+            // Everything made it to AniList: clear any stale failure banner so
+            // the UI returns to a clean, fully-synced state.
+            _syncStatus.update { it.copy(lastError = null, isStaleSession = false) }
         }
         refreshPendingCount()
-        return allDelivered
+        return delivered
     }
 
     // ------------------------------------------------------------------
