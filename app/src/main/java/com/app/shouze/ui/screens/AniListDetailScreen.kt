@@ -72,6 +72,16 @@ private fun getStatusConfig(status: Status): StatusUiConfig {
             icon = Icons.Rounded.Cancel,
             color = MaterialTheme.colorScheme.error
         )
+        Status.PAUSED -> StatusUiConfig(
+            label = "Paused",
+            icon = Icons.Rounded.PauseCircle,
+            color = MaterialTheme.colorScheme.secondary
+        )
+        Status.REPEATING -> StatusUiConfig(
+            label = "Rewatching",
+            icon = Icons.Rounded.Replay,
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }
 
@@ -110,6 +120,8 @@ fun AniListDetailScreen(
             Status.COMPLETED -> "Completed"
             Status.PLAN_TO_WATCH -> "Plan to Watch / Read"
             Status.DROPPED -> "Dropped"
+            Status.PAUSED -> "Paused"
+            Status.REPEATING -> "Rewatching"
         }
         Toast.makeText(context, "Added \"$mainTitle\" to $configLabel", Toast.LENGTH_SHORT).show()
         onBack()

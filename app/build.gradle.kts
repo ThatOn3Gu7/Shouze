@@ -33,9 +33,11 @@ android {
         applicationId = "com.app.shouze"
         minSdk = 24
         targetSdk = 36
-        versionCode = 700
-        versionName = "7.0.0"
+        versionCode = 701
+        versionName = "7.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "ANILIST_CLIENT_ID", "\"$aniListClientId\"")
     }
 
     if (hasReleaseSigning) {
@@ -76,6 +78,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {

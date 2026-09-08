@@ -208,6 +208,16 @@ private fun StatusBadge(status: Status, modifier: Modifier = Modifier) {
             content = MaterialTheme.colorScheme.onPrimaryContainer
             label = "Reading"
         }
+        Status.PAUSED -> {
+            container = MaterialTheme.colorScheme.secondaryContainer
+            content = MaterialTheme.colorScheme.onSecondaryContainer
+            label = "Paused"
+        }
+        Status.REPEATING -> {
+            container = MaterialTheme.colorScheme.primaryContainer
+            content = MaterialTheme.colorScheme.onPrimaryContainer
+            label = "Rewatching"
+        }
     }
     Surface(
         modifier = modifier,

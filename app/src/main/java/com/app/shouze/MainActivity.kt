@@ -82,6 +82,7 @@ private fun tabIndex(route: String?): Int = TAB_ROUTES.indexOf(route)
 
 class MainActivity : ComponentActivity() {
     private val shortcutActions = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
+    private val authRedirects = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -93,6 +94,7 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra("shortcut_action")?.let {
             shortcutActions.tryEmit(it)
         }
+        handleAuthIntent(intent)
 
         setContent {
             val viewModel: MediaViewModel = viewModel()
@@ -101,6 +103,9 @@ class MainActivity : ComponentActivity() {
             val statsUiState by viewModel.statsUiState.collectAsState()
             val searchUiState by viewModel.searchUiState.collectAsState()
             val searchHistory by viewModel.searchHistory.collectAsState()
+            val authState by viewModel.authState.collectAsState()
+            val syncStatus by viewModel.syncStatus.collectAsState()
+            val isOnline by viewModel.isOnline.collectAsState()
             val navController = rememberNavController()
             var editDialogItem by remember { mutableStateOf<MediaItemEntity?>(null) }
             var editDialogOpen by remember { mutableStateOf(false) }
@@ -111,6 +116,9 @@ class MainActivity : ComponentActivity() {
                 if (detailItem != null) detailOpenId.value = detailItem!!.id
             }
             BackHandler(enabled = editDialogOpen) { editDialogOpen = false }
+            LaunchedEffect(Unit) {
+                authRedirects.collect { redirect -> viewModel.handleAniListRedirect(redirect) }
+            }
 
             // Onboarding is no longer a nav destination — it's a full-screen overlay
             // that sits on top of Home (which is always mounted underneath) and fades
@@ -343,6 +351,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onTypeChange = viewModel::setSearchType,
                                 onLoadTrending = viewModel::loadTrending,
+                                onLoadMore = viewModel::loadMoreSearchResults,
                                 onSelect = { media ->
                                     viewModel.selectAniListMedia(media)
                                     navController.navigate("anidetail")
@@ -386,7 +395,11 @@ class MainActivity : ComponentActivity() {
                                 allTags = uiState.allTags,
                                 selectedTag = uiState.selectedTag,
                                 onTagSelected = viewModel::setTagFilter,
-                                onClearFilters = viewModel::clearHomeFilters
+                                onClearFilters = viewModel::clearHomeFilters,
+                                authState = authState,
+                                syncStatus = syncStatus,
+                                isOnline = isOnline,
+                                onSyncNow = viewModel::syncNow
                             )
                         }
 
@@ -469,6 +482,7 @@ class MainActivity : ComponentActivity() {
                                 schedules = airingState.schedules,
                                 isLoading = airingState.isLoading,
                                 error = airingState.error,
+                                fromCache = airingState.fromCache,
                                 onRefresh = { viewModel.fetchAiringSchedule() },
                                 onAddToLibrary = { schedule ->
                                     val item = viewModel.createItemFromAiringSchedule(schedule)
@@ -523,7 +537,26 @@ class MainActivity : ComponentActivity() {
                                 onUsernameChange = viewModel::setUsername,
                                 onProfilePictureChange = viewModel::setProfilePicture,
                                 onNavigateToStatistics = { navController.navigate("statistics") },
-                                onNavigateToSettings = { navController.navigate("settings") }
+                                onNavigateToSettings = { navController.navigate("settings") },
+                                authState = authState,
+                                syncStatus = syncStatus,
+                                isOnline = isOnline,
+                                onLoginWithAniList = {
+                                    viewModel.startAniListLogin()?.let { url ->
+                                        try {
+                                            startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                        } catch (_: Exception) {
+                                            android.widget.Toast.makeText(
+                                                applicationContext,
+                                                "No browser available to open AniList",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                },
+                                onManualAniListToken = viewModel::loginWithManualToken,
+                                onLogoutAniList = viewModel::logoutFromAniList,
+                                onSyncNow = viewModel::syncNow
                             )
                         }
                     }
@@ -612,6 +645,15 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         intent.getStringExtra("shortcut_action")?.let {
             shortcutActions.tryEmit(it)
+        }
+        handleAuthIntent(intent)
+    }
+
+    /** AniList OAuth implicit-grant callback: shouze://anilist-auth#access_token=... */
+    private fun handleAuthIntent(intent: android.content.Intent?) {
+        val data = intent?.data ?: intent?.dataString?.let { android.net.Uri.parse(it) }
+        if (data != null && data.scheme == "shouze" && data.host == "anilist-auth") {
+            authRedirects.tryEmit(data.toString())
         }
     }
 

@@ -9,14 +9,23 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.shouze.data.SettingsRepository
 import com.app.shouze.data.ThemeMode
+import com.app.shouze.data.auth.AniListAuthRepository
+import com.app.shouze.data.auth.AniListAuthState
+import com.app.shouze.data.auth.ImplicitRedirectParser
 import com.app.shouze.data.local.*
+import com.app.shouze.data.mapper.AniListMapper
 import com.app.shouze.data.remote.AniListApi
+import com.app.shouze.data.remote.AniListException
 import com.app.shouze.data.remote.AniListMedia
+import com.app.shouze.data.sync.AniListLibraryRepository
+import com.app.shouze.data.sync.NetworkMonitor
 import com.app.shouze.ui.components.CoverImageStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -52,13 +61,22 @@ data class AniListSearchUiState(
     val searchType: String = "ANIME",
     val trending: List<AniListMedia> = emptyList(),
     val isTrendingLoading: Boolean = false,
-    val trendingError: String? = null
+    val trendingError: String? = null,
+    val lastQuery: String = "",
+    // Pagination + offline hints
+    val canLoadMore: Boolean = false,
+    val currentPage: Int = 1,
+    val isLoadingMore: Boolean = false,
+    val resultsFromCache: Boolean = false,
+    val trendingFromCache: Boolean = false
 )
 
 data class AiringScheduleUiState(
     val schedules: List<com.app.shouze.data.remote.AiringSchedule> = emptyList(),
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    /** True when showing the cached schedule because AniList is unreachable. */
+    val fromCache: Boolean = false
 )
 
 data class StreamingUiState(
@@ -76,11 +94,20 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val categoryDao = db.categoryDao()
     private val syncController = DataSyncController(db)
     private val settingsRepo = SettingsRepository(application)
-    private val aniListApi = AniListApi()
+    private val authRepository = AniListAuthRepository(application)
+    private val networkMonitor = NetworkMonitor(application)
+    private val aniListApi = AniListApi { authRepository.accessToken() }
+    private val libraryRepository = AniListLibraryRepository(db, aniListApi, authRepository)
     private val json = Json { ignoreUnknownKeys = true }
 
     val settings = settingsRepo.settings
     val settingsRepository: SettingsRepository = settingsRepo
+
+    // --- AniList account & sync state ---
+    val authState: StateFlow<AniListAuthState> = authRepository.state
+    val syncStatus: StateFlow<AniListLibraryRepository.SyncStatus> = libraryRepository.syncStatus
+    val isOnline: StateFlow<Boolean> = networkMonitor.isOnlineFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, networkMonitor.isOnline())
 
     private val _selectedCategoryId = MutableStateFlow<String?>(null)
     private val _searchQuery = MutableStateFlow("")
@@ -121,6 +148,107 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             fetchTrendingNow()
+        }
+        viewModelScope.launch {
+            libraryRepository.primeSyncStatus()
+        }
+        viewModelScope.launch {
+            // Auto-refresh: quietly reconcile with AniList on launch if the cached
+            // library is stale and the device is online.
+            if (authState.value.isSignedIn && isOnline.value) {
+                libraryRepository.refreshLibrary(force = false)
+            }
+        }
+        viewModelScope.launch {
+            // Flush queued edits whenever connectivity returns.
+            isOnline.collect { online ->
+                if (online && authState.value.isSignedIn) {
+                    val pending = libraryRepository.pendingOpsSnapshot()
+                    if (pending > 0) {
+                        libraryRepository.flushOutbox()
+                        libraryRepository.refreshLibrary(force = true)
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // AniList account management
+    // ------------------------------------------------------------------
+
+    /**
+     * Builds the AniList OAuth authorize URL (Implicit Grant). Returns null with a
+     * helpful message when the app hasn't been given a client id yet.
+     */
+    fun startAniListLogin(): String? {
+        if (!authRepository.isTokenConfigured()) {
+            authRepository.setLoginError(
+                "AniList client id is missing. Add ANILIST_CLIENT_ID to gradle.properties — see docs/ANILIST_SETUP.md."
+            )
+            return null
+        }
+        authRepository.setLoginError(null)
+        return authRepository.startLoginUrl()
+    }
+
+    /** Completes login from the shouze://anilist-auth deep link (or manual token). */
+    fun handleAniListRedirect(uriString: String) {
+        viewModelScope.launch {
+            when (val parsed = ImplicitRedirectParser.parse(uriString)) {
+                is ImplicitRedirectParser.Result.NotAnAuthRedirect -> Unit
+                is ImplicitRedirectParser.Result.Denied -> {
+                    authRepository.setLoginError("AniList sign-in was cancelled: ${parsed.description}")
+                }
+                is ImplicitRedirectParser.Result.Success -> {
+                    val token = parsed.parsed.accessToken
+                    val viewerResult = aniListApi.getViewer(token)
+                    viewerResult.fold(
+                        onSuccess = { viewer ->
+                            authRepository.applyToken(token, parsed.parsed.expiresInSeconds)
+                            authRepository.applyViewer(
+                                userId = viewer.id,
+                                userName = viewer.name,
+                                avatarUrl = viewer.avatar?.large ?: viewer.avatar?.medium,
+                                bannerUrl = viewer.bannerImage,
+                                profileUrl = viewer.siteUrl,
+                                scoreFormat = viewer.mediaListOptions?.scoreFormat
+                                    ?: viewer.options?.scoringMode
+                                    ?: "POINT_100"
+                            )
+                            libraryRepository.ensureDefaultCategories()
+                            showMessage("Signed in to AniList as ${viewer.name}")
+                            libraryRepository.refreshLibrary(force = true)
+                        },
+                        onFailure = { e ->
+                            authRepository.setLoginError(friendlyError(e))
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    /** Manual token paste (fallback for devices/browsers that block the deep link). */
+    fun loginWithManualToken(token: String) {
+        handleAniListRedirect("shouze://anilist-auth#access_token=${Uri.encode(token.trim())}&expires=31536000")
+    }
+
+    fun logoutFromAniList() {
+        val name = authState.value.session?.userName
+        authRepository.logout()
+        viewModelScope.launch {
+            libraryRepository.onSignedOut()
+        }
+        showMessage(if (name != null) "Signed out of AniList ($name)" else "Signed out of AniList")
+    }
+
+    /** Manual pull + push. Safe to call anytime; no-ops when signed out. */
+    fun syncNow() {
+        viewModelScope.launch {
+            if (!authState.value.isSignedIn) return@launch
+            libraryRepository.flushOutbox()
+            libraryRepository.refreshLibrary(force = true)
         }
     }
 
@@ -184,7 +312,21 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 updated = updated.copy(endDate = now)
             }
 
-            dao.insertOrUpdate(updated)
+            persist(updated)
+        }
+    }
+
+    /**
+     * Single write entry point: AniList-backed items go through the optimistic
+     * sync engine (instant local apply + queued mutation), local items stay in Room.
+     */
+    private suspend fun persist(item: MediaItemEntity) {
+        if (item.isAniListBacked) {
+            libraryRepository.applyEntryEdit(item)
+            // Fire-and-forget drain; the rate limiter paces it if the user is spamming edits.
+            libraryRepository.flushOutbox()
+        } else {
+            dao.insertOrUpdate(item)
         }
     }
 
@@ -204,7 +346,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteItem(itemId: String) {
         viewModelScope.launch {
-            dao.deleteById(itemId)
+            val item = dao.getById(itemId)
+            if (item != null && item.isAniListBacked) {
+                libraryRepository.applyEntryDelete(item)
+                libraryRepository.flushOutbox()
+            } else {
+                dao.deleteById(itemId)
+            }
         }
     }
 
@@ -271,9 +419,17 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun bulkDelete() {
         viewModelScope.launch {
-            val count = _uiState.value.selectedIds.size
-            _uiState.value.selectedIds.forEach { dao.deleteById(it) }
-            showMessage("Deleted $count items")
+            val selected = _uiState.value.allItems
+                .filter { it.id in _uiState.value.selectedIds }
+            val local = selected.filter { !it.isAniListBacked }
+            val skipped = selected.size - local.size
+            local.forEach { dao.deleteById(it.id) }
+            showMessage(
+                buildString {
+                    append("Deleted ${local.size} items")
+                    if (skipped > 0) append(" — $skipped AniList item(s) skipped (manage them individually)")
+                }
+            )
             clearSelection()
         }
     }
@@ -283,9 +439,16 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val now = System.currentTimeMillis()
             val selected = _uiState.value.allItems
                 .filter { it.id in _uiState.value.selectedIds }
-            selected.forEach { dao.insertOrUpdate(it.copy(categoryId = categoryId, lastUpdated = now)) }
+            val local = selected.filter { !it.isAniListBacked }
+            val skipped = selected.size - local.size
+            local.forEach { dao.insertOrUpdate(it.copy(categoryId = categoryId, lastUpdated = now)) }
             val categoryName = _uiState.value.categories.find { it.id == categoryId }?.name ?: "new category"
-            showMessage("Moved ${selected.size} items to $categoryName")
+            showMessage(
+                buildString {
+                    append("Moved ${local.size} items to $categoryName")
+                    if (skipped > 0) append(" — $skipped AniList item(s) skipped")
+                }
+            )
             clearSelection()
         }
     }
@@ -295,7 +458,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val now = System.currentTimeMillis()
             val selected = _uiState.value.allItems
                 .filter { it.id in _uiState.value.selectedIds }
-            selected.forEach { item ->
+            val local = selected.filter { !it.isAniListBacked }
+            val skipped = selected.size - local.size
+            local.forEach { item ->
                 var updated = item.copy(status = status, lastUpdated = now)
                 if ((status == Status.WATCHING || status == Status.READING) && item.startDate == null) {
                     updated = updated.copy(startDate = now)
@@ -308,7 +473,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val statusName = status.name.lowercase().split("_").joinToString(" ") { word ->
                 word.replaceFirstChar { it.uppercase() }
             }
-            showMessage("Marked ${selected.size} items as $statusName")
+            showMessage(
+                buildString {
+                    append("Marked ${local.size} items as $statusName")
+                    if (skipped > 0) append(" — $skipped AniList item(s) skipped")
+                }
+            )
             clearSelection()
         }
     }
@@ -318,13 +488,18 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val now = System.currentTimeMillis()
             val selected = _uiState.value.allItems
                 .filter { it.id in _uiState.value.selectedIds }
+            val local = selected.filter { !it.isAniListBacked }
+            val skipped = selected.size - local.size
             // Smart toggle: if any selected item is NOT a favorite, favorite them all.
             // Only when every selected item is already a favorite do we unfavorite.
-            val addToFavorites = selected.any { !it.isFavorite }
-            selected.forEach { dao.insertOrUpdate(it.copy(isFavorite = addToFavorites, lastUpdated = now)) }
+            val addToFavorites = local.any { !it.isFavorite }
+            local.forEach { dao.insertOrUpdate(it.copy(isFavorite = addToFavorites, lastUpdated = now)) }
             showMessage(
-                if (addToFavorites) "Added ${selected.size} items to favorites"
-                else "Removed ${selected.size} items from favorites"
+                buildString {
+                    if (addToFavorites) append("Added ${local.size} items to favorites")
+                    else append("Removed ${local.size} items from favorites")
+                    if (skipped > 0) append(" — $skipped AniList item(s) skipped")
+                }
             )
             clearSelection()
         }
@@ -353,11 +528,15 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             var updated = item.copy(currentProgress = newProgress, lastUpdated = now)
             if (item.status == Status.PLAN_TO_WATCH || item.status == Status.COMPLETED) {
                 updated = updated.copy(
-                    status = if (isLiterature(item)) Status.READING else Status.WATCHING,
+                    status = if (isLiterature(item) || item.mediaType.equals("MANGA", true)) Status.READING else Status.WATCHING,
                     startDate = item.startDate ?: now
                 )
             }
-            dao.insertOrUpdate(updated)
+            // An AniList entry that reaches its final episode/chapter is completed there too.
+            if (item.isAniListBacked && item.totalCount in 1..newProgress) {
+                updated = updated.copy(status = Status.COMPLETED, endDate = item.endDate ?: now)
+            }
+            persist(updated)
         }
     }
 
@@ -371,7 +550,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 endDate = item.endDate ?: now,
                 lastUpdated = now
             )
-            dao.insertOrUpdate(updated)
+            persist(updated)
         }
     }
 
@@ -403,15 +582,66 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun searchAniList(query: String) {
         viewModelScope.launch {
-            _searchUiState.update { it.copy(isLoading = true, error = null) }
+            _searchUiState.update { it.copy(isLoading = true, error = null, lastQuery = query.trim()) }
             val type = _searchUiState.value.searchType
-            val result = aniListApi.searchMedia(query, type)
+            val result = aniListApi.searchMediaPaged(query, type, 1)
             result.fold(
-                onSuccess = { media ->
-                    _searchUiState.update { it.copy(results = media, isLoading = false) }
+                onSuccess = { page ->
+                    cacheSearchPage(query, type, 1, page)
+                    _searchUiState.update {
+                        it.copy(
+                            results = page.media,
+                            isLoading = false,
+                            canLoadMore = page.hasNextPage,
+                            currentPage = 1,
+                            resultsFromCache = false
+                        )
+                    }
                 },
                 onFailure = { e ->
-                    _searchUiState.update { it.copy(error = friendlyError(e), isLoading = false) }
+                    val cached = readCachedSearchPage(query, type, 1)
+                    if (cached != null) {
+                        _searchUiState.update {
+                            it.copy(
+                                results = cached.media,
+                                isLoading = false,
+                                canLoadMore = false,
+                                resultsFromCache = true,
+                                error = null
+                            )
+                        }
+                        showMessage("Offline — showing cached results for \"$query\"", isError = false)
+                    } else {
+                        _searchUiState.update { it.copy(error = friendlyError(e), isLoading = false) }
+                    }
+                }
+            )
+        }
+    }
+
+    /** Fetches the next page of the current search (rate limit aware, cached per page). */
+    fun loadMoreSearchResults() {
+        val state = _searchUiState.value
+        if (!state.canLoadMore || state.isLoading || state.isLoadingMore || state.lastQuery.isBlank()) return
+        viewModelScope.launch {
+            _searchUiState.update { it.copy(isLoadingMore = true) }
+            val nextPage = state.currentPage + 1
+            val result = aniListApi.searchMediaPaged(state.lastQuery, state.searchType, nextPage)
+            result.fold(
+                onSuccess = { page ->
+                    cacheSearchPage(state.lastQuery, state.searchType, nextPage, page)
+                    _searchUiState.update {
+                        it.copy(
+                            results = it.results + page.media,
+                            isLoadingMore = false,
+                            canLoadMore = page.hasNextPage,
+                            currentPage = nextPage,
+                            resultsFromCache = false
+                        )
+                    }
+                },
+                onFailure = { e ->
+                    _searchUiState.update { it.copy(isLoadingMore = false, error = friendlyError(e)) }
                 }
             )
         }
@@ -431,15 +661,24 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         if (_searchUiState.value.trending.isNotEmpty()) return
         if (_searchUiState.value.isTrendingLoading) return
         _searchUiState.update { it.copy(isTrendingLoading = true, trendingError = null) }
-        val result = aniListApi.getTrending(_searchUiState.value.searchType)
+        val type = _searchUiState.value.searchType
+        val result = aniListApi.getTrending(type)
         result.fold(
             onSuccess = { media ->
-                _searchUiState.update { it.copy(trending = media, isTrendingLoading = false) }
+                cacheList(RemoteCacheKeys.TRENDING_PREFIX + type.lowercase(), AniListMedia.serializer(), media)
+                _searchUiState.update { it.copy(trending = media, isTrendingLoading = false, trendingFromCache = false) }
                 preloadTrendingCovers()
             },
             onFailure = { e ->
-                _searchUiState.update {
-                    it.copy(isTrendingLoading = false, trendingError = friendlyError(e))
+                val cached = readCachedList(RemoteCacheKeys.TRENDING_PREFIX + type.lowercase(), AniListMedia.serializer())
+                if (cached != null) {
+                    _searchUiState.update {
+                        it.copy(trending = cached, isTrendingLoading = false, trendingFromCache = true, trendingError = null)
+                    }
+                } else {
+                    _searchUiState.update {
+                        it.copy(isTrendingLoading = false, trendingError = friendlyError(e))
+                    }
                 }
             }
         )
@@ -504,14 +743,57 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val result = aniListApi.getAiringSchedule()
             result.fold(
                 onSuccess = { schedules ->
-                    _airingScheduleUiState.update { it.copy(schedules = schedules, isLoading = false) }
+                    cacheList(RemoteCacheKeys.AIRING_SCHEDULE, com.app.shouze.data.remote.AiringSchedule.serializer(), schedules)
+                    _airingScheduleUiState.update { it.copy(schedules = schedules, isLoading = false, fromCache = false) }
                 },
                 onFailure = { e ->
-                    _airingScheduleUiState.update { it.copy(error = friendlyError(e), isLoading = false) }
+                    val cached = readCachedList(RemoteCacheKeys.AIRING_SCHEDULE, com.app.shouze.data.remote.AiringSchedule.serializer())
+                    if (cached != null) {
+                        _airingScheduleUiState.update {
+                            it.copy(schedules = cached, isLoading = false, fromCache = true, error = null)
+                        }
+                    } else {
+                        _airingScheduleUiState.update { it.copy(error = friendlyError(e), isLoading = false) }
+                    }
                 }
             )
         }
     }
+
+    // --- Discovery cache helpers (offline read-only support) ---
+
+    private suspend fun cacheSearchPage(query: String, type: String, page: Int, data: AniListApi.AniListMediaPage) {
+        try {
+            libraryRepository.cacheJson(
+                RemoteCacheKeys.search(query, type, page),
+                json.encodeToString(AniListApi.AniListMediaPage.serializer(), data)
+            )
+        } catch (_: Exception) {
+        }
+    }
+
+    private suspend fun readCachedSearchPage(query: String, type: String, page: Int): AniListApi.AniListMediaPage? =
+        try {
+            libraryRepository.cachedJson(RemoteCacheKeys.search(query, type, page))?.let {
+                json.decodeFromString(AniListApi.AniListMediaPage.serializer(), it)
+            }
+        } catch (_: Exception) {
+            null
+        }
+
+    private suspend fun <T> cacheList(key: String, serializer: KSerializer<T>, value: List<T>) {
+        try {
+            libraryRepository.cacheJson(key, json.encodeToString(ListSerializer(serializer), value))
+        } catch (_: Exception) {
+        }
+    }
+
+    private suspend fun <T> readCachedList(key: String, serializer: KSerializer<T>): List<T>? =
+        try {
+            libraryRepository.cachedJson(key)?.let { json.decodeFromString(ListSerializer(serializer), it) }
+        } catch (_: Exception) {
+            null
+        }
 
     fun createItemFromAiringSchedule(schedule: com.app.shouze.data.remote.AiringSchedule): MediaItemEntity {
         val title = schedule.media.title.english ?: schedule.media.title.romaji ?: "Unknown"
@@ -519,6 +801,23 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         val categoryId = categories.find { it.name.equals("Anime", ignoreCase = true) }?.id
             ?: categories.find { it.name.equals("TV Series", ignoreCase = true) }?.id
             ?: categories.firstOrNull()?.id ?: ""
+
+        // When signed in, "add" means track it on the user's AniList planning list.
+        if (authState.value.isSignedIn) {
+            return MediaItemEntity(
+                id = AniListMapper.localIdFor(schedule.media.id),
+                title = title,
+                categoryId = AniListMapper.resolveCategoryId("ANIME", categories),
+                status = Status.PLAN_TO_WATCH,
+                currentProgress = 0,
+                totalCount = 0,
+                coverImageUri = schedule.media.coverImage?.large ?: schedule.media.coverImage?.medium,
+                source = MediaSource.ANILIST,
+                anilistId = schedule.media.id,
+                listEntryId = null,
+                mediaType = "ANIME"
+            )
+        }
 
         return MediaItemEntity(
             title = title,
@@ -625,11 +924,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         defaultStatus: Status = Status.PLAN_TO_WATCH
     ): MediaItemEntity {
         val title = media.title.english ?: media.title.romaji ?: "Unknown"
-        
+        val mediaType = media.type ?: AniListMapper.mediaTypeFromFormat(media.format)
+
         // For anime: use episodes. For manga: use chapters, fall back to volumes.
-        val totalCount = when (_searchUiState.value.searchType) {
-            "ANIME" -> media.episodes
-            else -> media.chapters ?: media.volumes
+        val totalCount = when {
+            mediaType.equals("MANGA", true) -> media.chapters ?: media.volumes
+            else -> media.episodes
         } ?: 0
 
         val coverImage = media.coverImage?.large ?: media.coverImage?.medium
@@ -641,10 +941,46 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         } ?: ""
 
         val categories = uiState.value.categories
-        
+
+        // Signed in: the entry is AniList-owned (stable id so re-adds update in place).
+        if (authState.value.isSignedIn) {
+            val existing = _uiState.value.allItems.firstOrNull { it.anilistId == media.id }
+            val categoryId = AniListMapper.resolveCategoryId(mediaType, categories)
+            return MediaItemEntity(
+                id = existing?.id ?: AniListMapper.localIdFor(media.id),
+                title = media.title.english ?: media.title.romaji ?: title,
+                categoryId = categoryId,
+                status = defaultStatus,
+                currentProgress = existing?.currentProgress ?: 0,
+                totalCount = totalCount,
+                rating = existing?.rating ?: 0.0,
+                coverImageUri = coverImage ?: existing?.coverImageUri,
+                genres = genres,
+                notes = notes,
+                startDate = existing?.startDate,
+                endDate = existing?.endDate,
+                source = MediaSource.ANILIST,
+                anilistId = media.id,
+                listEntryId = existing?.listEntryId,
+                mediaType = mediaType
+            )
+        }
+
         // Smart category matching using exact names first, then partial
-        val categoryId = when (_searchUiState.value.searchType) {
-            "ANIME" -> {
+        val categoryId = when (mediaType.uppercase()) {
+            "MANGA" -> {
+                categories.find { it.name.equals("Manga", ignoreCase = true) }?.id
+                    ?: categories.find { it.name.equals("Light Novel", ignoreCase = true) }?.id
+                    ?: categories.find { it.name.equals("Novel", ignoreCase = true) }?.id
+                    ?: categories.find { it.name.equals("Webtoon", ignoreCase = true) }?.id
+                    ?: categories.find {
+                        it.name.contains("manga", ignoreCase = true)
+                        || it.name.contains("novel", ignoreCase = true)
+                        || it.name.contains("book", ignoreCase = true)
+                        || it.name.contains("webtoon", ignoreCase = true)
+                    }?.id
+            }
+            else -> {
                 categories.find { it.name.equals("Anime", ignoreCase = true) }?.id
                     ?: categories.find { it.name.equals("TV Series", ignoreCase = true) }?.id
                     ?: categories.find { it.name.equals("OVA", ignoreCase = true) }?.id
@@ -652,19 +988,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     ?: categories.find { it.name.contains("anime", ignoreCase = true) }?.id
                     ?: categories.find { it.name.contains("tv", ignoreCase = true) }?.id
             }
-            "MANGA" -> {
-                categories.find { it.name.equals("Manga", ignoreCase = true) }?.id
-                    ?: categories.find { it.name.equals("Light Novel", ignoreCase = true) }?.id
-                    ?: categories.find { it.name.equals("Novel", ignoreCase = true) }?.id
-                    ?: categories.find { it.name.equals("Webtoon", ignoreCase = true) }?.id
-                    ?: categories.find { 
-                        it.name.contains("manga", ignoreCase = true) 
-                        || it.name.contains("novel", ignoreCase = true) 
-                        || it.name.contains("book", ignoreCase = true)
-                        || it.name.contains("webtoon", ignoreCase = true)
-                    }?.id
-            }
-            else -> null
         } ?: categories.firstOrNull()?.id ?: ""
 
         return MediaItemEntity(
@@ -958,6 +1281,21 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun friendlyError(e: Throwable?): String {
+        if (e is AniListException) {
+            return when (e.kind) {
+                AniListException.Kind.NETWORK ->
+                    "Couldn't reach AniList. Check your internet connection and try again."
+                AniListException.Kind.RATE_LIMITED ->
+                    e.message?.ifBlank { null } ?: "Too many requests to AniList. Please wait a moment and try again."
+                AniListException.Kind.UNAUTHORIZED ->
+                    if (authState.value.isSignedIn) "Your AniList session expired — please sign in again."
+                    else "AniList denied this request. Please sign in and try again."
+                AniListException.Kind.GRAPHQL ->
+                    e.message?.ifBlank { null } ?: "AniList couldn't process that request."
+                AniListException.Kind.HTTP ->
+                    e.message?.ifBlank { null } ?: "AniList is having server trouble right now. Please try again later."
+            }
+        }
         val msg = e?.message?.lowercase() ?: ""
         return when {
             msg.contains("resolve host") ||

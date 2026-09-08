@@ -36,6 +36,7 @@ fun AiringScheduleScreen(
     schedules: List<AiringSchedule>,
     isLoading: Boolean,
     error: String?,
+    fromCache: Boolean = false,
     onRefresh: () -> Unit,
     onAddToLibrary: (AiringSchedule) -> Unit
 ) {
@@ -150,6 +151,24 @@ fun AiringScheduleScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 32.dp)
                 ) {
+                    if (fromCache) {
+                        item(key = "offline_notice") {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                                shape = MaterialTheme.shapes.medium,
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest
+                            ) {
+                                Text(
+                                    text = "Offline — showing the last cached schedule",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                                )
+                            }
+                        }
+                    }
                     grouped.forEach { (day, daySchedules) ->
                         item {
                             Row(
