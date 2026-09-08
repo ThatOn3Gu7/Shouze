@@ -3,8 +3,9 @@
 build/
 .kotlin/
 
-# Machine-specific Android config (sdk.dir etc.)
+# Machine-specific Android config (sdk.dir, personal ANILIST_CLIENT_ID, ...)
 local.properties
+gradle.properties
 
 # IDE
 .idea/

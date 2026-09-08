@@ -29,6 +29,7 @@ BUILD_RELEVANT_PATTERNS = [
     "build.gradle.kts",      # root build script
     "settings.gradle.kts",
     "gradle.properties",
+    "gradle.properties.example",
     "gradle/**",             # version catalog (libs.versions.toml) + wrapper jar/properties
     "gradlew",
     "gradlew.bat",

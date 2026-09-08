@@ -1,0 +1,24 @@
+# Template Gradle build properties.
+#
+# gradle.properties itself is machine-local and gitignored (it is also the
+# right home for personal settings such as ANILIST_CLIENT_ID). Builds with no
+# global Gradle config — e.g. CI, or a fresh desktop clone — start from here:
+#
+#     cp gradle.properties.example gradle.properties
+#
+# If you already configure Gradle globally (~/.gradle/gradle.properties),
+# you don't need a project copy at all; global settings win over project ones.
+
+android.useAndroidX=true
+android.nonTransitiveRClass=true
+org.gradle.caching=true
+org.gradle.parallel=true
+org.gradle.jvmargs=-Xmx2048m -Xms512m -XX\:+UseParallelGC -Dfile.encoding\=UTF-8 -Dsun.jnu.encoding\=UTF-8 -Duser.language\=en -Duser.country\=US
+
+# ---------------------------------------------------------------------------
+# AniList integration (see docs/ANILIST_SETUP.md)
+# Create an application at https://anilist.co/settings/developer with the
+# redirect URL `shouze://anilist-auth`, then paste its client id below.
+# The client id is public (implicit grant); the client secret must NOT be added.
+# ---------------------------------------------------------------------------
+# ANILIST_CLIENT_ID=12345
