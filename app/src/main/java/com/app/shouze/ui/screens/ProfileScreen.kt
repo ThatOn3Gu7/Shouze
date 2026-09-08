@@ -878,8 +878,14 @@ private fun AniListAccountCard(
                                 append("Syncing…")
                             } else if (syncStatus.pendingOps > 0) {
                                 append("${syncStatus.pendingOps} change(s) waiting to sync")
+                            } else if (syncStatus.lastDeliveredCount > 0 &&
+                                syncStatus.lastDeliveredAt >= syncStatus.lastSyncAt
+                            ) {
+                                // Your edits went through — say when.
+                                append("Synced ${syncStatus.lastDeliveredCount} change(s) · ")
+                                append(android.text.format.DateUtils.getRelativeTimeSpanString(syncStatus.lastDeliveredAt))
                             } else if (syncStatus.lastSyncAt > 0L) {
-                                append("Synced ")
+                                append("Up to date · ")
                                 append(android.text.format.DateUtils.getRelativeTimeSpanString(syncStatus.lastSyncAt))
                             } else {
                                 append("Not synced yet")

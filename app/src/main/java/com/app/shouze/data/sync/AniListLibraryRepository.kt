@@ -58,7 +58,10 @@ class AniListLibraryRepository(
         val pendingOps: Int = 0,
         val lastSyncAt: Long = 0L,
         val lastError: String? = null,
-        val isStaleSession: Boolean = false
+        val isStaleSession: Boolean = false,
+        /** Last successful delivery of local changes to AniList (not a plain pull). */
+        val lastDeliveredAt: Long = 0L,
+        val lastDeliveredCount: Int = 0
     )
 
     // ------------------------------------------------------------------
@@ -209,12 +212,26 @@ class AniListLibraryRepository(
         }
 
         setSyncing(false)
+        if (delivered > 0) {
+            // Remember the delivery so the profile card can say
+            // "Synced N change(s) · just now" even after an app restart.
+            val now = System.currentTimeMillis()
+            cacheDao.put(RemoteCacheEntity(LAST_DELIVERED_AT_KEY, now.toString()))
+            cacheDao.put(RemoteCacheEntity(LAST_DELIVERED_COUNT_KEY, delivered.toString()))
+        }
         if (hardError != null) {
             _syncStatus.update { it.copy(lastError = hardError) }
-        } else if (delivered == ops.size) {
-            // Everything made it to AniList: clear any stale failure banner so
-            // the UI returns to a clean, fully-synced state.
-            _syncStatus.update { it.copy(lastError = null, isStaleSession = false) }
+        } else if (delivered > 0) {
+            // Everything queued made it to AniList: clear any stale failure
+            // banner and surface the delivery.
+            _syncStatus.update {
+                it.copy(
+                    lastError = null,
+                    isStaleSession = false,
+                    lastDeliveredAt = System.currentTimeMillis(),
+                    lastDeliveredCount = delivered
+                )
+            }
         }
         refreshPendingCount()
         return delivered
@@ -348,7 +365,16 @@ class AniListLibraryRepository(
     suspend fun primeSyncStatus() {
         val pending = pendingOpsSnapshot()
         val last = lastSyncAt()
-        _syncStatus.update { it.copy(pendingOps = pending, lastSyncAt = last) }
+        val deliveredAt = cacheDao.get(LAST_DELIVERED_AT_KEY)?.json?.toLongOrNull() ?: 0L
+        val deliveredCount = cacheDao.get(LAST_DELIVERED_COUNT_KEY)?.json?.toIntOrNull() ?: 0
+        _syncStatus.update {
+            it.copy(
+                pendingOps = pending,
+                lastSyncAt = last,
+                lastDeliveredAt = deliveredAt,
+                lastDeliveredCount = deliveredCount
+            )
+        }
     }
 
     // ------------------------------------------------------------------
@@ -373,6 +399,8 @@ class AniListLibraryRepository(
 
     companion object {
         private const val LAST_SYNC_KEY = "anilist_last_sync_at"
+        private const val LAST_DELIVERED_AT_KEY = "last_delivered_at"
+        private const val LAST_DELIVERED_COUNT_KEY = "last_delivered_count"
         private const val STALE_AFTER_MS = 30L * 60 * 1000 // 30 minutes
         private const val MAX_ATTEMPTS = 5
     }

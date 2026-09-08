@@ -264,7 +264,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun syncNow() {
         viewModelScope.launch {
             if (!authState.value.isSignedIn) return@launch
-            val delivered = libraryRepository.flushOutbox()
+            libraryRepository.flushOutbox()
             // Capture drain errors before the pull refresh clears them.
             val drainError = libraryRepository.syncStatus.value.lastError
             val result = libraryRepository.refreshLibrary(force = true)
@@ -272,9 +272,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             when {
                 drainError != null -> showMessage(drainError, isError = true)
                 status.lastError != null -> showMessage(status.lastError!!, isError = true)
-                delivered > 0 -> showMessage("Synced $delivered change(s) to AniList ✓")
-                result.isSuccess -> showMessage("Up to date with AniList ✓")
-                else -> showMessage("Couldn't reach AniList — try again when you're online.", isError = true)
+                result.isFailure -> showMessage("Couldn't reach AniList — try again when you're online.", isError = true)
+                // Success stays quiet on purpose: the Profile card shows
+                // "Synced N change(s) · just now" where the user expects it.
             }
         }
     }
