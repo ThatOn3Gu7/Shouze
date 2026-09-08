@@ -62,6 +62,11 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # gradle.properties is machine-local (gitignored, it also carries personal
+      # settings like ANILIST_CLIENT_ID); CI starts from the committed template.
+      - name: Configure Gradle build properties
+        run: test -f gradle.properties || cp gradle.properties.example gradle.properties
+
       # A pushed commit may belong to an open PR (e.g. an agent pushing to its
       # PR branch). Resolve the PR *of this commit* so reports land on the right
       # thread; direct pushes to main have none and simply skip commenting.
@@ -81,10 +86,13 @@ jobs:
         # Capture the outcome instead of failing the job immediately, so the
         # failure report is still published; the last step enforces the failure.
         continue-on-error: true
+        env:
+          # Optional repo secret; makes the published APKs sign-in ready.
+          ANILIST_CLIENT_ID: ${{ secrets.ANILIST_CLIENT_ID }}
         run: |
           set -o pipefail
           chmod +x ./gradlew
-          ./gradlew assembleDebug testDebugUnitTest --stacktrace 2>&1 | tee "$RUNNER_TEMP/build.log"
+          ./gradlew -PANILIST_CLIENT_ID="$ANILIST_CLIENT_ID" assembleDebug testDebugUnitTest --stacktrace 2>&1 | tee "$RUNNER_TEMP/build.log"
 
       - name: Publish CI report to PR
         if: always()
@@ -106,6 +114,17 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
           if-no-files-found: error
+
+      - name: Upload failure diagnostics
+        if: steps.build.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-failure-diagnostics
+          path: |
+            app/build/test-results/
+            app/build/reports/
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Enforce build result
         if: steps.build.outcome != 'success'

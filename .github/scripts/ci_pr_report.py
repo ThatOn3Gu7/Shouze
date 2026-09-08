@@ -52,6 +52,7 @@ FAILED_TASK_RE = re.compile(r"^>\s+Task\s+(?P<task>:\S+)\s+FAILED")
 STACK_FRAME_RE = re.compile(r"^\s*at\s+[\w$.$]+\(")
 # Gradle testLogging:  com.example.FooTest > some method FAILED
 TEST_FAILED_RE = re.compile(r"^(?P<cls>\S+)\s+>\s+(?P<method>.+?)\s+FAILED$")
+FAILED_TASK_BLOCK_RE = re.compile(r"^> Task (?P<task>:\S+) FAILED$")
 MORE_MARKER_RE = re.compile(r"^\s*\.\.\. \d+ more")
 
 def strip_runners_prefix(path: str) -> str:
@@ -141,6 +142,42 @@ def extract_failed_tasks(log_lines: list[str]) -> list[str]:
             tasks.append(m.group("task"))
     return tasks
 
+def extract_failed_task_snippets(
+    log_lines: list[str], per_task: int = 6, max_tasks: int = 6
+) -> list[dict]:
+    """First output lines printed under each '> Task :x FAILED' marker.
+
+    Catches failures that match neither the Kotlin/KSP error patterns nor the
+    test-failure pattern (lint violations, resource/AAPT errors, config
+    problems, ...)."""
+    snippets: list[dict] = []
+    for i, line in enumerate(log_lines):
+        m = FAILED_TASK_BLOCK_RE.match(line)
+        if not m:
+            continue
+        out: list[str] = []
+        for follow in log_lines[i + 1:]:
+            txt = follow.rstrip()
+            if txt.startswith(("> Task ", "FAILURE:", "BUILD ", "* What went wrong:")):
+                break
+            if not txt.strip() and out:
+                break
+            stripped = txt.strip()
+            if (not stripped
+                    or STACK_FRAME_RE.match(txt)
+                    or MORE_MARKER_RE.match(stripped)
+                    or stripped.startswith(("Download ", "WARNING:"))):
+                continue
+            out.append(stripped)
+            if len(out) >= per_task:
+                break
+        if out:
+            snippets.append({"task": m.group("task"), "lines": out})
+        if len(snippets) >= max_tasks:
+            break
+    return snippets
+
+
 def extract_build_result_line(log_lines: list[str]) -> str:
     for line in reversed(log_lines):
         if line.strip().startswith(("BUILD FAILED", "BUILD SUCCESSFUL")):
@@ -182,6 +219,7 @@ def extract_raw_error_lines(log_lines: list[str], limit: int = 40) -> list[str]:
 def render_failure_report(
     errors: list[dict],
     test_failures: list[dict],
+    task_snippets: list[dict],
     raw_error_lines: list[str],
     failure_block: str,
     failed_tasks: list[str],
@@ -208,6 +246,17 @@ def render_failure_report(
             if tf["detail"]:
                 for dline in tf["detail"].splitlines():
                     parts.append(f"  - {dline}")
+        parts.append("")
+
+    if task_snippets:
+        parts.append("### 🧯 Failed task output")
+        parts.append("")
+        for ts in task_snippets:
+            parts.append(f"**`{ts['task']}`**")
+            parts.append("")
+            parts.append("```")
+            parts.extend(ts["lines"])
+            parts.append("```")
         parts.append("")
 
     if errors:
@@ -352,13 +401,15 @@ def main() -> int:
     else:
         errors = extract_compile_errors(log_lines)
         test_failures = extract_test_failures(log_lines)
+        task_snippets = extract_failed_task_snippets(log_lines)
         raw_error_lines = extract_raw_error_lines(log_lines)
         failure_block = extract_gradle_failure_block(log_lines)
         failed_tasks = extract_failed_tasks(log_lines)
         result_line = extract_build_result_line(log_lines)
         log_tail = extract_log_tail(log_lines)
         body = render_failure_report(
-            errors, test_failures, raw_error_lines, failure_block, failed_tasks,
+            errors, test_failures, task_snippets, raw_error_lines, failure_block,
+            failed_tasks,
             result_line, log_tail, run_url, commit_sha, commit_subject,
         )
 
