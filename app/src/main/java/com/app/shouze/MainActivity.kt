@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -85,6 +86,7 @@ class MainActivity : ComponentActivity() {
     private val authRedirects = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         createDynamicShortcuts()
@@ -622,17 +624,43 @@ class MainActivity : ComponentActivity() {
                     // so it covers Home *and* the bottom nav bar underneath completely.
                     // Home is already fully mounted and rendered behind it at all times,
                     // so once this fades out there's nothing left to "load in" — it's just revealed.
+                    var showSplashIntro by remember { mutableStateOf(true) }
+                    AnimatedVisibility(
+                        visible = showSplashIntro,
+                        exit = fadeOut(animationSpec = tween(350))
+                    ) {
+                        com.app.shouze.ui.screens.SplashIntro(onDismiss = { showSplashIntro = false })
+                    }
+
                     AnimatedVisibility(
                         visible = showOnboarding,
                         exit = fadeOut(animationSpec = tween(450))
                     ) {
                         OnboardingScreen(
+                            isSignedIn = authState.isSignedIn,
+                            userName = authState.session?.userName,
+                            themeMode = settings.themeMode,
+                            onThemeChange = { viewModel.setThemeMode(it) },
+                            onSignIn = {
+                                viewModel.startAniListLogin()?.let { url ->
+                                    try {
+                                        startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                    } catch (_: Exception) {
+                                        android.widget.Toast.makeText(
+                                            applicationContext,
+                                            "No browser available to open AniList",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            },
                             onGetStarted = {
                                 viewModel.setHasSeenOnboarding(true)
                                 showOnboarding = false
                             },
-                            onNotNow = {
-                                finish()
+                            onSkip = {
+                                viewModel.setHasSeenOnboarding(true)
+                                showOnboarding = false
                             }
                         )
                     }

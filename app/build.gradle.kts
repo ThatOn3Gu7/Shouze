@@ -151,6 +151,9 @@ dependencies {
     // Encrypted storage for the AniList OAuth token
     implementation(libs.androidx.security.crypto)
 
+    // System splash screen (Android 12+ API with pre-12 compat)
+    implementation(libs.androidx.core.splashscreen)
+
     // WorkManager for background update checks
     implementation(libs.androidx.work.runtime.ktx)
 
