@@ -209,11 +209,6 @@ class AniListApi(
                             avatar { large medium }
                             bannerImage
                             siteUrl
-                            options {
-                                titleLanguage
-                                displayAdultContent
-                                scoringMode
-                            }
                             mediaListOptions {
                                 scoreFormat
                             }

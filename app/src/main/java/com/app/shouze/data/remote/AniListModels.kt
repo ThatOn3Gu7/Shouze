@@ -167,7 +167,6 @@ data class AniListViewer(
     val avatar: AniListAvatar? = null,
     val bannerImage: String? = null,
     val siteUrl: String? = null,
-    val options: AniListUserOptions? = null,
     val mediaListOptions: AniListMediaListOptions? = null
 )
 
@@ -175,14 +174,6 @@ data class AniListViewer(
 data class AniListAvatar(
     val large: String? = null,
     val medium: String? = null
-)
-
-@Serializable
-data class AniListUserOptions(
-    val titleLanguage: String? = null,
-    val displayAdultContent: Boolean? = null,
-    /** POINT_100, POINT_10_DECIMAL, POINT_10, POINT_5, POINT_3 */
-    val scoringMode: String? = null
 )
 
 @Serializable

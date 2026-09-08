@@ -20,5 +20,6 @@ org.gradle.jvmargs=-Xmx2048m -Xms512m -XX\:+UseParallelGC -Dfile.encoding\=UTF-8
 # Create an application at https://anilist.co/settings/developer with the
 # redirect URL `shouze://anilist-auth`, then paste its client id below.
 # The client id is public (implicit grant); the client secret must NOT be added.
+# Default builds already bake in the maintainer's id — set yours only to override.
 # ---------------------------------------------------------------------------
 # ANILIST_CLIENT_ID=12345

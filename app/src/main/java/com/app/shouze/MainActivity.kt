@@ -554,6 +554,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 },
+                                manualLoginUrl = viewModel.manualLoginUrl,
                                 onManualAniListToken = viewModel::loginWithManualToken,
                                 onLogoutAniList = viewModel::logoutFromAniList,
                                 onSyncNow = viewModel::syncNow

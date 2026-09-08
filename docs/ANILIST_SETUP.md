@@ -18,10 +18,11 @@ EncryptedSharedPreferences.
 The client id is *not* a secret (the implicit grant has no secret — that's the
 point). Never put your **client secret** into the repository.
 
-## 2. Configure the client id
+## 2. Configure the client id (app developers only)
 
-The id is public (the implicit grant has no secret — never add your client
-*secret* anywhere). Pick whichever home fits how you build:
+App users can skip this — the id ships with the app. The id is public (the
+implicit grant has no secret — never add your client *secret* anywhere).
+Pick whichever home fits how you build:
 
 - **Global (recommended)** — add to `~/.gradle/gradle.properties`. Survives
   repo changes and fresh clones, and applies to every build on the machine
@@ -52,13 +53,23 @@ valid AniList token, no client id needed.
 
 ## 3. Sign in
 
-Profile → **AniList Account** → **Sign in with AniList**. A browser/Custom Tab
-opens AniList's consent page; approving it redirects to `shouze://anilist-auth`
-and the app completes login automatically, then pulls your library.
+**For app users — nothing to configure.** Profile → **AniList Account** →
+**Sign in with AniList**. A browser opens AniList's approval page; approving it
+returns to Shouze automatically and your library syncs. Default builds ship
+with the Shouze application id already baked in.
 
-If your device/browser blocks the app redirect, use **Paste token manually**:
-authorize via the *auth pin* flow (set your app's redirect URL to
-`https://anilist.co/api/v2/oauth/pin`) and paste the shown token.
+**If nothing happens after approving** (some browsers block app links):
+Profile → AniList Account → **Sign in manually**:
+1. Tap **Open approval page** and approve Shouze.
+2. Copy the address from your browser's address bar (it starts with `shouze://`).
+3. Paste it into the dialog — pasting just the long token works too.
+
+**For developers / custom builds:** the client id resolves in this order —
+`ANILIST_CLIENT_ID` in `local.properties` → `gradle.properties` (or your global
+`~/.gradle/gradle.properties`) → the `defaultAniListClientId` constant in
+`app/build.gradle.kts`. Forks typically replace the default with their own
+application id (and the CI secret `ANILIST_CLIENT_ID` overrides it for CI
+builds). The client id is public; never add a client *secret* anywhere.
 
 ## Technical notes
 

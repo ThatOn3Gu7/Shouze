@@ -184,9 +184,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun startAniListLogin(): String? {
         if (!authRepository.isTokenConfigured()) {
             authRepository.setLoginError(
-                "AniList client id is missing. Set ANILIST_CLIENT_ID in gradle.properties "
-                    + "(copy gradle.properties.example, or use your global ~/.gradle/gradle.properties) "
-                    + "— see docs/ANILIST_SETUP.md. No setup? \"Paste token manually\" below works without one."
+                "One-tap sign-in isn't set up in this build — use \"Sign in manually\" below, "
+                    + "or add an AniList client id when building (docs/ANILIST_SETUP.md)."
             )
             return null
         }
@@ -216,7 +215,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                                 bannerUrl = viewer.bannerImage,
                                 profileUrl = viewer.siteUrl,
                                 scoreFormat = viewer.mediaListOptions?.scoreFormat
-                                    ?: viewer.options?.scoringMode
                                     ?: "POINT_100"
                             )
                             libraryRepository.ensureDefaultCategories()
@@ -232,9 +230,25 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Manual token paste (fallback for devices/browsers that block the deep link). */
-    fun loginWithManualToken(token: String) {
-        handleAniListRedirect("shouze://anilist-auth#access_token=${Uri.encode(token.trim())}&expires=31536000")
+    /** Authorize URL for the manual paste flow, or null when no client id is configured. */
+    val manualLoginUrl: String?
+        get() = if (authRepository.isTokenConfigured()) authRepository.startLoginUrl() else null
+
+    /**
+     * Manual sign-in fallback: accepts either the full address the browser was
+     * redirected to (shouze://anilist-auth#access_token=…) or a bare token.
+     */
+    fun loginWithManualToken(input: String) {
+        val trimmed = input.trim().removeSurrounding("\"")
+        if (trimmed.isEmpty()) {
+            authRepository.setLoginError("Paste the address you were redirected to, or your AniList token.")
+            return
+        }
+        if (trimmed.contains("access_token=")) {
+            handleAniListRedirect(trimmed)
+        } else {
+            handleAniListRedirect("shouze://anilist-auth#access_token=${Uri.encode(trimmed)}&expires=31536000")
+        }
     }
 
     fun logoutFromAniList() {
