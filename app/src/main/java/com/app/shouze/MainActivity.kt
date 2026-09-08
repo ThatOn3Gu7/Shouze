@@ -626,14 +626,7 @@ class MainActivity : ComponentActivity() {
                     // so once this fades out there's nothing left to "load in" — it's just revealed.
                     var showSplashIntro by remember { mutableStateOf(true) }
                     AnimatedVisibility(
-                        visible = showSplashIntro,
-                        exit = fadeOut(animationSpec = tween(350))
-                    ) {
-                        com.app.shouze.ui.screens.SplashIntro(onDismiss = { showSplashIntro = false })
-                    }
-
-                    AnimatedVisibility(
-                        visible = showOnboarding,
+                        visible = showOnboarding && !showSplashIntro,
                         exit = fadeOut(animationSpec = tween(450))
                     ) {
                         OnboardingScreen(
@@ -663,6 +656,16 @@ class MainActivity : ComponentActivity() {
                                 showOnboarding = false
                             }
                         )
+                    }
+
+                    // Cold-start intro: the seamless continuation of the system
+                    // splash (mark punched out of the brand ground, warp reveal).
+                    // Topmost while active; onboarding waits for it to finish.
+                    AnimatedVisibility(
+                        visible = showSplashIntro,
+                        exit = fadeOut(animationSpec = tween(200))
+                    ) {
+                        com.app.shouze.ui.screens.IntroOverlay(onFinished = { showSplashIntro = false })
                     }
                 }
             }
