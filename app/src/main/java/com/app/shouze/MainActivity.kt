@@ -328,6 +328,10 @@ class MainActivity : ComponentActivity() {
                             val media = viewModel.selectedAniListMedia.value
                             if (media != null) {
                                 val fullDetail by viewModel.mediaDetail.collectAsState()
+                                val detailStaff by viewModel.detailStaff.collectAsState()
+                                val detailRelations by viewModel.detailRelations.collectAsState()
+                                val detailStats by viewModel.detailStats.collectAsState()
+                                val detailSocial by viewModel.detailSocial.collectAsState()
                                 AniListDetailScreen(
                                     media = media,
                                     fullMedia = fullDetail.media,
@@ -335,6 +339,15 @@ class MainActivity : ComponentActivity() {
                                     detailError = fullDetail.error,
                                     onLoadDetail = viewModel::loadMediaDetail,
                                     onOpenRelated = viewModel::selectAniListMedia,
+                                    trackedItem = uiState.allItems.firstOrNull { it.anilistId == media.id },
+                                    staffState = detailStaff,
+                                    relationsState = detailRelations,
+                                    statsState = detailStats,
+                                    socialState = detailSocial,
+                                    onLoadStaff = viewModel::loadDetailStaff,
+                                    onLoadRelations = viewModel::loadDetailRelations,
+                                    onLoadStats = viewModel::loadDetailStats,
+                                    onLoadSocial = viewModel::loadDetailSocial,
                                     onBack = { navController.popBackStack() },
                                     onAdd = { m, status ->
                                         viewModel.addOrUpdate(
@@ -370,7 +383,12 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("search")
                                 },
                                 onItemClick = { item ->
-                                    detailItem = item
+                                    if (item.isAniListBacked) {
+                                        viewModel.openLibraryAniListItem(item)
+                                        navController.navigate("anidetail")
+                                    } else {
+                                        detailItem = item
+                                    }
                                 },
                                 onEditItem = { item ->
                                     editDialogItem = item
