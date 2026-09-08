@@ -24,7 +24,7 @@ import sys
 
 MARKER = "<!-- shouze-android-ci-report -->"
 MAX_REPORT_CHARS = 35000          # stay well under GitHub's 65536 comment limit
-MAX_COMPILE_ERRORS = 25
+MAX_COMPILE_ERRORS = 40
 MAX_TAIL_LINES = 60
 MAX_FAILURE_BLOCK_LINES = 40
 

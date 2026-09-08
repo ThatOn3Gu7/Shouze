@@ -17,6 +17,7 @@ import com.app.shouze.data.remote.AniListException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.IOException
@@ -58,9 +59,7 @@ class AniListLibraryRepository(
         val lastSyncAt: Long = 0L,
         val lastError: String? = null,
         val isStaleSession: Boolean = false
-    ) {
-        val hasPendingWork: Boolean get() = pendingOps > 0
-    }
+    )
 
     // ------------------------------------------------------------------
     // Reads for the UI layer
@@ -101,13 +100,13 @@ class AniListLibraryRepository(
                 )
             )
         }
-        publishPendingCount()
+        refreshPendingCount()
     }
 
     private suspend fun enqueueSave(item: MediaItemEntity) {
         val mediaId = item.anilistId ?: return
-        val payload = AniListMapper.entityToSavePayload(item.copy(anilistId = mediaId), auth.state.value.session?.scoreFormat
-            ?: "POINT_100")
+        val scoreFormat = auth.state.value.session?.scoreFormat ?: "POINT_100"
+        val payload = AniListMapper.entityToSavePayload(item.copy(anilistId = mediaId), scoreFormat)
         // Coalesce: replace any still-queued save for this item so bursts of
         // incremental progress taps become exactly one API call.
         outboxDao.deleteForItems(listOf(item.id))
@@ -118,7 +117,7 @@ class AniListLibraryRepository(
                 payloadJson = OutboxPayloads.encode(payload)
             )
         )
-        publishPendingCount()
+        refreshPendingCount()
     }
 
     // ------------------------------------------------------------------
@@ -137,7 +136,7 @@ class AniListLibraryRepository(
     private suspend fun drainOutboxLocked(): Boolean {
         val ops = outboxDao.getAll()
         if (ops.isEmpty()) {
-            publishPendingCount(0)
+            setPendingCount(0)
             return true
         }
         setSyncing(true)
@@ -209,8 +208,8 @@ class AniListLibraryRepository(
         if (hardError != null) {
             _syncStatus.update { it.copy(lastError = hardError) }
         }
-        publishPendingCount()
-        allDelivered
+        refreshPendingCount()
+        return allDelivered
     }
 
     // ------------------------------------------------------------------
@@ -224,35 +223,41 @@ class AniListLibraryRepository(
     suspend fun refreshLibrary(force: Boolean = false): Result<Unit> = syncMutex.withLock {
         val session = auth.state.value.session
         if (session == null || session.userId == 0) {
-            return Result.failure(AniListException("Not signed in.", AniListException.Kind.UNAUTHORIZED))
-        }
-        // Local edits always win: push them before pulling server state.
-        drainOutboxLocked()
+            Result.failure(AniListException("Not signed in.", AniListException.Kind.UNAUTHORIZED))
+        } else {
+            // Local edits always win: push them before pulling server state.
+            drainOutboxLocked()
 
-        val lastSync = lastSyncAt()
-        if (!force && System.currentTimeMillis() - lastSync < STALE_AFTER_MS) {
-            return Result.success(Unit)
-        }
-
-        setSyncing(true)
-        val result = pullBothTypes(session.userId, session.scoreFormat)
-        setSyncing(false)
-        result.fold(
-            onSuccess = {
-                cacheDao.put(RemoteCacheEntity(LAST_SYNC_KEY, System.currentTimeMillis().toString()))
-                _syncStatus.update { it.copy(lastSyncAt = System.currentTimeMillis(), lastError = null) }
-            },
-            onFailure = { e ->
-                val message = when ((e as? AniListException)?.kind) {
-                    AniListException.Kind.NETWORK -> "Offline — showing your cached library."
-                    AniListException.Kind.RATE_LIMITED -> "AniList rate limit hit — retrying soon."
-                    AniListException.Kind.UNAUTHORIZED -> "AniList session expired — please sign in again."
-                    else -> "Sync failed: ${e.message}"
-                }
-                _syncStatus.update { it.copy(lastError = message, isStaleSession = (e as? AniListException)?.kind == AniListException.Kind.UNAUTHORIZED) }
+            val lastSync = lastSyncAt()
+            if (!force && System.currentTimeMillis() - lastSync < STALE_AFTER_MS) {
+                Result.success(Unit)
+            } else {
+                setSyncing(true)
+                val result = pullBothTypes(session.userId, session.scoreFormat)
+                setSyncing(false)
+                result.fold(
+                    onSuccess = {
+                        cacheDao.put(RemoteCacheEntity(LAST_SYNC_KEY, System.currentTimeMillis().toString()))
+                        _syncStatus.update {
+                            it.copy(lastSyncAt = System.currentTimeMillis(), lastError = null, isStaleSession = false)
+                        }
+                    },
+                    onFailure = { e ->
+                        val kind = (e as? AniListException)?.kind
+                        val message = when (kind) {
+                            AniListException.Kind.NETWORK -> "Offline — showing your cached library."
+                            AniListException.Kind.RATE_LIMITED -> "AniList rate limit hit — retrying soon."
+                            AniListException.Kind.UNAUTHORIZED -> "AniList session expired — please sign in again."
+                            else -> "Sync failed: ${e.message}"
+                        }
+                        _syncStatus.update {
+                            it.copy(lastError = message, isStaleSession = kind == AniListException.Kind.UNAUTHORIZED)
+                        }
+                    }
+                )
+                result
             }
-        )
-        result
+        }
     }
 
     private suspend fun pullBothTypes(userId: Int, scoreFormat: String): Result<Unit> {
@@ -332,7 +337,11 @@ class AniListLibraryRepository(
 
     // ------------------------------------------------------------------
 
-    private suspend fun publishPendingCount(count: Int = outboxDao.getAll().size) {
+    private suspend fun refreshPendingCount() {
+        setPendingCount(outboxDao.getAll().size)
+    }
+
+    private suspend fun setPendingCount(count: Int) {
         _syncStatus.update { it.copy(pendingOps = count) }
     }
 
