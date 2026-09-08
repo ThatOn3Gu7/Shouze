@@ -64,6 +64,7 @@ fun ProfileScreen(
     syncStatus: com.app.shouze.data.sync.AniListLibraryRepository.SyncStatus =
         com.app.shouze.data.sync.AniListLibraryRepository.SyncStatus(),
     isOnline: Boolean = true,
+    manualLoginUrl: String? = null,
     onLoginWithAniList: () -> Unit = {},
     onManualAniListToken: (String) -> Unit = {},
     onLogoutAniList: () -> Unit = {},
@@ -240,6 +241,7 @@ fun ProfileScreen(
                 authState = authState,
                 syncStatus = syncStatus,
                 isOnline = isOnline,
+                manualLoginUrl = manualLoginUrl,
                 onLogin = onLoginWithAniList,
                 onManualToken = onManualAniListToken,
                 onLogout = onLogoutAniList,
@@ -760,6 +762,7 @@ private fun AniListAccountCard(
     authState: com.app.shouze.data.auth.AniListAuthState,
     syncStatus: com.app.shouze.data.sync.AniListLibraryRepository.SyncStatus,
     isOnline: Boolean,
+    manualLoginUrl: String? = null,
     onLogin: () -> Unit,
     onManualToken: (String) -> Unit,
     onLogout: () -> Unit,
@@ -930,20 +933,51 @@ private fun AniListAccountCard(
 
     if (showManualTokenDialog) {
         var token by remember { mutableStateOf("") }
+        val context = androidx.compose.ui.platform.LocalContext.current
         AlertDialog(
             onDismissRequest = { showManualTokenDialog = false },
-            title = { Text("Paste AniList token") },
+            title = { Text("Sign in manually") },
             text = {
                 Column {
-                    Text(
-                        "Open anilist.co → Settings → Developer, or sign in via the button and copy the token from the redirect URL.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    if (manualLoginUrl != null) {
+                        Text(
+                            "1. Open your AniList approval page and approve Shouze.\n" +
+                                "2. The app normally finishes sign-in by itself.\n" +
+                                "3. If nothing happens, copy the address from your browser's address bar " +
+                                "(it starts with shouze://) and paste it below — or just paste the long token.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(onClick = {
+                            try {
+                                context.startActivity(
+                                    android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse(manualLoginUrl)
+                                    )
+                                )
+                            } catch (_: Exception) {
+                                android.widget.Toast.makeText(
+                                    context, "No browser available", android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }) {
+                            Icon(Icons.Rounded.Public, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Open approval page")
+                        }
+                    } else {
+                        Text(
+                            "This build doesn't include an AniList app id, so one-tap sign-in is unavailable. " +
+                                "If you have an AniList access token from another tool, paste it below.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = token,
                         onValueChange = { token = it },
-                        label = { Text("Access token") },
+                        label = { Text(if (manualLoginUrl != null) "Address or token" else "Access token") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
