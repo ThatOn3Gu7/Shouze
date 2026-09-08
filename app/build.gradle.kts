@@ -136,6 +136,9 @@ dependencies {
     // OkHttp for AniList API
     implementation(libs.okhttp)
 
+    // Encrypted storage for the AniList OAuth token
+    implementation(libs.androidx.security.crypto)
+
     // WorkManager for background update checks
     implementation(libs.androidx.work.runtime.ktx)
 

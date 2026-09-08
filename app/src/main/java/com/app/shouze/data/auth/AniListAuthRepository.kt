@@ -63,10 +63,12 @@ class AniListAuthRepository(context: Context) {
         return session.token
     }
 
-    fun isTokenConfigured(): Boolean = !BuildConfigBridge.clientId.isNullOrBlank()
+    fun clientId(): String = com.app.shouze.BuildConfig.ANILIST_CLIENT_ID.trim()
+
+    fun isTokenConfigured(): Boolean = clientId().isNotBlank()
 
     fun startLoginUrl(): String {
-        val clientId = BuildConfigBridge.clientId.orEmpty().trim()
+        val clientId = clientId()
         return buildString {
             append("https://anilist.co/api/v2/oauth/authorize")
             append("?client_id=").append(java.net.URLEncoder.encode(clientId, Charsets.UTF_8.name()))
@@ -76,20 +78,19 @@ class AniListAuthRepository(context: Context) {
     }
 
     /**
-     * Validates and installs a freshly received token, then attaches viewer profile
-     * info once the caller has fetched it. Returns false if the token is unusable.
+     * Installs a freshly received token. The caller validates it with a Viewer
+     * query first and attaches the profile via [applyViewer].
      */
-    fun applyToken(token: String, expiresInSeconds: Long): Boolean {
+    fun applyToken(token: String, expiresInSeconds: Long) {
         val session = _state.value.session
+            ?: AniListSession(token = token, tokenExpiresAt = 0L, userId = 0, userName = "")
         _state.value = AniListAuthState(
-            session = (session ?: AniListSession(token = token, tokenExpiresAt = 0L, userId = 0, userName = ""))
-                .copy(
-                    token = token,
-                    tokenExpiresAt = System.currentTimeMillis() + expiresInSeconds * 1000L
-                ),
+            session = session.copy(
+                token = token,
+                tokenExpiresAt = System.currentTimeMillis() + expiresInSeconds * 1000L
+            ),
             loginError = null
         )
-        return true
     }
 
     fun applyViewer(
