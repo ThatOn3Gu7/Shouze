@@ -58,7 +58,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.VideoLibrary
-import androidx.compose.material.icons.automirrored.rounded.menuBook
+import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -965,7 +965,7 @@ private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 private val StandardEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 private fun statusBulkIcon(status: Status): ImageVector = when (status) {
     Status.WATCHING -> Icons.Rounded.PlayCircle
-    Status.READING -> Icons.AutoMirrored.Rounded.MenuBook
+    Status.READING -> Icons.Rounded.MenuBook
     Status.COMPLETED -> Icons.Rounded.CheckCircle
     Status.DROPPED -> Icons.Rounded.Block
     Status.PLAN_TO_WATCH -> Icons.Rounded.Schedule
