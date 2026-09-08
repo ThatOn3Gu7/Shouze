@@ -224,8 +224,10 @@ data class AniListListGroup(
  */
 @Serializable
 data class AniListListEntry(
-    val id: Int,
-    val mediaId: Int,
+    /** Defaults keep partial GraphQL selections (e.g. search's mediaListEntry)
+     *  decodable — the mapper keys entities off [media].id anyway. */
+    val id: Int = 0,
+    val mediaId: Int = 0,
     val status: String? = null,
     val score: Double? = null,
     val progress: Int? = null,
