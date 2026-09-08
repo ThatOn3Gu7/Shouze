@@ -15,6 +15,15 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
+// AniList OAuth client id. It is NOT a secret (implicit grant, no client secret ships in the APK),
+// but each build must use a client whose registered redirect URI matches the app's deep link.
+// Set it via ANILIST_CLIENT_ID in gradle.properties (or local.properties for a local override).
+// See docs/ANILIST_SETUP.md for a step-by-step guide.
+val aniListClientId: String =
+    keystoreProperties.getProperty("ANILIST_CLIENT_ID")
+        ?: (project.findProperty("ANILIST_CLIENT_ID") as String?)
+        ?: ""
+
 val releaseStoreFile = if (keystoreProperties.getProperty("KEYSTORE_FILE").isNullOrEmpty()) {
     rootProject.file("release-key.jks")
 } else {
