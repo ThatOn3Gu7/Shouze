@@ -194,6 +194,78 @@ class AniListApi(
             }.recoverFailure()
         }
 
+    /**
+     * Everything AniList knows about one title: dates, duration, season, studios,
+     * staff, tags, trailer, airing countdown, relations, and where to watch.
+     */
+    suspend fun getMediaDetail(mediaId: Int): Result<AniListMedia> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val graphqlQuery = """
+                    query(${'$'}id: Int) {
+                        Media(id: ${'$'}id) {
+                            id
+                            title { romaji english native }
+                            coverImage { large medium }
+                            bannerImage
+                            description
+                            episodes
+                            chapters
+                            volumes
+                            duration
+                            status
+                            genres
+                            averageScore
+                            popularity
+                            favourites
+                            format
+                            type
+                            season
+                            seasonYear
+                            startDate { year month day }
+                            endDate { year month day }
+                            synonyms
+                            countryOfOrigin
+                            source
+                            studios { nodes { name } }
+                            staff(perPage: 8, sort: RELEVANCE) {
+                                edges {
+                                    role
+                                    node { name { full } image { large } }
+                                }
+                            }
+                            tags(perPage: 12, sort: RANK) { name rank isMediaSpoiler }
+                            trailer { id site }
+                            nextAiringEpisode { airingAt timeUntilAiring episode }
+                            relations {
+                                edges {
+                                    relationType
+                                    node {
+                                        id
+                                        title { romaji english }
+                                        coverImage { large }
+                                        format
+                                        type
+                                    }
+                                }
+                            }
+                            streamingEpisodes { title thumbnail url site }
+                            externalLinks { url site type }
+                            siteUrl
+                        }
+                    }
+                """.trimIndent()
+
+                val body = execute(
+                    graphqlQuery,
+                    buildJsonObject { put("id", mediaId) },
+                    authenticated = false
+                )
+                json.decodeFromString<AniListMediaSingleResponse>(body).data?.Media
+                    ?: throw AniListException("AniList returned no detail for this title.", AniListException.Kind.GRAPHQL)
+            }.recoverFailure()
+        }
+
     // ------------------------------------------------------------------
     // Authenticated: viewer + library
     // ------------------------------------------------------------------

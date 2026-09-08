@@ -938,7 +938,33 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     val selectedAniListMedia = mutableStateOf<AniListMedia?>(null)
 
+    /** Full-detail fetch state for the AniList detail screen. */
+    data class MediaDetailState(
+        val media: AniListMedia? = null,
+        val isLoading: Boolean = false,
+        val error: String? = null
+    )
+
+    private val _mediaDetail = MutableStateFlow(MediaDetailState())
+
+    /** Use with collectAsState() on the AniList detail screen. */
+    val mediaDetail: StateFlow<MediaDetailState> = _mediaDetail.asStateFlow()
+
+    /** Fetches the complete AniList surface for one title (idempotent). */
+    fun loadMediaDetail(id: Int) {
+        viewModelScope.launch {
+            _mediaDetail.value = MediaDetailState(isLoading = true)
+            aniListApi.getMediaDetail(id).fold(
+                onSuccess = { media -> _mediaDetail.value = MediaDetailState(media = media) },
+                onFailure = { e ->
+                    _mediaDetail.value = MediaDetailState(error = friendlyError(e))
+                }
+            )
+        }
+    }
+
     fun selectAniListMedia(media: AniListMedia) {
+        _mediaDetail.value = MediaDetailState()
         selectedAniListMedia.value = media
     }
 

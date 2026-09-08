@@ -135,10 +135,7 @@ class MainActivity : ComponentActivity() {
                 )
                 shortcutActions.collect { action ->
                     when (action) {
-                        "add" -> {
-                            editDialogItem = null
-                            editDialogOpen = true
-                        }
+                        "add" -> navController.navigate("search")
                         "search" -> navController.navigate("search")
                         "statistics" -> navController.navigate("statistics")
                     }
@@ -330,8 +327,14 @@ class MainActivity : ComponentActivity() {
                         ) {
                             val media = viewModel.selectedAniListMedia.value
                             if (media != null) {
+                                val fullDetail by viewModel.mediaDetail.collectAsState()
                                 AniListDetailScreen(
                                     media = media,
+                                    fullMedia = fullDetail.media,
+                                    isLoadingDetail = fullDetail.isLoading,
+                                    detailError = fullDetail.error,
+                                    onLoadDetail = viewModel::loadMediaDetail,
+                                    onOpenRelated = viewModel::selectAniListMedia,
                                     onBack = { navController.popBackStack() },
                                     onAdd = { m, status ->
                                         viewModel.addOrUpdate(
@@ -364,8 +367,7 @@ class MainActivity : ComponentActivity() {
                             HomeScreen(
                                 uiState = uiState,
                                 onAddClick = {
-                                    editDialogItem = null
-                                    editDialogOpen = true
+                                    navController.navigate("search")
                                 },
                                 onItemClick = { item ->
                                     detailItem = item

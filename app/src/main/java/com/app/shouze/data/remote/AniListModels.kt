@@ -78,7 +78,27 @@ data class AniListMedia(
     val bannerImage: String? = null,
     val siteUrl: String? = null,
     /** The authenticated user's list entry for this media (null when not tracked). */
-    val mediaListEntry: AniListListEntry? = null
+    val mediaListEntry: AniListListEntry? = null,
+    // ---- Full-detail fields (only selected by getMediaDetail; default null keeps
+    // ---- search/trending/library responses decodable with the light selection). ----
+    val duration: Int? = null,
+    val season: String? = null,
+    val seasonYear: Int? = null,
+    val startDate: AniListFuzzyDate? = null,
+    val endDate: AniListFuzzyDate? = null,
+    val synonyms: List<String>? = null,
+    val countryOfOrigin: String? = null,
+    /** ORIGINAL, MANGA, LIGHT_NOVEL, ... */
+    val source: String? = null,
+    val favourites: Int? = null,
+    val studios: AniListStudioConnection? = null,
+    val staff: AniListStaffConnection? = null,
+    val tags: List<AniListMediaTag>? = null,
+    val trailer: AniListTrailer? = null,
+    val nextAiringEpisode: AniListNextAiringEpisode? = null,
+    val relations: AniListRelationConnection? = null,
+    val streamingEpisodes: List<StreamingEpisode>? = null,
+    val externalLinks: List<ExternalLink>? = null
 )
 
 // --- Airing Schedule ---
@@ -143,7 +163,86 @@ data class StreamingEpisode(
 @Serializable
 data class ExternalLink(
     val url: String,
-    val site: String
+    val site: String,
+    /** STREAMING or INFO (only selected by the detail query). */
+    val type: String? = null
+)
+
+// ---------------------------------------------------------------------------
+// Full-detail media sub-objects
+// ---------------------------------------------------------------------------
+
+@Serializable
+data class AniListStudioConnection(
+    val nodes: List<AniListStudio> = emptyList()
+)
+
+@Serializable
+data class AniListStudio(
+    val name: String? = null
+)
+
+@Serializable
+data class AniListStaffConnection(
+    val edges: List<AniListStaffEdge> = emptyList()
+)
+
+@Serializable
+data class AniListStaffEdge(
+    val role: String? = null,
+    val node: AniListStaff? = null
+)
+
+@Serializable
+data class AniListStaff(
+    val name: AniListStaffName? = null,
+    val image: AniListCoverImage? = null
+)
+
+@Serializable
+data class AniListStaffName(
+    val full: String? = null
+)
+
+@Serializable
+data class AniListMediaTag(
+    val name: String? = null,
+    val rank: Int? = null,
+    val isMediaSpoiler: Boolean? = null
+)
+
+@Serializable
+data class AniListTrailer(
+    val id: String? = null,
+    val site: String? = null
+)
+
+@Serializable
+data class AniListNextAiringEpisode(
+    val airingAt: Int? = null,
+    val timeUntilAiring: Int? = null,
+    val episode: Int? = null
+)
+
+@Serializable
+data class AniListRelationConnection(
+    val edges: List<AniListRelationEdge> = emptyList()
+)
+
+@Serializable
+data class AniListRelationEdge(
+    val relationType: String? = null,
+    val node: AniListMedia? = null
+)
+
+@Serializable
+data class AniListMediaSingleResponse(
+    val data: AniListMediaSingleData? = null
+)
+
+@Serializable
+data class AniListMediaSingleData(
+    val Media: AniListMedia? = null
 )
 
 // ---------------------------------------------------------------------------
