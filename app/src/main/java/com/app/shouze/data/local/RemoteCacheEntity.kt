@@ -2,9 +2,9 @@ package com.app.shouze.data.local
 
 import androidx.room.Dao
 import androidx.room.Entity
+import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
-import kotlinx.coroutines.flow.Flow
 
 /**
  * Tiny read-through cache for public AniList payloads (trending, airing schedule,
