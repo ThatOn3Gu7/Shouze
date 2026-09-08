@@ -16,6 +16,9 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Logout
+import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -56,7 +59,15 @@ fun ProfileScreen(
     onUsernameChange: (String) -> Unit,
     onProfilePictureChange: (String?) -> Unit,
     onNavigateToStatistics: () -> Unit,
-    onNavigateToSettings: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {},
+    authState: com.app.shouze.data.auth.AniListAuthState = com.app.shouze.data.auth.AniListAuthState(),
+    syncStatus: com.app.shouze.data.sync.AniListLibraryRepository.SyncStatus =
+        com.app.shouze.data.sync.AniListLibraryRepository.SyncStatus(),
+    isOnline: Boolean = true,
+    onLoginWithAniList: () -> Unit = {},
+    onManualAniListToken: (String) -> Unit = {},
+    onLogoutAniList: () -> Unit = {},
+    onSyncNow: () -> Unit = {}
 ) {
     var showUsernameDialog by remember { mutableStateOf(false) }
     var showPictureDialog by remember { mutableStateOf(false) }
@@ -223,6 +234,18 @@ fun ProfileScreen(
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
+
+            // --- AniList account ---
+            AniListAccountCard(
+                authState = authState,
+                syncStatus = syncStatus,
+                isOnline = isOnline,
+                onLogin = onLoginWithAniList,
+                onManualToken = onManualAniListToken,
+                onLogout = onLogoutAniList,
+                onSyncNow = onSyncNow
+            )
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Unified Settings-Style Menu Group
             Card(
@@ -727,3 +750,242 @@ private fun randomAnimeUsername(): String {
     return "$adj$noun$num"
 }
 
+
+// ---------------------------------------------------------------------------
+// AniList account
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun AniListAccountCard(
+    authState: com.app.shouze.data.auth.AniListAuthState,
+    syncStatus: com.app.shouze.data.sync.AniListLibraryRepository.SyncStatus,
+    isOnline: Boolean,
+    onLogin: () -> Unit,
+    onManualToken: (String) -> Unit,
+    onLogout: () -> Unit,
+    onSyncNow: () -> Unit
+) {
+    var showManualTokenDialog by remember { mutableStateOf(false) }
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+    val session = authState.session
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.Link,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "AniList Account",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (session == null) {
+                Text(
+                    text = "Connect your AniList account to sync your anime & manga library, track progress and update your lists from Shouze.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                authState.loginError?.let { error ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+                Button(
+                    onClick = onLogin,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = isOnline
+                ) {
+                    Icon(Icons.Rounded.Public, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (isOnline) "Sign in with AniList" else "You're offline")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(onClick = { showManualTokenDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Paste token manually", style = MaterialTheme.typography.bodySmall)
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SafeRemoteImage(
+                        url = session.avatarUrl,
+                        contentDescription = "AniList avatar",
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        placeholder = {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    session.userName.take(1).uppercase(),
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        },
+                        errorContent = {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    session.userName.take(1).uppercase(),
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = session.userName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        val statusLine = buildString {
+                            if (syncStatus.isSyncing) {
+                                append("Syncing…")
+                            } else if (syncStatus.pendingOps > 0) {
+                                append("${syncStatus.pendingOps} change(s) waiting to sync")
+                            } else if (syncStatus.lastSyncAt > 0L) {
+                                append("Synced ")
+                                append(android.text.format.DateUtils.getRelativeTimeSpanString(syncStatus.lastSyncAt))
+                            } else {
+                                append("Not synced yet")
+                            }
+                            if (!isOnline) append(" · Offline")
+                        }
+                        Text(
+                            text = statusLine,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (syncStatus.isStaleSession) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                syncStatus.lastError?.let { error ->
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(
+                        onClick = onSyncNow,
+                        enabled = isOnline && !syncStatus.isSyncing,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Sync now")
+                    }
+                    OutlinedButton(
+                        onClick = { showLogoutConfirm = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(Icons.Rounded.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Sign out")
+                    }
+                }
+            }
+        }
+    }
+
+    if (showManualTokenDialog) {
+        var token by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showManualTokenDialog = false },
+            title = { Text("Paste AniList token") },
+            text = {
+                Column {
+                    Text(
+                        "Open anilist.co → Settings → Developer, or sign in via the button and copy the token from the redirect URL.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = token,
+                        onValueChange = { token = it },
+                        label = { Text("Access token") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (token.isNotBlank()) {
+                            onManualToken(token)
+                            showManualTokenDialog = false
+                        }
+                    },
+                    enabled = token.isNotBlank()
+                ) { Text("Sign in") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showManualTokenDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirm = false },
+            title = { Text("Sign out of AniList?") },
+            text = {
+                Text(
+                    "Your cached AniList entries stay on this device, but they'll become read-only and unsent changes will be discarded."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutConfirm = false
+                        onLogout()
+                    }
+                ) { Text("Sign out", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+}

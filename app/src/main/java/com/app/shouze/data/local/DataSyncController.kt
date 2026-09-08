@@ -25,7 +25,12 @@ data class MediaItemExport(
     val rewatchCount: Int = 0,
     val startDate: Long? = null,
     val endDate: Long? = null,
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    // Backup v4: AniList-backed metadata. Defaults keep v1-v3 backups importable.
+    val source: String = "LOCAL",
+    val anilistId: Int? = null,
+    val listEntryId: Int? = null,
+    val pendingSync: Boolean = false
 )
 
 @Serializable
@@ -38,7 +43,7 @@ data class CategoryExport(
 
 @Serializable
 data class BackupPayload(
-    val version: Int = 3,
+    val version: Int = 4,
     val exportedAt: Long = System.currentTimeMillis(),
     val itemCount: Int = 0,
     val items: List<MediaItemExport> = emptyList(),
@@ -72,7 +77,7 @@ class DataSyncController(private val db: AppDatabase) {
     suspend fun importFromJson(jsonString: String): Result<Int> {
         return try {
             val payload = json.decodeFromString<BackupPayload>(jsonString)
-            if (payload.version != 1 && payload.version != 2 && payload.version != 3) {
+            if (payload.version !in 1..4) {
                 return Result.failure(IllegalArgumentException("Unsupported backup version ${payload.version}"))
             }
             if (payload.items.isEmpty()) {
@@ -100,6 +105,7 @@ private fun MediaItemEntity.toExport() = MediaItemExport(
     id = id,
     title = title,
     categoryId = categoryId,
+    mediaType = mediaType,
     status = status.name,
     currentProgress = currentProgress,
     totalCount = totalCount,
@@ -113,7 +119,11 @@ private fun MediaItemEntity.toExport() = MediaItemExport(
     notes = notes,
     rewatchCount = rewatchCount,
     startDate = startDate,
-    endDate = endDate
+    endDate = endDate,
+    source = source.name,
+    anilistId = anilistId,
+    listEntryId = listEntryId,
+    pendingSync = pendingSync
 )
 
 private fun MediaItemExport.toEntity(): MediaItemEntity {
@@ -123,6 +133,11 @@ private fun MediaItemExport.toEntity(): MediaItemEntity {
         Status.PLAN_TO_WATCH
     }
     val catId = categoryId ?: mediaType ?: "TV_SERIES"
+    val resolvedSource = try {
+        MediaSource.valueOf(source)
+    } catch (_: IllegalArgumentException) {
+        MediaSource.LOCAL
+    }
     return MediaItemEntity(
         id = id,
         title = title,
@@ -140,7 +155,12 @@ private fun MediaItemExport.toEntity(): MediaItemEntity {
         notes = notes,
         rewatchCount = rewatchCount,
         startDate = startDate,
-        endDate = endDate
+        endDate = endDate,
+        source = resolvedSource,
+        anilistId = anilistId,
+        listEntryId = listEntryId,
+        // Restored rows count as clean until the next sync proves otherwise.
+        pendingSync = false
     )
 }
 

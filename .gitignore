@@ -27,3 +27,4 @@ captures/
 .DS_Store
 /diff.md
 /handoff.md
+__pycache__/

@@ -9,8 +9,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [MediaItemEntity::class, CategoryEntity::class],
-    version = 6,
+    entities = [MediaItemEntity::class, CategoryEntity::class, SyncOutboxEntity::class, RemoteCacheEntity::class],
+    version = 7,
     exportSchema = false
 )
 
@@ -18,6 +18,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 abstract class AppDatabase : RoomDatabase() {
     abstract fun mediaDao(): MediaDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun syncOutboxDao(): SyncOutboxDao
+    abstract fun remoteCacheDao(): RemoteCacheDao
 
     companion object {
         @Volatile
@@ -84,6 +86,36 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // AniList-backed fields. Existing rows stay LOCAL-owned.
+                db.execSQL("ALTER TABLE media_items ADD COLUMN source TEXT NOT NULL DEFAULT 'LOCAL'")
+                db.execSQL("ALTER TABLE media_items ADD COLUMN anilistId INTEGER")
+                db.execSQL("ALTER TABLE media_items ADD COLUMN listEntryId INTEGER")
+                db.execSQL("ALTER TABLE media_items ADD COLUMN mediaType TEXT")
+                db.execSQL("ALTER TABLE media_items ADD COLUMN pendingSync INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_media_items_anilistId ON media_items(anilistId)")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS sync_outbox (
+                        seq INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        op TEXT NOT NULL,
+                        localItemId TEXT NOT NULL,
+                        payloadJson TEXT NOT NULL,
+                        attempts INTEGER NOT NULL DEFAULT 0,
+                        lastError TEXT
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS remote_cache (
+                        cacheKey TEXT PRIMARY KEY NOT NULL,
+                        json TEXT NOT NULL,
+                        fetchedAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -91,7 +123,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DB_NAME
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)

@@ -61,6 +61,7 @@ fun SearchScreen(
     onTypeChange: (String) -> Unit,
     onSelect: (AniListMedia) -> Unit,
     onLoadTrending: () -> Unit = {},
+    onLoadMore: () -> Unit = {},
     searchHistory: List<String> = emptyList(),
     onClearSearchHistory: () -> Unit = {}
 ) {
@@ -321,6 +322,36 @@ fun SearchScreen(
                                 media = media,
                                 onClick = { onSelect(media) }
                             )
+                        }
+                        if (uiState.resultsFromCache) {
+                            item(key = "cache_notice") {
+                                Text(
+                                    text = "Offline — showing cached results",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 32.dp, vertical = 12.dp)
+                                )
+                            }
+                        }
+                        if (uiState.canLoadMore) {
+                            item(key = "load_more") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (uiState.isLoadingMore) {
+                                        CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                                    } else {
+                                        OutlinedButton(onClick = onLoadMore) {
+                                            Text("Load more")
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

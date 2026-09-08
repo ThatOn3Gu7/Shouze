@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.BrokenImage
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
@@ -46,9 +47,12 @@ import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MovieFilter
+import androidx.compose.material.icons.rounded.PauseCircle
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Star
@@ -126,7 +130,12 @@ fun HomeScreen(
     onTagSelected: (String?) -> Unit = {},
     onClearFilters: () -> Unit = {},
     profilePictureUri: String? = null,
-    username: String = ""
+    username: String = "",
+    authState: com.app.shouze.data.auth.AniListAuthState = com.app.shouze.data.auth.AniListAuthState(),
+    syncStatus: com.app.shouze.data.sync.AniListLibraryRepository.SyncStatus =
+        com.app.shouze.data.sync.AniListLibraryRepository.SyncStatus(),
+    isOnline: Boolean = true,
+    onSyncNow: () -> Unit = {}
 ) {
     val isError = uiState.error != null
     val message = uiState.error ?: uiState.syncMessage
@@ -539,6 +548,15 @@ fun HomeScreen(
                 state = listState,
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
+                if (authState.isSignedIn) {
+                    item(key = "sync_banner") {
+                        SyncStatusBar(
+                            syncStatus = syncStatus,
+                            isOnline = isOnline,
+                            onSyncNow = onSyncNow
+                        )
+                    }
+                }
                 item(key = "search") {
                     OutlinedTextField(
                         value = uiState.searchQuery,
@@ -950,6 +968,8 @@ private fun statusBulkIcon(status: Status): ImageVector = when (status) {
     Status.COMPLETED -> Icons.Rounded.CheckCircle
     Status.DROPPED -> Icons.Rounded.Block
     Status.PLAN_TO_WATCH -> Icons.Rounded.Schedule
+    Status.PAUSED -> Icons.Rounded.PauseCircle
+    Status.REPEATING -> Icons.Rounded.Replay
 }
 
 private const val CAROUSEL_AUTO_ADVANCE_MS = 4000L
@@ -1217,5 +1237,82 @@ private fun FallbackAvatar() {
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onPrimaryContainer
         )
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// AniList sync status banner (shown at the top of Home when signed in)
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun SyncStatusBar(
+    syncStatus: com.app.shouze.data.sync.AniListLibraryRepository.SyncStatus,
+    isOnline: Boolean,
+    onSyncNow: () -> Unit
+) {
+    // Only surface the banner when there's something worth saying; a fully
+    // synced online library stays clean.
+    val showBanner = syncStatus.isSyncing || syncStatus.pendingOps > 0 ||
+        syncStatus.lastError != null || !isOnline
+    if (!showBanner) return
+
+    val container: Color
+    val content: Color
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
+    val label: String
+    when {
+        syncStatus.isSyncing -> {
+            container = MaterialTheme.colorScheme.secondaryContainer
+            content = MaterialTheme.colorScheme.onSecondaryContainer
+            icon = Icons.Rounded.Sync
+            label = "Syncing with AniList…"
+        }
+        syncStatus.pendingOps > 0 -> {
+            container = MaterialTheme.colorScheme.tertiaryContainer
+            content = MaterialTheme.colorScheme.onTertiaryContainer
+            icon = Icons.Rounded.CloudUpload
+            label = if (isOnline) "Syncing ${syncStatus.pendingOps} change(s)…"
+            else "${syncStatus.pendingOps} change(s) will sync when online"
+        }
+        syncStatus.lastError != null -> {
+            container = MaterialTheme.colorScheme.errorContainer
+            content = MaterialTheme.colorScheme.onErrorContainer
+            icon = Icons.Rounded.ErrorOutline
+            label = syncStatus.lastError
+        }
+        else -> {
+            container = MaterialTheme.colorScheme.surfaceContainerHighest
+            content = MaterialTheme.colorScheme.onSurfaceVariant
+            icon = Icons.Rounded.CloudOff
+            label = "Offline — changes are saved locally"
+        }
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        shape = MaterialTheme.shapes.medium,
+        color = container
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = content,
+                modifier = Modifier.weight(1f)
+            )
+            if (!syncStatus.isSyncing && isOnline) {
+                TextButton(onClick = onSyncNow, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                    Text("Retry", style = MaterialTheme.typography.labelMedium, color = content)
+                }
+            }
+        }
     }
 }

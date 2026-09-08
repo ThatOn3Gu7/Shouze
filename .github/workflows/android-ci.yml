@@ -1,0 +1,114 @@
+name: Android CI
+
+# Build the debug APK + run unit tests on every push that touches app code.
+# Docs-only changes (README, .github, ...) skip the build entirely.
+#
+# Feedback loop: when the build fails, the important errors are extracted from
+# the Gradle log and posted as a single self-updating comment on the PR that
+# contains the pushed commit — so an agent/developer can fix and re-push
+# without ever reading the raw Actions log. The comment is updated in place on
+# every run (success turns it green), keeping the PR history clean.
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  changes:
+    name: Detect app changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.detect.outputs.should_build }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect build-relevant changes
+        id: detect
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: python3 .github/scripts/detect_app_changes.py
+
+  build:
+    name: Build debug APK
+    needs: changes
+    if: needs.changes.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # A pushed commit may belong to an open PR (e.g. an agent pushing to its
+      # PR branch). Resolve the PR *of this commit* so reports land on the right
+      # thread; direct pushes to main have none and simply skip commenting.
+      - name: Resolve PR for this commit
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '[.[] | select(.state == "open" and .head.ref == "'"${{ github.ref_name }}"'")][0].number' \
+            2>/dev/null || true)
+          echo "pr_number=${PR:-}" >> "$GITHUB_OUTPUT"
+          echo "Associated PR: ${PR:-none}"
+
+      - name: Build debug APK and run unit tests
+        id: build
+        # Capture the outcome instead of failing the job immediately, so the
+        # failure report is still published; the last step enforces the failure.
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          chmod +x ./gradlew
+          ./gradlew assembleDebug testDebugUnitTest --stacktrace 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Publish CI report to PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          BUILD_STATUS: ${{ steps.build.outcome == 'success' && 'success' || 'failure' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
+          LOG_FILE: ${{ runner.temp }}/build.log
+        run: python3 .github/scripts/ci_pr_report.py
+
+      - name: Upload debug APK artifact
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shouze-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Enforce build result
+        if: steps.build.outcome != 'success'
+        run: |
+          echo "::error::Gradle build failed — see the report published to the PR."
+          exit 1

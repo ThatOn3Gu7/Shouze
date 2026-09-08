@@ -573,6 +573,8 @@ private fun statusLabel(status: Status): String = when (status) {
     Status.PLAN_TO_WATCH -> "Plan to Watch"
     Status.WATCHING -> "Watching"
     Status.READING -> "Reading"
+    Status.PAUSED -> "Paused"
+    Status.REPEATING -> "Rewatching"
 }
 
 @Composable
@@ -581,6 +583,8 @@ private fun statusContainerColor(status: Status): Color = when (status) {
     Status.DROPPED -> MaterialTheme.colorScheme.errorContainer
     Status.PLAN_TO_WATCH -> MaterialTheme.colorScheme.surfaceContainerHighest
     Status.WATCHING, Status.READING -> MaterialTheme.colorScheme.primaryContainer
+    Status.PAUSED -> MaterialTheme.colorScheme.secondaryContainer
+    Status.REPEATING -> MaterialTheme.colorScheme.primaryContainer
 }
 
 @Composable
@@ -589,5 +593,7 @@ private fun statusContentColor(status: Status): Color = when (status) {
     Status.DROPPED -> MaterialTheme.colorScheme.onErrorContainer
     Status.PLAN_TO_WATCH -> MaterialTheme.colorScheme.onSurface
     Status.WATCHING, Status.READING -> MaterialTheme.colorScheme.onPrimaryContainer
+    Status.PAUSED -> MaterialTheme.colorScheme.onSecondaryContainer
+    Status.REPEATING -> MaterialTheme.colorScheme.onPrimaryContainer
 }
 
