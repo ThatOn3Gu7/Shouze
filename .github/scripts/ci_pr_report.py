@@ -50,6 +50,8 @@ JAVA_ERROR_RE = re.compile(
 )
 FAILED_TASK_RE = re.compile(r"^>\s+Task\s+(?P<task>:\S+)\s+FAILED")
 STACK_FRAME_RE = re.compile(r"^\s*at\s+[\w$.$]+\(")
+# Gradle testLogging:  com.example.FooTest > some method FAILED
+TEST_FAILED_RE = re.compile(r"^(?P<cls>\S+)\s+>\s+(?P<method>.+?)\s+FAILED$")
 MORE_MARKER_RE = re.compile(r"^\s*\.\.\. \d+ more")
 
 def strip_runners_prefix(path: str) -> str:
@@ -86,6 +88,32 @@ def extract_compile_errors(log_lines: list[str]) -> list[dict]:
         if len(errors) >= MAX_COMPILE_ERRORS * 3:  # hard stop to bound work
             break
     return errors[:MAX_COMPILE_ERRORS]
+
+def extract_test_failures(log_lines: list[str], limit: int = 20) -> list[dict]:
+    """Failed unit-test names plus their first exception/message lines."""
+    failures: list[dict] = []
+    for i, line in enumerate(log_lines):
+        m = TEST_FAILED_RE.match(line)
+        if not m:
+            continue
+        context = []
+        for follow in log_lines[i + 1:i + 6]:
+            txt = follow.rstrip()
+            if not txt.strip():
+                break
+            if txt.startswith(("> Task", "BUILD", "FAILURE:")):
+                break
+            context.append(txt.strip())
+            if len(context) >= 3:
+                break
+        failures.append({
+            "test": f"{m.group('cls').split('.')[-1]} > {m.group('method')}",
+            "detail": "\n".join(context),
+        })
+        if len(failures) >= limit:
+            break
+    return failures
+
 
 def extract_gradle_failure_block(log_lines: list[str]) -> str:
     """The 'FAILURE: Build failed with an exception.' explanation block."""
@@ -153,6 +181,7 @@ def extract_raw_error_lines(log_lines: list[str], limit: int = 40) -> list[str]:
 
 def render_failure_report(
     errors: list[dict],
+    test_failures: list[dict],
     raw_error_lines: list[str],
     failure_block: str,
     failed_tasks: list[str],
@@ -170,6 +199,16 @@ def render_failure_report(
     if result_line:
         parts.append(f"**Gradle result:** `{result_line}`")
     parts.append("")
+
+    if test_failures:
+        parts.append(f"### 🧪 Failed unit tests ({len(test_failures)})")
+        parts.append("")
+        for tf in test_failures:
+            parts.append(f"- `{tf['test']}`")
+            if tf["detail"]:
+                for dline in tf["detail"].splitlines():
+                    parts.append(f"  - {dline}")
+        parts.append("")
 
     if errors:
         parts.append(f"### 🔍 Extracted errors ({len(errors)} shown)")
@@ -312,14 +351,15 @@ def main() -> int:
         body = render_success_report(run_url, commit_sha, commit_subject, existing_id is not None)
     else:
         errors = extract_compile_errors(log_lines)
+        test_failures = extract_test_failures(log_lines)
         raw_error_lines = extract_raw_error_lines(log_lines)
         failure_block = extract_gradle_failure_block(log_lines)
         failed_tasks = extract_failed_tasks(log_lines)
         result_line = extract_build_result_line(log_lines)
         log_tail = extract_log_tail(log_lines)
         body = render_failure_report(
-            errors, raw_error_lines, failure_block, failed_tasks, result_line,
-            log_tail, run_url, commit_sha, commit_subject,
+            errors, test_failures, raw_error_lines, failure_block, failed_tasks,
+            result_line, log_tail, run_url, commit_sha, commit_subject,
         )
 
     if len(body) > MAX_REPORT_CHARS:
