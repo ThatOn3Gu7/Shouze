@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
@@ -85,7 +86,7 @@ fun SplashIntro(onDismiss: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF14141B))
-            .androidx.compose.foundation.clickable { visible = false; onDismiss() },
+            .clickable { visible = false; onDismiss() },
         contentAlignment = Alignment.Center
     ) {
         // Rings (two, offset in phase)
