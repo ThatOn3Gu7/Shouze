@@ -18,22 +18,37 @@ EncryptedSharedPreferences.
 The client id is *not* a secret (the implicit grant has no secret — that's the
 point). Never put your **client secret** into the repository.
 
-## 2. Configure the app
+## 2. Configure the client id
 
-Add the client id to `gradle.properties` (committed) for personal builds:
+The id is public (the implicit grant has no secret — never add your client
+*secret* anywhere). Pick whichever home fits how you build:
 
-```properties
-ANILIST_CLIENT_ID=12345
-```
+- **Global (recommended)** — add to `~/.gradle/gradle.properties`. Survives
+  repo changes and fresh clones, and applies to every build on the machine
+  (including on-device Gradle builds). Global properties win over project ones.
 
-or to `local.properties` (machine-local override, never committed):
+  ```properties
+  ANILIST_CLIENT_ID=12345
+  ```
 
-```properties
-ANILIST_CLIENT_ID=12345
-```
+- **Project-local** — `gradle.properties` is machine-local and gitignored.
+  Start from the committed template, then set the id:
+
+  ```sh
+  cp gradle.properties.example gradle.properties
+  ```
+
+- **`local.properties`** — `ANILIST_CLIENT_ID=12345` works there too.
+
+- **CI builds** — add the id as the repository secret `ANILIST_CLIENT_ID`
+  (*Settings → Secrets and variables → Actions*). The Android CI workflow
+  passes it into the build, so the debug APKs it publishes can sign in
+  out of the box.
 
 The value is compiled into `BuildConfig.ANILIST_CLIENT_ID`. If it's missing,
-the login screen explains the setup instead of failing silently.
+the login screen explains the setup instead of failing silently — and
+**Paste token manually** (Profile → AniList Account) always works with any
+valid AniList token, no client id needed.
 
 ## 3. Sign in
 

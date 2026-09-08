@@ -184,7 +184,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun startAniListLogin(): String? {
         if (!authRepository.isTokenConfigured()) {
             authRepository.setLoginError(
-                "AniList client id is missing. Add ANILIST_CLIENT_ID to gradle.properties — see docs/ANILIST_SETUP.md."
+                "AniList client id is missing. Set ANILIST_CLIENT_ID in gradle.properties "
+                    + "(copy gradle.properties.example, or use your global ~/.gradle/gradle.properties) "
+                    + "— see docs/ANILIST_SETUP.md. No setup? \"Paste token manually\" below works without one."
             )
             return null
         }
