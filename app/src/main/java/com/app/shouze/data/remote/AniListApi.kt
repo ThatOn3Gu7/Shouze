@@ -195,9 +195,8 @@ class AniListApi(
         }
 
     /**
-     * Core detail slice: everything the hero + Information tab needs. Tab
-     * extras (staff, relations, stats, social) load on demand via their own
-     * lighter queries — kinder to the rate limiter and to AniList's limits.
+     * Everything AniList knows about one title: dates, duration, season, studios,
+     * staff, tags, trailer, airing countdown, relations, and where to watch.
      */
     suspend fun getMediaDetail(mediaId: Int): Result<AniListMedia> =
         withContext(Dispatchers.IO) {
@@ -228,72 +227,16 @@ class AniListApi(
                             synonyms
                             countryOfOrigin
                             source
+                            studios { nodes { name } }
+                            staff(perPage: 8, sort: RELEVANCE) {
+                                edges {
+                                    role
+                                    node { name { full } image { large } }
+                                }
+                            }
+                            tags(perPage: 12, sort: RANK) { name rank isMediaSpoiler }
                             trailer { id site }
                             nextAiringEpisode { airingAt timeUntilAiring episode }
-                            studios { edges { isMainStudio node { name } } }
-                            tags(perPage: 14, sort: RANK) { name rank isMediaSpoiler }
-                            streamingEpisodes { title thumbnail url site }
-                            externalLinks { url site type language }
-                            siteUrl
-                        }
-                    }
-                """.trimIndent()
-
-                val body = execute(
-                    graphqlQuery,
-                    buildJsonObject { put("id", mediaId) },
-                    authenticated = false
-                )
-                json.decodeFromString<AniListMediaSingleResponse>(body).data?.Media
-                    ?: throw AniListException("AniList returned no detail for this title.", AniListException.Kind.GRAPHQL)
-            }.recoverFailure()
-        }
-
-    /** Cast & crew for the Staff tab: characters with their Japanese VAs + production staff. */
-    suspend fun getMediaStaff(mediaId: Int): Result<Pair<List<AniListStaffEdge>, List<AniListCharacterEdge>>> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val graphqlQuery = """
-                    query(${'$'}id: Int) {
-                        Media(id: ${'$'}id) {
-                            id
-                            title { romaji english }
-                            staff(perPage: 12, sort: RELEVANCE) {
-                                edges {
-                                    role
-                                    node { name { full } image { large } }
-                                }
-                            }
-                            characters(perPage: 12, sort: [ROLE, RELEVANCE]) {
-                                edges {
-                                    role
-                                    node { name { full } image { large } }
-                                    voiceActors(language: JAPANESE) { name { full } image { large } }
-                                }
-                            }
-                        }
-                    }
-                """.trimIndent()
-
-                val body = execute(
-                    graphqlQuery,
-                    buildJsonObject { put("id", mediaId) },
-                    authenticated = false
-                )
-                val media = json.decodeFromString<AniListStaffResponse>(body).data?.Media
-                (media?.staff?.edges ?: emptyList()) to (media?.characters?.edges ?: emptyList())
-            }.recoverFailure()
-        }
-
-    /** Related titles + "if you liked this" recommendations for the Relations tab. */
-    suspend fun getMediaRelations(mediaId: Int): Result<Pair<List<AniListRelationEdge>, List<AniListRecommendationEdge>>> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val graphqlQuery = """
-                    query(${'$'}id: Int) {
-                        Media(id: ${'$'}id) {
-                            id
-                            title { romaji english }
                             relations {
                                 edges {
                                     relationType
@@ -306,20 +249,9 @@ class AniListApi(
                                     }
                                 }
                             }
-                            recommendations {
-                                edges {
-                                    node {
-                                        rating
-                                        mediaRecommendation {
-                                            id
-                                            title { romaji english }
-                                            coverImage { large }
-                                            format
-                                            type
-                                        }
-                                    }
-                                }
-                            }
+                            streamingEpisodes { title thumbnail url site }
+                            externalLinks { url site type }
+                            siteUrl
                         }
                     }
                 """.trimIndent()
@@ -329,74 +261,8 @@ class AniListApi(
                     buildJsonObject { put("id", mediaId) },
                     authenticated = false
                 )
-                val media = json.decodeFromString<AniListRelationResponse>(body).data?.Media
-                (media?.relations?.edges ?: emptyList()) to (media?.recommendations?.edges ?: emptyList())
-            }.recoverFailure()
-        }
-
-    /** Community rankings + status/score distributions for the Stats tab. */
-    suspend fun getMediaStats(mediaId: Int): Result<AniListMedia> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val graphqlQuery = """
-                    query(${'$'}id: Int) {
-                        Media(id: ${'$'}id) {
-                            id
-                            title { romaji english }
-                            rankings {
-                                rank
-                                type
-                                context
-                                year
-                                allTime
-                            }
-                            stats {
-                                statusDistribution { statuses { status amount } }
-                                scoreDistribution { score amount }
-                            }
-                        }
-                    }
-                """.trimIndent()
-
-                val body = execute(
-                    graphqlQuery,
-                    buildJsonObject { put("id", mediaId) },
-                    authenticated = false
-                )
-                json.decodeFromString<AniListStatsResponse>(body).data?.Media
-                    ?: throw AniListException("AniList returned no stats for this title.", AniListException.Kind.GRAPHQL)
-            }.recoverFailure()
-        }
-
-    /** Top community reviews for the Social tab. The live AniList API exposes no
-     *  media-scoped forum-thread or activity queries, so those are not offered. */
-    suspend fun getMediaSocial(mediaId: Int): Result<List<AniListReview>> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val graphqlQuery = """
-                    query(${'$'}id: Int) {
-                        Media(id: ${'$'}id) {
-                            id
-                            title { romaji english }
-                            reviews(perPage: 5, sort: RATING_DESC) {
-                                nodes {
-                                    summary
-                                    score
-                                    rating
-                                    user { name avatar { medium } }
-                                }
-                            }
-                        }
-                    }
-                """.trimIndent()
-
-                val body = execute(
-                    graphqlQuery,
-                    buildJsonObject { put("id", mediaId) },
-                    authenticated = false
-                )
-                json.decodeFromString<AniListSocialResponse>(body).data?.Media?.reviews?.nodes
-                    ?: emptyList()
+                json.decodeFromString<AniListMediaSingleResponse>(body).data?.Media
+                    ?: throw AniListException("AniList returned no detail for this title.", AniListException.Kind.GRAPHQL)
             }.recoverFailure()
         }
 

@@ -93,14 +93,10 @@ data class AniListMedia(
     val favourites: Int? = null,
     val studios: AniListStudioConnection? = null,
     val staff: AniListStaffConnection? = null,
-    val characters: AniListCharacterConnection? = null,
     val tags: List<AniListMediaTag>? = null,
     val trailer: AniListTrailer? = null,
     val nextAiringEpisode: AniListNextAiringEpisode? = null,
     val relations: AniListRelationConnection? = null,
-    val recommendations: AniListRecommendationConnection? = null,
-    val rankings: List<AniListRanking>? = null,
-    val statistics: AniListStatistics? = null,
     val streamingEpisodes: List<StreamingEpisode>? = null,
     val externalLinks: List<ExternalLink>? = null
 )
@@ -169,9 +165,7 @@ data class ExternalLink(
     val url: String,
     val site: String,
     /** STREAMING or INFO (only selected by the detail query). */
-    val type: String? = null,
-    /** ISO language code of the link, e.g. JP / EN. */
-    val language: String? = null
+    val type: String? = null
 )
 
 // ---------------------------------------------------------------------------
@@ -180,159 +174,12 @@ data class ExternalLink(
 
 @Serializable
 data class AniListStudioConnection(
-    val edges: List<AniListStudioEdge> = emptyList()
-)
-
-@Serializable
-data class AniListStudioEdge(
-    val isMainStudio: Boolean? = null,
-    val node: AniListStudio? = null
+    val nodes: List<AniListStudio> = emptyList()
 )
 
 @Serializable
 data class AniListStudio(
     val name: String? = null
-)
-
-// ---------------------------------------------------------------------------
-// Detail-tab models (staff / characters / relations / stats / social)
-// ---------------------------------------------------------------------------
-
-@Serializable
-data class AniListStaffResponse(
-    val data: AniListStaffData? = null
-)
-
-@Serializable
-data class AniListStaffData(
-    val Media: AniListMedia? = null
-)
-
-@Serializable
-data class AniListCharacterConnection(
-    val edges: List<AniListCharacterEdge> = emptyList()
-)
-
-@Serializable
-data class AniListCharacterEdge(
-    /** MAIN, SUPPORTING, BACKGROUND */
-    val role: String? = null,
-    val node: AniListCharacter? = null,
-    val voiceActors: List<AniListStaff> = emptyList()
-)
-
-@Serializable
-data class AniListCharacter(
-    val name: AniListStaffName? = null,
-    val image: AniListCoverImage? = null
-)
-
-@Serializable
-data class AniListRelationResponse(
-    val data: AniListRelationData? = null
-)
-
-@Serializable
-data class AniListRelationData(
-    val Media: AniListMedia? = null
-)
-
-@Serializable
-data class AniListRecommendationConnection(
-    val edges: List<AniListRecommendationEdge> = emptyList()
-)
-
-@Serializable
-data class AniListRecommendationEdge(
-    val node: AniListRecommendation? = null
-)
-
-@Serializable
-data class AniListRecommendation(
-    /** How many users endorsed this recommendation. */
-    val rating: Int? = null,
-    val mediaRecommendation: AniListMedia? = null
-)
-
-@Serializable
-data class AniListStatsResponse(
-    val data: AniListStatsData? = null
-)
-
-@Serializable
-data class AniListStatsData(
-    val Media: AniListMedia? = null
-)
-
-@Serializable
-data class AniListRanking(
-    val rank: Int? = null,
-    /** RATED or POPULAR */
-    val type: String? = null,
-    /** ALL_TIME, YEAR, ... */
-    val context: String? = null,
-    val year: Int? = null,
-    val allTime: Boolean? = null
-)
-
-@Serializable
-data class AniListStatistics(
-    val statusDistribution: AniListStatusDistribution? = null,
-    val scoreDistribution: List<AniListScoreCount> = emptyList()
-)
-
-@Serializable
-data class AniListStatusDistribution(
-    val statuses: List<AniListStatusCount> = emptyList()
-)
-
-@Serializable
-data class AniListStatusCount(
-    /** CURRENT, PLANNING, COMPLETED, DROPPED, PAUSED, REPEATING */
-    val status: String? = null,
-    val amount: Int? = null
-)
-
-@Serializable
-data class AniListScoreCount(
-    /** 0-100 in steps of 10 */
-    val score: Int? = null,
-    val amount: Int? = null
-)
-
-@Serializable
-data class AniListSocialResponse(
-    val data: AniListSocialData? = null
-)
-
-@Serializable
-data class AniListSocialData(
-    val Media: AniListSocialMedia? = null
-)
-
-@Serializable
-data class AniListSocialMedia(
-    val reviews: AniListReviewConnection? = null
-)
-
-@Serializable
-data class AniListReviewConnection(
-    val nodes: List<AniListReview> = emptyList()
-)
-
-@Serializable
-data class AniListReview(
-    val summary: String? = null,
-    /** 0-100 */
-    val score: Int? = null,
-    val rating: Int? = null,
-    val user: AniListSocialUser? = null
-)
-
-@Serializable
-data class AniListSocialUser(
-    val name: String? = null,
-    val avatar: AniListAvatar? = null
 )
 
 @Serializable
