@@ -525,6 +525,7 @@ fun AniListDetailScreen(
                     )
                     else -> SocialTab(
                         state = socialState,
+                        siteUrl = d.siteUrl,
                         onRetry = { onLoadSocial(media.id) }
                     )
                 }
@@ -773,21 +774,27 @@ private fun InformationTab(
     ) {
         DetailSectionTitle("Information")
 
-        InfoRow("Duration", d.duration?.let { "$it min" } ?: "Unknown")
-        InfoRow("Start date", formatFuzzyDate(d.startDate) ?: "Unknown")
-        InfoRow("End date", formatFuzzyDate(d.endDate) ?: "Unknown")
-        InfoRow(
-            "Season",
-            listOfNotNull(
-                d.season?.lowercase()?.replaceFirstChar { it.uppercase() },
-                d.seasonYear?.toString()
-            ).joinToString(" ").ifBlank { "Unknown" }
-        )
-        InfoRow(
-            "Source",
-            d.source?.lowercase()?.split("_")?.joinToString(" ")?.replaceFirstChar { it.uppercase() }
-                ?: "Unknown"
-        )
+        // Rows with no data are skipped entirely — "Unknown" walls help nobody.
+        d.duration?.let { InfoRow("Duration", "$it min") }
+        d.episodes?.let { InfoRow("Episodes", "$it") }
+        d.chapters?.let { InfoRow("Chapters", "$it") }
+        d.volumes?.let { InfoRow("Volumes", "$it") }
+        val statusText = readableReleaseStatus(d.status)
+        if (statusText.isNotBlank()) InfoRow("Status", statusText)
+        formatFuzzyDate(d.startDate)?.let { InfoRow("Start date", it) }
+        formatFuzzyDate(d.endDate)?.let { InfoRow("End date", it) }
+        val seasonText = listOfNotNull(
+            d.season?.lowercase()?.replaceFirstChar { it.uppercase() },
+            d.seasonYear?.toString()
+        ).joinToString(" ")
+        if (seasonText.isNotBlank()) InfoRow("Season", seasonText)
+        d.source?.let {
+            InfoRow(
+                "Source",
+                it.lowercase().split("_").joinToString(" ").replaceFirstChar { c -> c.uppercase() }
+            )
+        }
+        d.countryOfOrigin?.let { InfoRow("Country", it) }
         InfoRow("Romaji", d.title.romaji ?: "—")
         InfoRow("English", d.title.english ?: "—")
         InfoRow("Native", d.title.native ?: "—")
@@ -1248,10 +1255,11 @@ private fun RelationsTab(
                 Spacer(modifier = Modifier.height(4.dp))
                 MediaCardRow(
                     items = state.recommendations.mapNotNull { edge ->
-                        edge.node?.mediaRecommendation?.let {
+                        val rec = edge.node
+                        rec?.mediaRecommendation?.let {
                             MediaCardItemData(
                                 it,
-                                edge.rating?.takeIf { r -> r > 0 }?.let { r -> "$r likes" } ?: "Recommended"
+                                rec.rating?.takeIf { r -> r > 0 }?.let { r -> "$r likes" } ?: "Recommended"
                             )
                         }
                     },
@@ -1469,8 +1477,10 @@ private fun ScoreDistributionChart(dist: List<AniListScoreCount>) {
 @Composable
 private fun SocialTab(
     state: MediaViewModel.DetailSocialState,
+    siteUrl: String?,
     onRetry: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1479,60 +1489,9 @@ private fun SocialTab(
     ) {
         if (state.isLoading) {
             TabLoading()
-        } else if (state.error != null && state.threads.isEmpty() && state.reviews.isEmpty()) {
+        } else if (state.error != null && state.reviews.isEmpty()) {
             TabError(state.error, onRetry)
         } else {
-            if (state.threads.isNotEmpty()) {
-                DetailSectionTitle("Threads")
-                state.threads.forEach { thread ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.medium,
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Text(
-                                text = thread.title ?: "",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onBackground,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Rounded.Chat,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(13.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    "${thread.replyCount ?: 0}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    "${formatCompact(thread.viewCount ?: 0)} views",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
-                                Text(
-                                    thread.user?.name ?: "",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
             if (state.reviews.isNotEmpty()) {
                 DetailSectionTitle("Reviews")
                 state.reviews.forEach { review ->
@@ -1578,39 +1537,30 @@ private fun SocialTab(
                 }
             }
 
-            if (state.activities.isNotEmpty()) {
-                DetailSectionTitle("Recent activity")
-                state.activities.forEach { activity ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = buildString {
-                                    append(activity.user?.name ?: "Someone")
-                                    activity.progress?.let { append(" · $it") }
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onBackground
+            if (!siteUrl.isNullOrBlank()) {
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            context.startActivity(
+                                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(siteUrl))
                             )
-                            activity.createdAt?.let {
-                                Text(
-                                    text = relativeTime(it * 1000L),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                        } catch (_: Exception) {
                         }
-                    }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp),
+                    shape = MaterialTheme.shapes.large
+                ) {
+                    Icon(Icons.Rounded.Public, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Discuss on AniList")
                 }
             }
 
-            if (state.threads.isEmpty() && state.reviews.isEmpty() && state.activities.isEmpty() && state.error == null) {
+            if (state.reviews.isEmpty() && state.error == null) {
                 Text(
-                    "Nothing here yet.",
+                    "No reviews yet.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1665,7 +1615,7 @@ private fun DetailSectionTitle(text: String) {
 private fun MediaViewModel.DetailStaffState.isEmpty() = staff.isEmpty() && characters.isEmpty() && error == null
 private fun MediaViewModel.DetailRelationsState.isEmpty() = related.isEmpty() && recommendations.isEmpty() && error == null
 private fun MediaViewModel.DetailStatsState.isEmpty() = rankings.isEmpty() && statusDist.isEmpty() && scoreDist.isEmpty() && error == null
-private fun MediaViewModel.DetailSocialState.isEmpty() = threads.isEmpty() && reviews.isEmpty() && activities.isEmpty() && error == null
+private fun MediaViewModel.DetailSocialState.isEmpty() = reviews.isEmpty() && error == null
 
 private fun Double.format1(): String = String.format("%.1f", this)
 

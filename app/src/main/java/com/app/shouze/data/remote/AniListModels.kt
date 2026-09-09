@@ -244,12 +244,13 @@ data class AniListRecommendationConnection(
 
 @Serializable
 data class AniListRecommendationEdge(
-    val rating: Int? = null,
     val node: AniListRecommendation? = null
 )
 
 @Serializable
 data class AniListRecommendation(
+    /** How many users endorsed this recommendation. */
+    val rating: Int? = null,
     val mediaRecommendation: AniListMedia? = null
 )
 
@@ -306,8 +307,7 @@ data class AniListSocialResponse(
 
 @Serializable
 data class AniListSocialData(
-    val Media: AniListSocialMedia? = null,
-    val Page: AniListSocialPage? = null
+    val Media: AniListSocialMedia? = null
 )
 
 @Serializable
@@ -326,28 +326,6 @@ data class AniListReview(
     /** 0-100 */
     val score: Int? = null,
     val rating: Int? = null,
-    val user: AniListSocialUser? = null
-)
-
-@Serializable
-data class AniListSocialPage(
-    val threads: List<AniListThread> = emptyList(),
-    val activities: List<AniListActivity> = emptyList()
-)
-
-@Serializable
-data class AniListThread(
-    val title: String? = null,
-    val replyCount: Int? = null,
-    val viewCount: Int? = null,
-    val user: AniListSocialUser? = null
-)
-
-@Serializable
-data class AniListActivity(
-    val createdAt: Int? = null,
-    /** e.g. "watched episode 5" / "read chapter 12" */
-    val progress: String? = null,
     val user: AniListSocialUser? = null
 )
 

@@ -1017,9 +1017,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     data class DetailSocialState(
         val isLoading: Boolean = false,
-        val threads: List<com.app.shouze.data.remote.AniListThread> = emptyList(),
         val reviews: List<com.app.shouze.data.remote.AniListReview> = emptyList(),
-        val activities: List<com.app.shouze.data.remote.AniListActivity> = emptyList(),
         val error: String? = null
     )
 
@@ -1083,11 +1081,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _detailSocial.value = DetailSocialState(isLoading = true)
             aniListApi.getMediaSocial(id).fold(
-                onSuccess = { (threads, reviews, activities) ->
-                    _detailSocial.value = DetailSocialState(
-                        threads = threads, reviews = reviews, activities = activities
-                    )
-                },
+                onSuccess = { reviews -> _detailSocial.value = DetailSocialState(reviews = reviews) },
                 onFailure = { e -> _detailSocial.value = DetailSocialState(error = friendlyError(e)) }
             )
         }
