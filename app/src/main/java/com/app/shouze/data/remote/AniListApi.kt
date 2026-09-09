@@ -256,6 +256,8 @@ class AniListApi(
                 val graphqlQuery = """
                     query(${'$'}id: Int) {
                         Media(id: ${'$'}id) {
+                            id
+                            title { romaji english }
                             staff(perPage: 12, sort: RELEVANCE) {
                                 edges {
                                     role
@@ -290,6 +292,8 @@ class AniListApi(
                 val graphqlQuery = """
                     query(${'$'}id: Int) {
                         Media(id: ${'$'}id) {
+                            id
+                            title { romaji english }
                             relations {
                                 edges {
                                     relationType
@@ -304,8 +308,8 @@ class AniListApi(
                             }
                             recommendations {
                                 edges {
-                                    rating
                                     node {
+                                        rating
                                         mediaRecommendation {
                                             id
                                             title { romaji english }
@@ -337,6 +341,8 @@ class AniListApi(
                 val graphqlQuery = """
                     query(${'$'}id: Int) {
                         Media(id: ${'$'}id) {
+                            id
+                            title { romaji english }
                             rankings {
                                 rank
                                 type
@@ -344,7 +350,7 @@ class AniListApi(
                                 year
                                 allTime
                             }
-                            statistics {
+                            stats {
                                 statusDistribution { statuses { status amount } }
                                 scoreDistribution { score amount }
                             }
@@ -362,33 +368,23 @@ class AniListApi(
             }.recoverFailure()
         }
 
-    /** Threads, top reviews and recent friends' activity for the Threads tab. */
-    suspend fun getMediaSocial(mediaId: Int): Result<Triple<List<AniListThread>, List<AniListReview>, List<AniListActivity>>> =
+    /** Top community reviews for the Social tab. The live AniList API exposes no
+     *  media-scoped forum-thread or activity queries, so those are not offered. */
+    suspend fun getMediaSocial(mediaId: Int): Result<List<AniListReview>> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val graphqlQuery = """
                     query(${'$'}id: Int) {
                         Media(id: ${'$'}id) {
-                            reviews(perPage: 3, sort: RATING_DESC) {
+                            id
+                            title { romaji english }
+                            reviews(perPage: 5, sort: RATING_DESC) {
                                 nodes {
                                     summary
                                     score
                                     rating
                                     user { name avatar { medium } }
                                 }
-                            }
-                        }
-                        Page(page: 1) {
-                            threads(mediaId: ${'$'}id, perPage: 4, sort: ID_DESC) {
-                                title
-                                replyCount
-                                viewCount
-                                user { name avatar { medium } }
-                            }
-                            activities(mediaId: ${'$'}id, perPage: 4, sort: ID_DESC) {
-                                createdAt
-                                progress
-                                user { name avatar { medium } }
                             }
                         }
                     }
@@ -399,12 +395,8 @@ class AniListApi(
                     buildJsonObject { put("id", mediaId) },
                     authenticated = false
                 )
-                val data = json.decodeFromString<AniListSocialResponse>(body).data
-                Triple(
-                    data?.Page?.threads ?: emptyList(),
-                    data?.Media?.reviews?.nodes ?: emptyList(),
-                    data?.Page?.activities ?: emptyList()
-                )
+                json.decodeFromString<AniListSocialResponse>(body).data?.Media?.reviews?.nodes
+                    ?: emptyList()
             }.recoverFailure()
         }
 
